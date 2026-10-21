@@ -47,6 +47,7 @@ def board_updates():
         meetup_id=m["id"] if m else None,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=False) if m else "",
         queue=render_template("queue_list.html", board=current_board) if m else "",
+        reservations=current_board.get("reservations", []) if current_board else [],
         active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]) if m else 0,
         queue_count=len(current_board["queue"]) if m else 0,
     )
