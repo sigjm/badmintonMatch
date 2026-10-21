@@ -343,9 +343,10 @@ def board(conn, meetup_id: int) -> dict:
     for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
         court_list.append({"court": c, "game_id": g["id"] if g else None,
-                           "teams": [[names[g["a1"]], names[g["a2"]]], [names[g["b1"]], names[g["b2"]]]] if g else None,
-                           "team_players": [[member_by_id[g["a1"]], member_by_id[g["a2"]]],
-                                            [member_by_id[g["b1"]], member_by_id[g["b2"]]]] if g else None})
+                           "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
+                                     [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,
+                           "team_players": [[member_by_id.get(g["a1"]), member_by_id.get(g["a2"])],
+                                            [member_by_id.get(g["b1"]), member_by_id.get(g["b2"])]] if g else None})
     playing = _playing(conn, meetup_id)
     excluded = []
     for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status FROM attendees a

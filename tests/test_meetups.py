@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 
 import pytest
@@ -567,3 +568,22 @@ def test_gender_change_drops_reservation_and_prevents_uneven_game(conn):
         women_in_game = sum(conn.execute("SELECT gender FROM members WHERE id = ?", (p,)).fetchone()[0] == "F"
                             for p in active_g)
         assert women_in_game in (0, 2, 4)
+
+
+def test_board_tolerates_missing_attendee_in_game(conn):
+    # 경기 데이터에 attendee 레코드가 누락된 회원이 있더라도 board()가 KeyError 없이 "?"로 방어 렌더링되어야 함
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    m1 = create_member(conn, "선수1", gender="M", grade="A")
+    m2 = create_member(conn, "선수2", gender="M", grade="A")
+    m3 = create_member(conn, "선수3", gender="M", grade="A")
+    m4 = create_member(conn, "선수4", gender="M", grade="A")
+    add_attendee(conn, mid, m1, "paste")
+    add_attendee(conn, mid, m2, "paste")
+    add_attendee(conn, mid, m3, "paste")
+    # m4는 attendees에 없음
+    conn.execute("UPDATE meetups SET courts = 1, started = 1 WHERE id = ?", (mid,))
+    conn.execute("INSERT INTO games(meetup_id, court, a1, a2, b1, b2, started_at) VALUES (?, 1, ?, ?, ?, ?, ?)",
+                 (mid, m1, m2, m3, m4, time.time()))
+
+    b = board(conn, mid)
+    assert b["courts"][0]["teams"] == [["선수1", "선수2"], ["선수3", "?"]]
