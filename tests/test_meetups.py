@@ -532,3 +532,38 @@ def test_reduce_courts_clears_excess_reservations(conn):
     b = board(conn, mid)
     assert len(b["reservations"]) == 1
     assert len(b["queue"]) == 12
+
+
+def test_gender_change_drops_reservation_and_prevents_uneven_game(conn):
+    # 예약에 포함된 선수의 성별이 변경(M -> F)되면 성비가 깨지므로(3:1 등) 예약이 해제되어야 한다
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    for i in range(12):
+        create_member(conn, f"m{i}", gender="M", grade="A")
+        add_attendee(conn, mid, i + 1, "paste")
+    start(conn, mid, 1)
+
+    resvs = reservations(conn, mid)
+    assert len(resvs) == 1
+    target = resvs[0]["a1"]
+
+    # 예약된 선수의 성별을 M -> F로 변경
+    changed = set_info(conn, target, "F", "A", by="admin")
+    on_info_changed(conn, target, changed, meetup_id=mid)
+
+    # 남1여3 / 남3여1이 포함된 예약이 그대로 유지되어서는 안 됨
+    resvs_after = reservations(conn, mid)
+    if resvs_after:
+        r = resvs_after[0]
+        women = sum(conn.execute("SELECT gender FROM members WHERE id = ?", (r[k],)).fetchone()[0] == "F"
+                    for k in ("a1", "a2", "b1", "b2"))
+        assert women in (0, 2, 4)
+
+    # 코트 경기 역시 3:1이나 1:3으로 생성되어서는 안 됨 (경기가 생겼다면 허용 성비(0, 2, 4)여야 함)
+    g1 = conn.execute("SELECT id FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()[0]
+    end_game(conn, g1)
+
+    active_g = conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    if active_g is not None:
+        women_in_game = sum(conn.execute("SELECT gender FROM members WHERE id = ?", (p,)).fetchone()[0] == "F"
+                            for p in active_g)
+        assert women_in_game in (0, 2, 4)
