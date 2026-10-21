@@ -1,7 +1,7 @@
 {% from "_macros.html" import player_chip %}
 {# 코트 목록 — 운영 메뉴는 관리자 화면에서 카드를 길게 눌러 팝업으로 표시한다 #}
 {% for c in board.courts %}
-<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin and c.game_id %}, 눌러서 관리 팝업 열기{% endif %}"{% if admin and c.game_id %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
+<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin and c.game_id %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if admin and c.game_id %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
   <div class="court-match">

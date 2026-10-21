@@ -99,8 +99,19 @@
   .court-actions[hidden], .reservation-actions[hidden] { display:none; }
   .court-actions form { margin:0; }
   .court-actions .btn { box-sizing:border-box; width:100%; }
-  [data-long-press-actions] { position:relative; -webkit-user-select:none; user-select:none; }
-  #meetup-court-board [data-long-press-actions] { cursor:pointer; }
+  [data-long-press-actions] { position:relative; }
+  [data-long-press-actions],
+  [data-long-press-actions] * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [data-action-panel],
+  [data-action-panel] * {
+    -webkit-touch-callout: default;
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
   [data-long-press-actions]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
   [data-long-press-actions].actions-open { z-index:1; border-color:var(--primary-border); box-shadow:0 0 0 2px rgba(22,119,255,.08); }
   .actions-popup-active { position:relative; z-index:80; }
@@ -1056,7 +1067,7 @@
         window.clearTimeout(swallowTimer);
         swallowTimer = window.setTimeout(() => { swallowReleaseClick = false; }, 1_000);
         toggleActions(card, startX, startY);
-      }, 550);
+      }, 300);
     });
     document.addEventListener("pointermove", (event) => {
       if (holdTimer && event.pointerId === holdPointerId && holdTarget &&
@@ -1081,15 +1092,8 @@
         closeActions();
         return;
       }
-      const courtCard = event.target.closest("#meetup-court-board [data-long-press-actions]");
-      if (courtCard && !event.target.closest("[data-action-panel]")) {
-        event.preventDefault();
-        toggleActions(courtCard, event.clientX, event.clientY);
-        return;
-      }
       if (!openKey) return;
-      const openCard = [...document.querySelectorAll(selector)].find((card) => card.dataset.key === openKey);
-      if (openCard && !openCard.contains(event.target)) closeActions();
+      if (!event.target.closest("[data-action-panel]")) closeActions();
     }, true);
     document.addEventListener("submit", (event) => {
       if (event.target.closest("[data-action-panel]")) {
@@ -1110,6 +1114,7 @@
       const card = event.target.closest(selector);
       if (!card || isInteractive(event.target) || !card.dataset.key) return;
       event.preventDefault();
+      if (openedByHold || swallowReleaseClick) return;
       cancelHold();
       toggleActions(card, event.clientX, event.clientY);
     });
