@@ -3,7 +3,7 @@ from functools import wraps
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
-from . import get_conn
+from . import get_conn, meetups
 from .db import get_setting, set_setting
 from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (add_attendee, add_pasted, assign_manual, board, end_game, get_or_create_meetup,
@@ -168,6 +168,7 @@ def meetup_updates(mid):
                                     manual_candidates=candidates),
         queue=render_template("queue_list.html", board=current_board, admin=True, m=m,
                               manual_candidate_ids={r["id"] for r in candidates}),
+        reservations=current_board.get("reservations", []) if current_board else [],
         active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]),
         queue_count=len(current_board["queue"]),
     )
@@ -297,6 +298,18 @@ def end(gid):
 def redraw_game(gid):
     mid = _game_meetup(gid)
     redraw(get_conn(), gid)
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/reservation/<int:rid>/redraw")
+@admin_required
+def redraw_reservation(rid):
+    conn = get_conn()
+    mid = meetups.redraw_reservation(conn, rid)
+    if mid is None:
+        mid = request.form.get("mid", type=int)
+    if mid is None:
+        return redirect(url_for("admin.home"))
     return redirect(url_for("admin.meetup", mid=mid))
 
 

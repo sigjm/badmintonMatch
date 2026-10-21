@@ -60,3 +60,73 @@ def test_board_switches_group_by_query(client, conn_of):
     assert "오남 정모" in html and "금요일 야간민턴" in html  # 탭에 다른 모임도 보인다
     first = list_groups(c)[0]["id"]
     assert "진행 중인 정모가 없습니다" in client.get(f"/board?g={first}").get_data(as_text=True)
+
+
+def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup):
+    mid, _ = seeded_meetup
+    from badminton.meetups import board as orig_board
+
+    def fake_board(conn, meetup_id):
+        b = orig_board(conn, meetup_id)
+        b["reservations"] = [
+            {"id": 9, "no": 1, "teams": [["닉A(남A)", "닉B(여A)"], ["닉C(남B)", "닉D(여B)"]]},
+        ]
+        return b
+
+    monkeypatch.setattr("badminton.public.board", fake_board)
+
+    # 1. 공개 대진판 화면
+    html = client.get("/board").get_data(as_text=True)
+    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in html
+    assert "/admin/reservation" not in html
+    assert "다시 뽑기" not in html  # 공개 대진판에는 다시 뽑기 버튼이 없어야 함
+
+    # 2. 공개 3초 갱신 응답
+    resp = client.get("/board/updates")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "queue" in data
+    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in data["queue"]
+    assert "/admin/reservation" not in data["queue"]
+    assert "다시 뽑기" not in data["queue"]
+    assert len(data.get("reservations", [])) == 1
+
+
+def test_board_with_dict_players_in_reservations(client, monkeypatch, seeded_meetup):
+    mid, _ = seeded_meetup
+    from badminton.meetups import board as orig_board
+
+    def fake_board(conn, meetup_id):
+        b = orig_board(conn, meetup_id)
+        b["reservations"] = [
+            {
+                "id": 1,
+                "no": 1,
+                "teams": [
+                    [{"nickname": "홍길동", "gender": "M", "grade": "A"}, {"nickname": "김영희", "gender": "F", "grade": "B"}],
+                    [{"nickname": "이민수", "gender": "M", "grade": "C"}, {"nickname": "박수진", "gender": "F", "grade": "D"}],
+                ],
+            }
+        ]
+        return b
+
+    monkeypatch.setattr("badminton.public.board", fake_board)
+    html = client.get("/board").get_data(as_text=True)
+    assert "예약 1 · 홍길동(남A)·김영희(여B) vs 이민수(남C)·박수진(여D)" in html
+
+
+def test_board_without_reservations_key(client, monkeypatch, seeded_meetup):
+    mid, _ = seeded_meetup
+    from badminton.meetups import board as orig_board
+
+    def fake_board_no_resv(conn, meetup_id):
+        b = orig_board(conn, meetup_id)
+        b.pop("reservations", None)
+        return b
+
+    monkeypatch.setattr("badminton.public.board", fake_board_no_resv)
+    resp = client.get("/board")
+    assert resp.status_code == 200
+    resp_up = client.get("/board/updates")
+    assert resp_up.status_code == 200
+

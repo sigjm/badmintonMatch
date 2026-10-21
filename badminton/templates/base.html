@@ -158,6 +158,13 @@
   .team-sep { color:var(--muted); margin:0 3px; }
   .save-status { color:var(--green); font-size:11px; font-weight:700; white-space:nowrap; }
   .save-status.is-error { color:var(--red); }
+  .reservations { list-style:none; margin:8px 0 12px; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .reservation-item {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--pearl); border:1px solid var(--hair); border-radius:12px;
+    padding:8px 12px; font-size:14px; font-weight:700;
+  }
+  .reservation-text { min-width:0; overflow-wrap:anywhere; line-height:1.4; color:var(--ink); }
   .queue { list-style:none; margin:8px 0 4px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
   .queue li { display:inline-flex; align-items:center; gap:7px; background:var(--pearl); border:1px solid var(--hair); border-radius:11px; padding:5px 10px 5px 5px; font-size:14px; font-weight:650; }
   .queue b { display:inline-grid; place-items:center; min-width:25px; height:25px; border-radius:8px; background:var(--blue); color:#fff; font-size:12px; font-weight:800; }
@@ -192,6 +199,8 @@
     .board-big .court .team { font-size:13px; }
     .manual-match-panel { grid-column:1 / -1; }
     .quick-status-menu { min-width:165px; }
+    .reservation-item { padding:7px 10px; font-size:13px; }
+    .reservation-item .btn { min-height:30px; padding:0 9px; font-size:11px; }
     .stat-grid { gap:6px; }
     .stat-card { padding:9px; border-radius:12px; }
     .stat-card strong { font-size:18px; }

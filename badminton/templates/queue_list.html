@@ -1,7 +1,32 @@
 {% from "_macros.html" import player_name %}
 {% set manual_candidate_ids = manual_candidate_ids|default([]) %}
+{% macro format_player(p) -%}
+  {%- if p is string -%}
+    {{ p }}
+  {%- elif p is mapping -%}
+    {{ p.nickname }}{% if p.gender or p.grade %}({% if p.gender == 'M' %}남{% elif p.gender == 'F' %}여{% else %}{{ p.gender or '' }}{% endif %}{{ p.grade or '' }}){% endif %}
+  {%- else -%}
+    {{ p }}
+  {%- endif -%}
+{%- endmacro %}
 <section class="section">
   <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명</span></div>
+  {% set reservations = board.reservations|default([]) %}
+  {% if reservations %}
+  <ul class="reservations">
+    {% for res in reservations|sort(attribute='no') %}
+    <li class="reservation-item">
+      <span class="reservation-text">예약 {{ res.no }} · {% for team in res.teams %}{% if not loop.first %} vs {% endif %}{% for player in team %}{% if not loop.first %}·{% endif %}{{ format_player(player) }}{% endfor %}{% endfor %}</span>
+      {% if admin|default(false) and m %}
+      <form method="post" action="{{ url_for('admin.redraw_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
+        <input type="hidden" name="mid" value="{{ m.id }}">
+        <button type="submit" class="btn sm">다시 뽑기</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   {% if board.queue %}
   <ol class="queue">{% for p in board.queue_players %}<li>
     <b>{{ loop.index }}</b>
