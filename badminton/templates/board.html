@@ -22,7 +22,7 @@
   <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span>3초마다 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
 </section>
 <div class="board-layout">
-<section class="tile board-big" id="meetup-court-board">
+<section class="tile board-big live-courts" id="meetup-court-board">
   {% set admin = false %}{% include "_court_board_content.html" %}
 </section>
 <div id="meetup-reservations">{% include "reservation_list.html" %}</div>
