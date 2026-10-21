@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block nav %}{% include "admin_nav.html" %}{% endblock %}
+{% block content %}
+<h1>정모 불러오기</h1>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+{% if choices %}
+<div class="card">
+  <p>{{ date }}에 정모가 여러 개 있어요. 불러올 정모를 골라 주세요.</p>
+  {% for e in choices %}
+  <form method="post" action="{{ url_for('admin.import_date') }}" class="row">
+    <input type="hidden" name="date" value="{{ e.date }}"><input type="hidden" name="eid" value="{{ e.eid }}">
+    <button>{{ e.time }} {{ e.name }} ({{ e.place }})</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.import_date') }}" class="card row">
+  <input type="date" name="date" value="{{ date }}" required>
+  <button>소모임에서 불러오기</button>
+</form>
+
+{% if error %}
+<h2>붙여넣기로 등록</h2>
+<form method="post" action="{{ url_for('admin.paste') }}" class="card">
+  <p class="muted">소모임 앱에서 참석자 닉네임을 복사해 한 줄에 한 명씩 붙여넣어 주세요.</p>
+  <div class="row">
+    <input type="date" name="date" value="{{ date }}" required>
+    <input name="name" value="{{ name or '' }}" placeholder="정모 이름">
+  </div>
+  <p><textarea name="text" placeholder="닉네임&#10;닉네임"></textarea></p>
+  <button>붙여넣기 등록</button>
+</form>
+{% endif %}
+
+<h2>최근 정모</h2>
+{% for m in meetups %}
+<div class="card"><a href="{{ url_for('admin.meetup', mid=m.id) }}">{{ m.date }} · {{ m.name }}</a>
+  {% if m.started %}<span class="tag">진행</span>{% endif %}</div>
+{% else %}
+<p class="muted">아직 불러온 정모가 없습니다.</p>
+{% endfor %}
+{% endblock %}

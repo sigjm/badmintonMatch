@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}운영진 로그인{% endblock %}
+{% block content %}
+<h1>운영진 로그인</h1>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<form method="post" class="row">
+  <input type="password" name="password" placeholder="운영진 비밀번호" autofocus required>
+  <button>로그인</button>
+</form>
+{% endblock %}

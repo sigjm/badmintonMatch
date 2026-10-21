@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% block head %}{% endblock %}
+<title>{% block title %}배드민턴 매칭{% endblock %}</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#6b7280; --line:#e3e6ea; --accent:#2563eb; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1b2026; --fg:#e8eaed; --muted:#9aa3ad; --line:#2c333b; --accent:#5b8def; --warn:#f0a35b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.3rem; margin:.2rem 0 1rem; } h2 { font-size:1.05rem; margin:1.4rem 0 .5rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin:8px 0; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .flash { background:var(--card); border-left:4px solid var(--accent); padding:10px 12px; margin:8px 0; border-radius:8px; }
+  .error { border-left-color:var(--warn); }
+  form.inline { display:inline; }
+  input, select, textarea, button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); max-width:100%; }
+  button { background:var(--accent); color:#fff; border:0; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  textarea { width:100%; min-height:8rem; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .court { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+  .vs { font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  td, th { padding:6px 4px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  .tag { display:inline-block; white-space:nowrap; margin:2px 0; font-size:.75rem; padding:1px 6px; border-radius:6px; border:1px solid var(--line); color:var(--muted); }
+  nav a { margin-right:12px; color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<main>
+  {% block nav %}{% endblock %}
+  {% for msg in get_flashed_messages() %}<div class="flash">{{ msg }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>
