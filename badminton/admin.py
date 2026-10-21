@@ -56,10 +56,11 @@ def reject_cross_origin_mutations():
     if not source:
         abort(403)
     try:
-        source_host = urlsplit(source).netloc.lower()
+        source_origin = urlsplit(source)
     except ValueError:
         abort(403)
-    if source_host != request.host.lower():
+    expected_scheme = "https" if current_app.config["SESSION_COOKIE_SECURE"] else request.scheme
+    if source_origin.scheme != expected_scheme or source_origin.netloc.lower() != request.host.lower():
         abort(403)
 
 

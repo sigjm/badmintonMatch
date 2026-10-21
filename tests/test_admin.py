@@ -50,11 +50,12 @@ def test_info_edit_rejects_member_from_another_meetup(admin, seeded_meetup, conn
     assert reservation["a1"] == member_id
 
 
-def test_admin_mutation_rejects_cross_origin_post(admin, conn_of):
+@pytest.mark.parametrize("origin", ["https://evil.jmllem.com", "https://localhost"])
+def test_admin_mutation_rejects_cross_origin_post(admin, conn_of, origin):
     from badminton.db import get_setting
 
     response = admin.post("/admin/settings", data={"female_offset": "3", "mix_window": "8"},
-                          environ_overrides={"HTTP_ORIGIN": "https://evil.jmllem.com"})
+                          environ_overrides={"HTTP_ORIGIN": origin})
 
     assert response.status_code == 403
     assert get_setting(conn_of(), "female_offset") == 1.5
