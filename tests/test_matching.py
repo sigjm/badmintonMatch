@@ -67,3 +67,9 @@ def test_pick_four_keeps_fewest_games_tier():
     q = [P(1, "M", "A"), P(2, "M", "D"), P(3, "M", "D"), P(4, "M", "D"),
          P(5, "M", "A", games=1), P(6, "M", "A", games=1), P(7, "M", "A", games=1)]
     assert {p.id for p in pick_four(q, 7, 1)} == {1, 2, 3, 4}
+
+
+def test_pick_four_avoids_last_game_mates():
+    q = [P(i, "M", "A") for i in range(1, 7)]
+    recent = {1: {2, 3, 4}, 2: {1, 3, 4}, 3: {1, 2, 4}, 4: {1, 2, 3}}
+    assert {p.id for p in pick_four(q, 6, 1, recent)} == {1, 2, 5, 6}

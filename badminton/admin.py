@@ -9,7 +9,7 @@ from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (add_attendee, add_pasted, board, end_game, get_or_create_meetup, on_info_changed, redraw,
                       refill_today, set_status, start, sync_somoim, today)
 from .members import changes, create_member, list_members, reset_pin, set_info
-from .somoim import SomoimError, attendees, events_on, fetch_group
+from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -307,7 +307,15 @@ def groups():
         session["group_id"] = add_group(conn, gid, name or gid)
         flash(f"{name or gid} 모임을 추가했습니다")
         return redirect(url_for("admin.home"))
-    return render_template("admin_groups.html", groups=list_groups(conn))
+    q, results, search_error = request.args.get("q", "").strip(), [], None
+    if q:
+        try:
+            results = search_groups(q)
+        except SomoimError:
+            search_error = "소모임에서 검색하지 못했습니다. 잠시 후 다시 시도하거나 링크를 붙여넣어 주세요."
+    known = {g["gid"] for g in list_groups(conn)}
+    return render_template("admin_groups.html", groups=list_groups(conn), q=q, known=known,
+                           results=[r for r in results if r[0] not in known], search_error=search_error)
 
 
 @bp.post("/groups/select")

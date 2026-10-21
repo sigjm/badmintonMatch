@@ -108,15 +108,27 @@ def queue(conn, meetup_id: int) -> list[Player]:
                        for r in rows if r["id"] not in playing])
 
 
+def _recent_mates(conn, meetup_id: int) -> dict[int, set[int]]:
+    """사람마다 가장 최근에 끝난 경기에서 같이 친 3명."""
+    mates = {}
+    for g in conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NOT NULL "
+                          "ORDER BY ended_at, id", (meetup_id,)):
+        four = set(g)
+        for p in four:
+            mates[p] = four - {p}
+    return mates
+
+
 def fill_courts(conn, meetup_id: int) -> None:
     courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
     busy = {r["court"] for r in conn.execute("SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                              (meetup_id,))}
     window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
+    recent = _recent_mates(conn, meetup_id)
     for court in range(1, courts + 1):
         if court in busy:
             continue
-        four = pick_four(queue(conn, meetup_id), window, offset)
+        four = pick_four(queue(conn, meetup_id), window, offset, recent)
         if four is None:
             return
         (a1, a2), (b1, b2) = split_teams(four, offset)

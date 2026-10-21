@@ -63,3 +63,13 @@ def test_fetch_group_wraps_unexpected_errors(monkeypatch):
 def test_group_name_from_title():
     html = "<title>노원구 배드민턴 모임 - 금요일 야간민턴</title>" + page([EV], [])
     assert parse_group(html).name == "금요일 야간민턴"
+
+
+def test_parse_search_results():
+    from badminton.somoim import parse_search
+    html = ('<a class="x" href="/8119d5e4-f96f-11ef-a485-0a4564f15a111"><img/><h3>📢 Team RBT 민턴 회원모집</h3><p>소개</p></a>'
+            '<a href="/8119d5e4-f96f-11ef-a485-0a4564f15a111"><h3>📢 Team RBT 민턴 회원모집</h3></a>'
+            '<a href="/groups/rcmd">추천</a>'
+            '<a href="/d49e0b02-b22a-413b-8295-53dc895bc4411"><h3>Team ONAM &amp; 친구</h3></a>')
+    assert parse_search(html) == [("8119d5e4-f96f-11ef-a485-0a4564f15a111", "📢 Team RBT 민턴 회원모집"),
+                                  ("d49e0b02-b22a-413b-8295-53dc895bc4411", "Team ONAM & 친구")]

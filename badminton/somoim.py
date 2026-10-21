@@ -7,6 +7,7 @@
 import html as htmllib
 import json
 import re
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
@@ -111,3 +112,28 @@ def fetch_group(group_id: str, timeout: float = 10) -> Group:
         raise
     except Exception as e:  # 외부 페이지 경계: 어떤 실패든 붙여넣기 안내로 이어지게 한다
         raise SomoimError(f"소모임 페이지를 읽지 못했습니다: {e}") from e
+
+
+SEARCH_RE = re.compile(r'<a[^>]+href="/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{13})"[^>]*>(.*?)</a>', re.S)
+
+
+def parse_search(html: str) -> list[tuple[str, str]]:
+    """소모임 웹 모임 검색 결과에서 (모임 ID, 모임 이름) 목록. 이름은 링크 안 첫 제목(h1~h4) 글자."""
+    results, seen = [], set()
+    for gid, inner in SEARCH_RE.findall(html):
+        title = re.search(r"<h[1-4][^>]*>(.*?)</h[1-4]>", inner, re.S)
+        if gid in seen or not title:
+            continue
+        seen.add(gid)
+        results.append((gid, htmllib.unescape(re.sub(r"<[^>]+>", "", title.group(1))).strip()))
+    return results
+
+
+def search_groups(keyword: str, timeout: float = 10) -> list[tuple[str, str]]:
+    url = "https://www.somoim.co.kr/groups/search?keyword=" + urllib.parse.quote(keyword)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return parse_search(resp.read().decode("utf-8"))
+    except Exception as e:  # 외부 페이지 경계
+        raise SomoimError(f"소모임 검색 실패: {e}") from e

@@ -178,3 +178,17 @@ def test_admin_home_shows_group_tabs(admin, conn_of):
 def test_bad_group_link_rejected(admin, conn_of):
     html = admin.post("/admin/groups", data={"link": "https://example.com/x"}, follow_redirects=True).get_data(as_text=True)
     assert "소모임 모임 링크" in html and conn_of().execute("SELECT count(*) FROM groups").fetchone()[0] == 1
+
+
+def test_group_search_lists_results_with_add_buttons(admin, monkeypatch):
+    monkeypatch.setattr("badminton.admin.search_groups",
+                        lambda q: [("8119d5e4-f96f-11ef-a485-0a4564f15a111", "Team RBT 민턴")])
+    html = admin.get("/admin/groups?q=RBT").get_data(as_text=True)
+    assert "Team RBT 민턴" in html and 'value="8119d5e4-f96f-11ef-a485-0a4564f15a111"' in html
+
+
+def test_group_search_failure_shows_message(admin, monkeypatch):
+    def boom(q):
+        raise SomoimError("down")
+    monkeypatch.setattr("badminton.admin.search_groups", boom)
+    assert "검색하지 못했습니다" in admin.get("/admin/groups?q=RBT").get_data(as_text=True)

@@ -172,3 +172,13 @@ def test_paste_ignores_guests_with_same_name(conn):
     mk(conn, "철수", "M", "A", guest=True)
     mk(conn, "철수", "M", "B")
     assert add_pasted(conn, mid, "철수")["added"] == ["철수"]
+
+
+def test_next_round_does_not_repeat_same_four(conn):
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"p{i}", "M", "A") for i in range(8)])
+    start(conn, mid, 1)
+    first = set(game_players(conn, current_game(conn, mid)))
+    end_game(conn, current_game(conn, mid))   # 대기하던 4명이 친다
+    end_game(conn, current_game(conn, mid))   # 이제 8명 모두 1판 → 직전 멤버끼리 다시 묶이지 않아야 함
+    assert set(game_players(conn, current_game(conn, mid))) != first

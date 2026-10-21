@@ -25,10 +25,13 @@ def sort_queue(players: list[Player]) -> list[Player]:
     return sorted(players, key=lambda p: (p.games, p.queued_at, p.id))
 
 
-def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1) -> list[Player] | None:
+def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1,
+              recent: dict[int, set[int]] | None = None) -> list[Player] | None:
     """대기열 맨 앞 사람 + 앞쪽 mix_window명 안에서 급수가 가장 비슷한 3명.
     경기 수가 가장 적은 사람이 4명 이상이면 그 안에서만 고른다(경기 수 공평성 우선).
-    급수 폭(최고-최저) 최소 → 혼복 → 남복/여복 → 대기 순서 앞쪽 순으로 고른다."""
+    recent(사람 → 직전 경기에서 같이 친 사람들)가 주어지면 그 사람들끼리 다시 묶이는 쌍이 적은 조합을 먼저 고른다.
+    (급수 폭 + 직전 멤버 겹친 쌍 × 2) 최소 → 겹침 적은 쪽 → 혼복 → 남복/여복 → 대기 순서 앞쪽 순."""
+    recent = recent or {}
     if len(queue) < 4:
         return None
     window = queue[:max(mix_window, 4)]
@@ -41,7 +44,9 @@ def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1
         scores = [score(p, female_offset) for p in four]
         women = sum(p.gender == "F" for p in four)
         kind = 0 if women == 2 else 1 if women in (0, 4) else 2
-        key = (max(scores) - min(scores), kind, sum(combo))
+        repeat = sum(1 for x, y in combinations(four, 2) if y.id in recent.get(x.id, ()))
+        spread = max(scores) - min(scores)
+        key = (spread + 2 * repeat, repeat, kind, sum(combo))  # 직전 멤버 1쌍 = 급수 2단계 벌점
         if best is None or key < best[0]:
             best = (key, four)
     return best[1]

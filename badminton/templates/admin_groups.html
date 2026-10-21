@@ -23,7 +23,31 @@
 </section>
 
 <section class="section">
-  <div class="head"><span>모임 추가</span></div>
+  <div class="head"><span>모임 이름으로 찾기</span></div>
+  <form method="get" class="bar" style="margin-top:8px">
+    <input name="q" value="{{ q or '' }}" placeholder="예: 금요일 야간민턴" style="flex:1;min-width:10rem" required>
+    <button class="btn">찾기</button>
+  </form>
+  {% if search_error %}<div class="note err" style="margin-top:12px">{{ search_error }}</div>{% endif %}
+  {% if q and not search_error %}
+  <ul class="rows" style="margin-top:8px">
+    {% for gid, name in results %}
+    <li class="row-top">
+      <span class="name">{{ name }}</span>
+      <form method="post" class="inline">
+        <input type="hidden" name="link" value="{{ gid }}"><input type="hidden" name="name" value="{{ name }}">
+        <button class="btn sm">추가</button>
+      </form>
+    </li>
+    {% else %}
+    <li class="muted">검색 결과가 없어요. 소모임 앱에서 모임 링크를 복사해 아래에 붙여넣어 주세요.</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="head"><span>링크로 추가</span></div>
   <form method="post">
     <label class="field">소모임 모임 링크
       <input name="link" placeholder="https://www.somoim.co.kr/..." required inputmode="url"></label>
