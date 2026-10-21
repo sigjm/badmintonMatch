@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}내 정보{% endblock %}
+{% block nav %}<nav class="row"><a href="{{ url_for('public.board_view') }}">대진</a><a href="{{ url_for('public.me') }}">내 정보</a></nav>{% endblock %}
+{% block content %}
+<h1>내 성별·급수 등록</h1>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if message %}<div class="flash">{{ message }}</div>{% endif %}
+<form method="post" class="card">
+  <p><label>닉네임<br>
+    <select name="member_id" required>
+      <option value="">소모임 닉네임 고르기</option>
+      {% for id, label in choices %}<option value="{{ id }}" {% if selected == id %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label></p>
+  <p><label>PIN 4자리<br>
+    <input name="pin" inputmode="numeric" pattern="\d{4}" maxlength="4" autocomplete="off" required></label><br>
+    <span class="muted">처음이면 지금 입력한 숫자가 내 PIN이 됩니다.</span></p>
+  <div class="row">
+    <select name="gender"><option value="">성별 (그대로)</option><option value="M">남</option><option value="F">여</option></select>
+    <select name="grade"><option value="">급수 (그대로)</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
+  </div>
+  <p><button>저장</button></p>
+</form>
+{% endblock %}

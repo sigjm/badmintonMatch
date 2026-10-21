@@ -34,5 +34,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.jinja_env.globals.update(GRADE_LABELS=GRADE_LABELS, STATUS_LABELS=STATUS_LABELS)
 
     from .admin import bp as admin_bp
+    from .public import bp as public_bp
     app.register_blueprint(admin_bp)
+    app.register_blueprint(public_bp)
     return app

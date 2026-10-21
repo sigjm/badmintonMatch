@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block head %}<meta http-equiv="refresh" content="10">{% endblock %}
+{% block title %}대진{% endblock %}
+{% block nav %}<nav class="row"><a href="{{ url_for('public.board_view') }}">대진</a><a href="{{ url_for('public.me') }}">내 정보</a></nav>{% endblock %}
+{% block content %}
+{% if not m %}
+<h1>대진</h1>
+<p class="muted">진행 중인 정모가 없습니다.</p>
+{% else %}
+<h1>{{ m.date }} · {{ m.name }}</h1>
+{% for c in board.courts %}
+<div class="card"><strong>코트 {{ c.court }}</strong>
+  {% if c.teams %}<div class="vs">{{ c.teams[0]|join(' · ') }} <span class="muted">vs</span> {{ c.teams[1]|join(' · ') }}</div>
+  {% else %}<div class="muted">대기 인원 부족</div>{% endif %}
+</div>
+{% endfor %}
+<h2>다음 순서</h2>
+<div class="card">{{ board.queue|join(' → ') if board.queue else '없음' }}</div>
+{% if board.excluded %}
+<p class="muted">{% for e in board.excluded %}<span class="tag">{{ e.nickname }} · {{ e.reason }}</span> {% endfor %}</p>
+{% endif %}
+<p class="muted">10초마다 자동으로 새로고침됩니다.</p>
+{% endif %}
+{% endblock %}
