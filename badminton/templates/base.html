@@ -459,16 +459,25 @@
       event.preventDefault();
       openStatusMenu(target, event.clientX, event.clientY);
     });
+    let startX = 0, startY = 0;
     document.addEventListener("pointerdown", (event) => {
       if (!statusMenu || !event.isPrimary || event.button > 0) return;
       const target = event.target.closest("[data-player-status]");
       if (!target) return;
       clearTimeout(statusHoldTimer);
+      startX = event.clientX;
+      startY = event.clientY;
       statusHoldTimer = window.setTimeout(() => {
         openStatusMenu(target, event.clientX, event.clientY);
         suppressManualClick = Boolean(target.closest("[data-manual-player]"));
         if (suppressManualClick) window.setTimeout(() => { suppressManualClick = false; }, 800);
       }, 550);
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (statusHoldTimer && Math.hypot(event.clientX - startX, event.clientY - startY) > 10) {
+        clearTimeout(statusHoldTimer);
+        statusHoldTimer = null;
+      }
     });
     ["pointerup", "pointercancel", "pointerleave"].forEach((type) => {
       document.addEventListener(type, () => clearTimeout(statusHoldTimer));
@@ -496,18 +505,27 @@
       renderManualSelection();
     });
 
+    const isStatusMenuOpen = () => Boolean(statusMenu && !statusMenu.hidden);
+
     const refreshLiveSections = async () => {
-      if (refreshing || document.hidden || manualFormIsBeingEdited()) return;
+      if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen()) return;
       refreshing = true;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch(root.dataset.liveUpdatesUrl, { cache: "no-store", headers: { "X-Requested-With": "XMLHttpRequest" } });
+        const response = await fetch(root.dataset.liveUpdatesUrl, {
+          cache: "no-store",
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         if (!response.ok) return;
         if (!response.headers.get("content-type")?.includes("application/json")) {
           window.location.assign(response.url);
           return;
         }
         const data = await response.json();
-        if (manualFormIsBeingEdited()) return;
+        if (manualFormIsBeingEdited() || isStatusMenuOpen()) return;
         const currentMeetupId = root.dataset.meetupId || "";
         const updatedMeetupId = data.meetup_id == null ? "" : String(data.meetup_id);
         if (updatedMeetupId !== currentMeetupId) {
@@ -525,8 +543,9 @@
         updateWaitLabels();
         document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
       } catch (_error) {
-        // 잠시 연결이 끊겨도 다음 3초 주기에 다시 시도한다.
+        // 잠시 연결이 끊기거나 타임아웃되어도 다음 3초 주기에 다시 시도한다.
       } finally {
+        clearTimeout(timeoutId);
         refreshing = false;
       }
     };

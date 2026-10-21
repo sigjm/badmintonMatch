@@ -132,3 +132,10 @@ def test_board_without_reservations_key(client, monkeypatch, seeded_meetup):
     resp_up = client.get("/board/updates")
     assert resp_up.status_code == 200
 
+
+def test_base_script_handles_scroll_and_menu_in_updates(client):
+    html = client.get("/board").get_data(as_text=True)
+    assert "pointermove" in html
+    assert "isStatusMenuOpen" in html
+
+
