@@ -298,8 +298,9 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
 
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in html
-    assert "예약 2 · 닉E(남C)·닉F(여C) vs 닉G(남D)·닉H(여D)" in html
+    assert 'class="court resv" aria-label="예약 1"' in html
+    assert 'class="court resv" aria-label="예약 2"' in html
+    assert "닉A(남A)" in html and "닉H(여D)" in html
     assert "/admin/reservation/9/redraw" in html
     assert "다시 뽑기" in html
 
@@ -308,7 +309,8 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in data["queue"]
+    assert 'aria-label="예약 1"' in data["queue"]
+    assert "닉D(여B)" in data["queue"]
     assert "/admin/reservation/9/redraw" in data["queue"]
     assert "다시 뽑기" in data["queue"]
     assert len(data.get("reservations", [])) == 2

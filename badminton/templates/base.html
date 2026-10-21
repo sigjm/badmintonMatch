@@ -61,15 +61,16 @@
   .section { padding:16px 18px; margin-top:16px; }
   .section > .head, .tile > .head { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:14px; font-weight:800; margin-bottom:7px; }
   .section > .head span:last-child, .tile > .head span:last-child { color:var(--muted); font-weight:600; }
-  .tile { padding:16px 18px 4px; margin:16px 0 0; }
+  .tile { padding:16px 18px 6px; margin:16px 0 0; }
   .tile > .head { color:var(--blue-dark); padding-bottom:10px; border-bottom:1px solid var(--hair); }
   .stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:14px 0; }
   .stat-card { min-width:0; padding:11px 13px; background:var(--card); border:1px solid var(--hair); border-radius:14px; }
   .stat-card span { display:block; color:var(--muted); font-size:12px; font-weight:650; }
   .stat-card strong { display:block; color:var(--blue-dark); font-size:21px; line-height:1.25; margin-top:3px; }
 
-  .court { display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--hair); }
-  .court:last-of-type { border-bottom:0; }
+  .court { display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px; margin-bottom:10px; background:var(--card); border:1px solid var(--hair); border-radius:16px; box-shadow:0 2px 8px rgba(32,72,126,.05); }
+  .resv .court-no { background:var(--blue-soft); color:var(--blue-dark); }
+  .resv .court-no small { color:var(--blue-dark); }
   .court-no { display:flex; flex-direction:column; align-items:center; justify-content:center; width:50px; height:50px; border-radius:14px; background:var(--blue); color:#fff; font-size:24px; font-weight:850; line-height:1; }
   .court-no small { display:block; color:#dceaff; font-size:9px; font-weight:700; letter-spacing:.5px; margin-bottom:4px; }
   .court-match { min-width:0; display:grid; grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr); align-items:center; gap:7px; }
@@ -115,7 +116,7 @@
   }
   .quick-menu-row .btn.sm { height:34px; min-height:34px; padding:0 10px; font-size:12px; border-radius:8px; }
   .quick-status-form { display:none; }
-  .board-big .court { grid-template-columns:56px minmax(0,1fr); padding:14px 0; }
+  .board-big .court { grid-template-columns:56px minmax(0,1fr); padding:14px; }
   .board-big .court-no { width:54px; height:54px; font-size:27px; }
   .board-big .team { padding:12px 10px; font-size:16px; }
   .board-big .court-actions { grid-column:2; flex-direction:row; }
@@ -177,13 +178,7 @@
   .team-sep { color:var(--muted); margin:0 3px; }
   .save-status { color:var(--green); font-size:11px; font-weight:700; white-space:nowrap; }
   .save-status.is-error { color:var(--red); }
-  .reservations { list-style:none; margin:8px 0 12px; padding:0; display:flex; flex-direction:column; gap:8px; }
-  .reservation-item {
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--pearl); border:1px solid var(--hair); border-radius:12px;
-    padding:8px 12px; font-size:14px; font-weight:700;
-  }
-  .reservation-text { min-width:0; overflow-wrap:anywhere; line-height:1.4; color:var(--ink); }
+  .reservations { margin:8px 0 12px; }
   .queue { list-style:none; margin:8px 0 4px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
   .queue li { display:inline-flex; align-items:center; gap:7px; background:var(--pearl); border:1px solid var(--hair); border-radius:11px; padding:5px 10px 5px 5px; font-size:14px; font-weight:650; }
   .queue b { display:inline-grid; place-items:center; min-width:25px; height:25px; border-radius:8px; background:var(--blue); color:#fff; font-size:12px; font-weight:800; }
@@ -205,7 +200,7 @@
     .event-banner { padding:19px 18px; border-radius:17px; }
     .section { padding:14px; border-radius:15px; }
     .tile { padding:14px 13px 3px; border-radius:16px; }
-    .court { grid-template-columns:46px minmax(0,1fr); gap:9px; }
+    .court { grid-template-columns:46px minmax(0,1fr); gap:9px; padding:10px; border-radius:14px; }
     .court-no { width:44px; height:46px; border-radius:12px; font-size:21px; }
     .court-match { grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr); gap:4px; }
     .team { padding:9px 5px; font-size:13px; }
@@ -218,8 +213,6 @@
     .board-big .court .team { font-size:13px; }
     .manual-match-panel { grid-column:1 / -1; }
     .quick-status-menu { min-width:165px; }
-    .reservation-item { padding:7px 10px; font-size:13px; }
-    .reservation-item .btn { min-height:30px; padding:0 9px; font-size:11px; }
     .stat-grid { gap:6px; }
     .stat-card { padding:9px; border-radius:12px; }
     .stat-card strong { font-size:18px; }

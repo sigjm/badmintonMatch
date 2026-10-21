@@ -77,7 +77,8 @@ def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup)
 
     # 1. 공개 대진판 화면
     html = client.get("/board").get_data(as_text=True)
-    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in html
+    assert 'class="court resv" aria-label="예약 1"' in html
+    assert "닉A(남A)" in html and "닉D(여B)" in html
     assert "/admin/reservation" not in html
     assert "다시 뽑기" not in html  # 공개 대진판에는 다시 뽑기 버튼이 없어야 함
 
@@ -86,7 +87,7 @@ def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup)
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert "예약 1 · 닉A(남A)·닉B(여A) vs 닉C(남B)·닉D(여B)" in data["queue"]
+    assert 'aria-label="예약 1"' in data["queue"]
     assert "/admin/reservation" not in data["queue"]
     assert "다시 뽑기" not in data["queue"]
     assert len(data.get("reservations", [])) == 1
@@ -112,7 +113,8 @@ def test_board_with_dict_players_in_reservations(client, monkeypatch, seeded_mee
 
     monkeypatch.setattr("badminton.public.board", fake_board)
     html = client.get("/board").get_data(as_text=True)
-    assert "예약 1 · 홍길동(남A)·김영희(여B) vs 이민수(남C)·박수진(여D)" in html
+    assert 'aria-label="예약 1"' in html
+    assert "A/홍길동" in html and "D/박수진" in html
 
 
 def test_board_without_reservations_key(client, monkeypatch, seeded_meetup):
