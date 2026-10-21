@@ -1,3 +1,5 @@
+import pytest
+
 from badminton.somoim import Group, SomoimError, SomoimMember
 from conftest import GROUP_ONE_EVENT
 
@@ -62,6 +64,35 @@ def test_admin_mutation_rejects_post_without_origin_or_referer(admin):
     response = admin.post("/admin/logout", environ_overrides={"HTTP_ORIGIN": "", "HTTP_REFERER": ""})
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(("path", "data"), [
+    ("/m/{mid}/info", {"member_id": "bad", "gender": "F", "grade": "B"}),
+    ("/m/{mid}/guest", {"member_id": "bad"}),
+    ("/m/{mid}/status", {"status": "present"}),
+    ("/m/{mid}/start", {}),
+    ("/settings", {}),
+])
+def test_malformed_admin_form_fields_do_not_raise_500(admin, seeded_meetup, path, data):
+    mid, _ = seeded_meetup
+    admin.application.config["PROPAGATE_EXCEPTIONS"] = False
+
+    response = admin.post("/admin" + path.format(mid=mid), data=data)
+
+    assert response.status_code < 500
+
+
+@pytest.mark.parametrize(("path", "data"), [
+    ("/m/{mid}/guest", {"member_id": "999999"}),
+    ("/members/999999", {"gender": "F", "grade": "B"}),
+])
+def test_stale_admin_member_ids_do_not_raise_500(admin, seeded_meetup, path, data):
+    mid, _ = seeded_meetup
+    admin.application.config["PROPAGATE_EXCEPTIONS"] = False
+
+    response = admin.post("/admin" + path.format(mid=mid), data=data)
+
+    assert response.status_code < 500
 
 
 def test_import_creates_meetup_with_attendees(admin, monkeypatch, conn_of):

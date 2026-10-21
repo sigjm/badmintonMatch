@@ -247,7 +247,10 @@ def status(mid):
 def info(mid):
     conn = get_conn()
     _meetup_row(mid)
-    member_id = int(request.form["member_id"])
+    try:
+        member_id = int(request.form["member_id"])
+    except ValueError:
+        abort(400)
     if conn.execute("SELECT 1 FROM attendees WHERE meetup_id = ? AND member_id = ?",
                     (mid, member_id)).fetchone() is None:
         flash("해당 정모 참석자를 찾을 수 없습니다")
@@ -319,7 +322,13 @@ def guest(mid):
     conn = get_conn()
     _meetup_row(mid)
     if request.form.get("member_id"):
-        member_id = int(request.form["member_id"])
+        try:
+            member_id = int(request.form["member_id"])
+        except ValueError:
+            abort(400)
+        if conn.execute("SELECT 1 FROM members WHERE id = ? AND is_guest = 1", (member_id,)).fetchone() is None:
+            flash("등록된 게스트를 찾을 수 없습니다")
+            return redirect(url_for("admin.meetup", mid=mid))
     else:
         nickname = request.form.get("nickname", "").strip()
         gender, grade = _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade"))
@@ -397,6 +406,8 @@ def members():
 @admin_required
 def member_update(member_id):
     conn = get_conn()
+    if conn.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
+        abort(404)
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")
