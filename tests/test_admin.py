@@ -50,6 +50,31 @@ def test_info_edit_rejects_member_from_another_meetup(admin, seeded_meetup, conn
     assert reservation["a1"] == member_id
 
 
+def test_info_edit_invalidates_shared_member_reservations_across_meetups(admin, seeded_meetup, conn_of):
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee, get_or_create_meetup, today
+
+    meetup_a, _ = seeded_meetup
+    conn = conn_of()
+    meetup_b = get_or_create_meetup(conn, today(), "다른 정모", None)
+    member_id = create_member(conn, "공통 회원", gender="F", grade="B")
+    player_ids = [member_id] + [create_member(conn, f"다른-{i}", gender="M", grade="C") for i in range(3)]
+    add_attendee(conn, meetup_a, member_id, "paste")
+    for player_id in player_ids:
+        conn.execute("INSERT INTO attendees(meetup_id, member_id, status, source, queued_at) "
+                     "VALUES (?, ?, 'present', 'paste', 0)", (meetup_b, player_id))
+    conn.execute("UPDATE meetups SET courts = 1, started = 1 WHERE id = ?", (meetup_b,))
+    conn.execute("INSERT INTO reservations(meetup_id, seq, a1, a2, b1, b2, created_at) "
+                 "VALUES (?, 1, ?, ?, ?, ?, 0)", (meetup_b, *player_ids))
+
+    admin.post(f"/admin/m/{meetup_a}/info", data={"member_id": member_id, "gender": "", "grade": ""})
+
+    assert conn.execute("SELECT 1 FROM reservations WHERE meetup_id = ?", (meetup_b,)).fetchone() is None
+    assert conn.execute("SELECT 1 FROM games WHERE meetup_id = ? AND ended_at IS NULL "
+                         "AND (a1 = ? OR a2 = ? OR b1 = ? OR b2 = ?)",
+                         (meetup_b, member_id, member_id, member_id, member_id)).fetchone() is None
+
+
 @pytest.mark.parametrize("origin", ["https://evil.jmllem.com", "https://localhost"])
 def test_admin_mutation_rejects_cross_origin_post(admin, conn_of, origin):
     from badminton.db import get_setting

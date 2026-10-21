@@ -259,7 +259,7 @@ def info(mid):
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id, changed, meetup_id=mid)
+        on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
