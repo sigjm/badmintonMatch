@@ -1,0 +1,11 @@
+services:
+  badminton:
+    build: .
+    container_name: badminton
+    restart: unless-stopped
+    env_file: .env
+    environment: { DATABASE: /data/badminton.db, TZ: Asia/Seoul }
+    volumes: ["./data:/data"]
+    networks: [edge]
+networks:
+  edge: { external: true, name: server-edge_default }
