@@ -362,7 +362,7 @@ def test_admin_manual_match_routes(admin, seeded_meetup, conn_of):
 
     # 2. 빈 코트 미선택 실패 플래시
     resp2 = admin.post(f"/admin/m/{mid}/manual", data={"a1": 1, "a2": 2, "b1": 3, "b2": 4}, follow_redirects=True)
-    assert "배정할 빈 코트를 선택해 주세요" in resp2.get_data(as_text=True)
+    assert "빈 코트가 없습니다" in resp2.get_data(as_text=True)  # 코트를 안 고르면 빈 첫 코트, 다 차 있으면 안내
 
     # 3. 코트 2면으로 확장 후 수동 배정 성공
     from badminton.members import create_member
@@ -573,8 +573,25 @@ def test_admin_meetup_section_order(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     order = [html.index(x) for x in ("<span>정모 운영</span>", "운영 콘솔", 'id="meetup-court-board"',
-                                     'id="meetup-reservations"', 'id="meetup-queue"', 'id="meetup-excluded"',
-                                     'id="manual-match-picker"', "<span>게스트 추가</span>")]
+                                     'id="manual-match-picker"', 'id="meetup-reservations"', 'id="meetup-queue"',
+                                     'id="meetup-excluded"', "<span>게스트 추가</span>")]
     assert order == sorted(order)
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert "예약" in data["reservation_list"] and "다음 순서" in data["queue"] and "예약 1" not in data["queue"]
+
+
+def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn_of, monkeypatch):
+    from badminton import meetups
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = seeded_meetup
+    c = conn_of()
+    admin.post(f"/admin/game/{gid}/end")  # 코트 1이 15초 쉬는 중 → 빈 코트
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert "data-manual-draft" in html and html.count("data-draft-slot=") == 4 and "data-manual-fill" in html
+    ids = [r[0] for r in c.execute("SELECT member_id FROM attendees WHERE meetup_id = ? ORDER BY member_id", (mid,))]
+    resp = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
+    assert "코트 1에 수동 대진을 배정했습니다" in resp.get_data(as_text=True)
+    g = c.execute("SELECT court, a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()
+    assert g["court"] == 1 and [g["a1"], g["a2"], g["b1"], g["b2"]] == ids
+    again = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
+    assert "빈 코트가 없습니다" in again.get_data(as_text=True)

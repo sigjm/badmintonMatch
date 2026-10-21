@@ -172,7 +172,10 @@
   .manual-player-order { display:none; flex:none; color:var(--primary); font-size:10px; line-height:1; font-weight:600; }
   .is-selected .manual-player-order { display:inline; }
   .queue-player-select:disabled { opacity:.45; cursor:not-allowed; }
-  .manual-selection-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .manual-draft { margin:0; border-style:dashed; }
+  .manual-draft .court-no { background:var(--fill); color:var(--text-3); border:1px dashed var(--border); }
+  .draft-slot { cursor:pointer; }
+  .draft-slot.is-empty { color:var(--text-4); font-weight:400; cursor:default; }
 
   /* 길게 누르기 메뉴 (팝오버) */
   .quick-status-menu {
@@ -416,6 +419,7 @@
 
     const manualForm = document.querySelector("#manual-match-form");
     const selectedPlayers = [];
+    const selectedNames = {};  // 수동 대진 카드에 보일 "급수/이름" (누른 순간의 카드에서 읽어 둔다)
     const manualSlots = [...document.querySelectorAll("[data-manual-slot]")];
     const renderManualSelection = () => {
       manualSlots.forEach((slot, index) => { slot.value = selectedPlayers[index] || ""; });
@@ -428,8 +432,14 @@
         const order = button.querySelector("[data-player-order]");
         if (order) order.textContent = index < 0 ? "" : `${index < 2 ? "A" : "B"}${index % 2 + 1}`;
       });
-      document.querySelectorAll("[data-manual-court]").forEach((button) => {
+      document.querySelectorAll("[data-manual-court], [data-manual-fill]").forEach((button) => {
         button.disabled = selectedPlayers.length !== 4;
+      });
+      document.querySelectorAll("[data-draft-slot]").forEach((slot) => {
+        const info = selectedNames[selectedPlayers[Number(slot.dataset.draftSlot)]];
+        slot.textContent = info ? info.text : slot.dataset.placeholder;
+        slot.classList.toggle("is-empty", !info);
+        slot.classList.toggle("is-female", Boolean(info?.female));
       });
       const count = document.querySelector("[data-manual-selection-summary]");
       const detail = document.querySelector("[data-manual-selection-detail]");
@@ -457,6 +467,13 @@
         openStatusMenu(infoButton, event.clientX, event.clientY);
         return;
       }
+      const draftSlot = event.target.closest("[data-draft-slot]");
+      if (draftSlot) {
+        const index = Number(draftSlot.dataset.draftSlot);
+        if (index < selectedPlayers.length) selectedPlayers.splice(index, 1);
+        renderManualSelection();
+        return;
+      }
       if (event.target.closest("[data-manual-reset]")) {
         selectedPlayers.length = 0;
         renderManualSelection();
@@ -473,7 +490,13 @@
       const id = button.dataset.manualPlayer;
       const selectedIndex = selectedPlayers.indexOf(id);
       if (selectedIndex >= 0) selectedPlayers.splice(selectedIndex, 1);
-      else if (selectedPlayers.length < 4) selectedPlayers.push(id);
+      else if (selectedPlayers.length < 4) {
+        selectedPlayers.push(id);
+        const name = button.querySelector("[data-nickname]");
+        const grade = button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim();
+        selectedNames[id] = { text: `${grade && grade !== "?" ? `${grade}/` : ""}${name?.dataset.nickname || button.textContent.trim()}`,
+                              female: name?.dataset.gender === "F" };
+      }
       renderManualSelection();
     });
     renderManualSelection();

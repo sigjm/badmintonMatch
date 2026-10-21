@@ -38,28 +38,38 @@
 <section class="tile" id="meetup-court-board">
   {% set admin = true %}{% include "_court_board_content.html" %}
 </section>
-<div id="meetup-reservations">{% with admin=true, m=m %}{% include "reservation_list.html" %}{% endwith %}</div>
-</div>
-<div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
-<div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
-
+<div class="board-side">
 <section class="section manual-picker" id="manual-match-picker">
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
   {% if m.started and manual_candidates|length >= 4 %}
   <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
-    <p class="manual-match-help">다음 순서에서 선수 이름을 네 명 누른 뒤 빈 코트를 누르세요. 처음 두 명은 A팀, 다음 두 명은 B팀입니다. 길게 누르면 상태를 바꿀 수 있습니다.</p>
-    <div class="manual-selection-footer">
-      <span class="muted small" data-manual-selection-detail>팀 A 0/2 · 팀 B 0/2</span>
-      <button type="button" class="btn line sm" data-manual-reset>선택 초기화</button>
+    <p class="manual-match-help">다음 순서 카드에서 이름을 누르면 여기에 대진이 짜입니다. 카드 안의 이름을 누르면 빠집니다.</p>
+    <div class="court manual-draft" data-manual-draft>
+      <div class="court-no">+<small>수동</small></div>
+      <div class="court-match">
+        <div class="team"><span class="player-name draft-slot is-empty" data-draft-slot="0" data-placeholder="A팀 1">A팀 1</span><span class="team-sep">·</span><span class="player-name draft-slot is-empty" data-draft-slot="1" data-placeholder="A팀 2">A팀 2</span></div>
+        <span class="versus">VS</span>
+        <div class="team"><span class="player-name draft-slot is-empty" data-draft-slot="2" data-placeholder="B팀 1">B팀 1</span><span class="team-sep">·</span><span class="player-name draft-slot is-empty" data-draft-slot="3" data-placeholder="B팀 2">B팀 2</span></div>
+      </div>
+      <div class="court-actions">
+        <button type="submit" class="btn sm" data-manual-fill disabled>빈 코트에 넣기</button>
+        <button type="button" class="btn line sm" data-manual-reset>선택 초기화</button>
+      </div>
     </div>
     {% for field in ['a1', 'a2', 'b1', 'b2'] %}<input type="hidden" name="{{ field }}" data-manual-slot="{{ loop.index0 }}">{% endfor %}
   </form>
   {% elif not m.started %}
-  <p class="empty">코트를 시작하면 선수를 클릭해 빈 코트에 수동 배정할 수 있습니다.</p>
+  <p class="empty">코트를 시작하면 다음 순서 카드에서 이름을 눌러 수동 대진을 짤 수 있습니다.</p>
   {% else %}
   <p class="empty">수동 대진에는 경기 중이 아닌 참석자 네 명이 필요합니다 (현재 {{ manual_candidates|length }}명).</p>
   {% endif %}
 </section>
+<div id="meetup-reservations">{% with admin=true, m=m %}{% include "reservation_list.html" %}{% endwith %}</div>
+</div>
+</div>
+<div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
+<div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
+
 
 <section class="section">
   <div class="head"><span>게스트 추가</span></div>

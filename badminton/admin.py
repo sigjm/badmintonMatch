@@ -301,11 +301,15 @@ def rename(mid):
 @bp.post("/m/<int:mid>/manual", defaults={"court": None})
 @admin_required
 def manual_match(mid, court=None):
-    _meetup_row(mid)
+    m = _meetup_row(mid)
     court = court or request.form.get("court", type=int)
-    if court is None:
-        flash("배정할 빈 코트를 선택해 주세요")
-        return redirect(url_for("admin.meetup", mid=mid))
+    if court is None:  # 수동 대진 카드의 '빈 코트에 넣기': 비어 있는 첫 코트 (쉬는 시간 무시)
+        busy = {r["court"] for r in get_conn().execute(
+            "SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,))}
+        court = next((c for c in range(1, m["courts"] + 1) if c not in busy), None)
+        if court is None:
+            flash("빈 코트가 없습니다. 경기가 끝나면 다시 눌러 주세요")
+            return redirect(url_for("admin.meetup", mid=mid))
     try:
         player_ids = [int(request.form.get(name, "")) for name in ("a1", "a2", "b1", "b2")]
     except (TypeError, ValueError):
