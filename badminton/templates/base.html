@@ -477,6 +477,13 @@
             }
           }
         }
+        if (activeForm.id === "quick-rename-form") {
+          const memberId = activeForm.querySelector('[name="member_id"]')?.value;
+          const updatedPlayer = memberId ? document.querySelector(`[data-player-status="${memberId}"], [data-member-id="${memberId}"]`) : null;
+          const updatedNickname = updatedPlayer?.dataset.nickname || activeForm.querySelector('[name="nickname"]')?.value.trim();
+          const menuLabel = document.querySelector("#quick-status-menu [data-status-player-name]");
+          if (menuLabel && updatedNickname) menuLabel.textContent = updatedNickname;
+        }
         showStatus(activeForm, "저장됨");
       } catch (error) {
         form.querySelectorAll("select").forEach((field) => {
@@ -750,12 +757,17 @@
         if (nickInput) nickInput.value = nickname;
       }
 
+      statusMenu.querySelectorAll("[data-save-status]").forEach((status) => {
+        status.textContent = "";
+        status.classList.remove("is-error");
+      });
       statusMenu.hidden = false;
       const rect = statusMenu.getBoundingClientRect();
       statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
       statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
     };
     document.addEventListener("contextmenu", (event) => {
+      if (!statusMenu || !quickStatusForm) return;
       const target = event.target.closest("[data-player-status]");
       if (!target) return;
       event.preventDefault();
@@ -833,17 +845,16 @@
       buttons.forEach((button) => {
         const id = button.dataset.manualPlayer;
         if (!selectedPlayers.includes(id)) return;
-        const name = button.querySelector("[data-nickname]");
-        selectedNames[id] = { grade: button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim(),
-                              name: name?.dataset.nickname || button.textContent.trim(), gender: name?.dataset.gender || "" };
+        selectedNames[id] = playerInfo(button);
       });
       renderManualSelection();
     });
 
     const isStatusMenuOpen = () => Boolean(statusMenu && !statusMenu.hidden);
+    const isActionPopupOpen = () => document.querySelector("[data-long-press-actions].actions-open, [data-action-panel]:not([hidden])") !== null;
 
     const refreshLiveSections = async () => {
-      if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen()) return;
+      if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return;
       refreshing = true;
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 8000);
@@ -860,7 +871,7 @@
           return;
         }
         const data = await response.json();
-        if (manualFormIsBeingEdited() || isStatusMenuOpen()) return;
+        if (manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return;
         const currentMeetupId = root.dataset.meetupId || "";
         const updatedMeetupId = data.meetup_id == null ? "" : String(data.meetup_id);
         if (updatedMeetupId !== currentMeetupId) {
@@ -1043,7 +1054,10 @@
     });
     document.addEventListener("contextmenu", (event) => {
       const card = event.target.closest(selector);
-      if (card && !isInteractive(event.target)) event.preventDefault();
+      if (!card || isInteractive(event.target) || !card.dataset.key) return;
+      event.preventDefault();
+      cancelHold();
+      toggleActions(card, event.clientX, event.clientY);
     });
     document.addEventListener("badminton:sections-updated", syncOpenCard);
     window.addEventListener("resize", syncOpenCard);
