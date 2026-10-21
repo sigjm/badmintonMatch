@@ -197,7 +197,7 @@
   .quick-status-form { display:none; }
 
   /* 다음 순서 */
-  .reservations { margin:0 0 16px; }
+  .operation-controls { margin:0 0 20px; }
   .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
   .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
   .pcard.is-gone, .pcard.is-canceled { background:var(--fill); }
@@ -262,6 +262,42 @@
   {% block content %}{% endblock %}
 </main>
 <script>
+  // 화면 갱신: 영역을 통째로 갈아 끼우지 않고 바뀐 글자·속성·카드만 고친다 (깜빡임·스크롤 튐·누르던 버튼 끊김 방지).
+  // data-key가 같은 카드는 같은 요소로 보고 순서만 옮긴다.
+  const morphNode = (from, to) => {
+    const sameKind = from.nodeType === to.nodeType && from.nodeName === to.nodeName &&
+      (from.nodeType !== 1 || (from.dataset.key || "") === (to.dataset.key || ""));
+    if (!sameKind) { from.replaceWith(to); return; }
+    if (from.nodeType !== 1) {
+      if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue;
+      return;
+    }
+    [...from.attributes].forEach(({ name }) => { if (!to.hasAttribute(name)) from.removeAttribute(name); });
+    [...to.attributes].forEach(({ name, value }) => { if (from.getAttribute(name) !== value) from.setAttribute(name, value); });
+    morphChildren(from, to);
+  };
+  const morphChildren = (from, to) => {
+    const next = [...to.childNodes];
+    next.forEach((node, index) => {
+      const current = from.childNodes[index];
+      if (!current) { from.appendChild(node); return; }
+      const key = node.nodeType === 1 ? node.dataset.key : "";
+      if (key && (current.nodeType !== 1 || current.dataset.key !== key)) {
+        const match = [...from.children].find((el) => el.dataset.key === key);
+        if (match) { from.insertBefore(match, current); morphNode(match, node); }
+        else from.insertBefore(node, current);
+        return;
+      }
+      morphNode(current, node);
+    });
+    while (from.childNodes.length > next.length) from.lastChild.remove();
+  };
+  const morphHTML = (container, html) => {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    morphChildren(container, template.content);
+  };
+
   (() => {
     const selector = "form[data-save-without-reload]";
     document.querySelectorAll(`${selector} select`).forEach((field) => {
@@ -305,11 +341,11 @@
           return;
         }
 
-        ["#flash-messages", "#meetup-stats", "#meetup-court-board", "#meetup-queue", "#meetup-excluded", "#member-change-log"]
+        ["#flash-messages", "#meetup-stats", "#meetup-court-board", "#meetup-reservations", "#meetup-queue", "#meetup-excluded", "#member-change-log"]
           .forEach((id) => {
             const current = document.querySelector(id);
             const next = updated.querySelector(id);
-            if (current && next) current.replaceWith(next);
+            if (current && next) morphNode(current, next);
           });
         document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
 
@@ -578,12 +614,11 @@
           window.location.reload();
           return;
         }
-        const courtBoard = document.querySelector("#meetup-court-board");
-        if (courtBoard && data.court_board) courtBoard.innerHTML = data.court_board;
-        const queue = document.querySelector("#meetup-queue");
-        if (queue && data.queue) queue.innerHTML = data.queue;
-        const excluded = document.querySelector("#meetup-excluded");
-        if (excluded && data.excluded !== undefined) excluded.innerHTML = data.excluded;
+        [["#meetup-court-board", data.court_board], ["#meetup-reservations", data.reservation_list],
+         ["#meetup-queue", data.queue], ["#meetup-excluded", data.excluded]].forEach(([id, html]) => {
+          const section = document.querySelector(id);
+          if (section && html !== undefined) morphHTML(section, html);
+        });
         const activeCount = document.querySelector("[data-active-court-count]");
         const queueCount = document.querySelector("[data-queue-count]");
         if (activeCount) activeCount.textContent = `${data.active_courts}면`;

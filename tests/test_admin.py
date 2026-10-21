@@ -425,8 +425,8 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
 
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert 'class="court resv" aria-label="예약 1"' in html
-    assert 'class="court resv" aria-label="예약 2"' in html
+    assert 'aria-label="예약 1"' in html
+    assert 'aria-label="예약 2"' in html
     assert "닉A(남A)" in html and "닉H(여D)" in html
     assert "/admin/reservation/9/redraw" in html
     assert "다시 뽑기" in html
@@ -436,10 +436,10 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert 'aria-label="예약 1"' in data["queue"]
-    assert "닉D(여B)" in data["queue"]
-    assert "/admin/reservation/9/redraw" in data["queue"]
-    assert "다시 뽑기" in data["queue"]
+    assert 'aria-label="예약 1"' in data["reservation_list"]
+    assert "닉D(여B)" in data["reservation_list"]
+    assert "/admin/reservation/9/redraw" in data["reservation_list"]
+    assert "다시 뽑기" in data["reservation_list"]
     assert len(data.get("reservations", [])) == 2
 
 
@@ -567,3 +567,14 @@ def test_excluded_section_is_separate_live_fragment(admin, seeded_meetup, conn_o
     assert 'id="meetup-excluded"' in html and 'class="board-layout"' in html
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert "급수없음" in data["excluded"] and "급수없음" not in data["queue"]
+
+
+def test_admin_meetup_section_order(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    order = [html.index(x) for x in ("<span>정모 운영</span>", "운영 콘솔", 'id="meetup-court-board"',
+                                     'id="meetup-reservations"', 'id="meetup-queue"', 'id="meetup-excluded"',
+                                     'id="manual-match-picker"', "<span>게스트 추가</span>")]
+    assert order == sorted(order)
+    data = admin.get(f"/admin/m/{mid}/updates").get_json()
+    assert "예약" in data["reservation_list"] and "다음 순서" in data["queue"] and "예약 1" not in data["queue"]

@@ -1,7 +1,7 @@
 {# 참석자 카드 (다음 순서·대진 제외 공통). 대기열 카드는 state가 없어 queued로 본다 #}
 {% set state = p.state|default('queued') %}
 {% set admin_card = admin|default(false) and m %}
-<div class="pcard is-{{ state }}">
+<div class="pcard is-{{ state }}" data-key="p-{{ p.id }}">
   <div class="pcard-top">
     <span class="grade-badge{{ ' is-empty' if not p.grade }}">{{ GRADE_LABELS.get(p.grade, '?') }}</span>
     <span class="pcard-games"><b>{{ p.games }}</b>게임</span>

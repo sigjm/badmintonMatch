@@ -226,6 +226,7 @@ def meetup_updates(mid):
         meetup_id=mid,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=True,
                                     manual_candidates=candidates),
+        reservation_list=render_template("reservation_list.html", board=current_board, admin=True, m=m),
         queue=render_template("queue_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
         excluded=render_template("excluded_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
         reservations=current_board.get("reservations", []) if current_board else [],

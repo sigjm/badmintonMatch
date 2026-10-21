@@ -1,7 +1,7 @@
 {% from "_macros.html" import player_name %}
 {# 코트 목록 — admin=True면 경기 끝/다시 뽑기 버튼을 보여 준다 #}
 {% for c in board.courts %}
-<div class="court" aria-label="코트 {{ c.court }}">
+<div class="court" data-key="court-{{ c.court }}" aria-label="코트 {{ c.court }}">
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
   <div class="court-match">

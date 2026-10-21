@@ -77,7 +77,7 @@ def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup)
 
     # 1. 공개 대진판 화면
     html = client.get("/board").get_data(as_text=True)
-    assert 'class="court resv" aria-label="예약 1"' in html
+    assert 'aria-label="예약 1"' in html
     assert "닉A(남A)" in html and "닉D(여B)" in html
     assert "/admin/reservation" not in html
     assert "다시 뽑기" not in html  # 공개 대진판에는 다시 뽑기 버튼이 없어야 함
@@ -87,9 +87,9 @@ def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup)
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert 'aria-label="예약 1"' in data["queue"]
-    assert "/admin/reservation" not in data["queue"]
-    assert "다시 뽑기" not in data["queue"]
+    assert 'aria-label="예약 1"' in data["reservation_list"]
+    assert "/admin/reservation" not in data["reservation_list"]
+    assert "다시 뽑기" not in data["reservation_list"]
     assert len(data.get("reservations", [])) == 1
 
 

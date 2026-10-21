@@ -50,6 +50,7 @@ def board_updates():
     response = jsonify(
         meetup_id=m["id"] if m else None,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=False) if m else "",
+        reservation_list=render_template("reservation_list.html", board=current_board) if m else "",
         queue=render_template("queue_list.html", board=current_board) if m else "",
         excluded=render_template("excluded_list.html", board=current_board) if m else "",
         reservations=current_board.get("reservations", []) if current_board else [],

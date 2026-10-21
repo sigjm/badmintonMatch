@@ -1,40 +1,7 @@
 {% from "_macros.html" import player_name %}
 {% set manual_candidate_ids = manual_candidate_ids|default([]) %}
-{% macro resv_player(p) -%}
-  {%- if p is mapping and p.id -%}
-    <span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>
-  {%- elif p is mapping -%}
-    {{ player_name(p.nickname, p.gender, p.grade) }}
-  {%- else -%}
-    {{ p }}
-  {%- endif -%}
-{%- endmacro %}
 <section class="section">
   <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명</span></div>
-  {% set reservations = board.reservations|default([]) %}
-  {% if reservations %}
-  <div class="reservations">
-    {% for res in reservations|sort(attribute='no') %}
-    <div class="court resv" aria-label="예약 {{ res.no }}">
-      <div class="court-no">{{ res.no }}<small>예약</small></div>
-      <div class="court-match">
-        {% for team in res.team_players|default(res.teams) %}
-        {% if not loop.first %}<span class="versus">VS</span>{% endif %}
-        <div class="team">{% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}{{ resv_player(player) }}{% endfor %}</div>
-        {% endfor %}
-      </div>
-      {% if admin|default(false) and m %}
-      <div class="court-actions">
-        <form method="post" action="{{ url_for('admin.redraw_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
-          <input type="hidden" name="mid" value="{{ m.id }}">
-          <button type="submit" class="btn line sm">다시 뽑기</button>
-        </form>
-      </div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
   {% set cards = board.queue_cards|default([]) %}
   {% if cards %}
   <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}</div>
