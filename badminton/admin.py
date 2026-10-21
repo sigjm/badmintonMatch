@@ -4,9 +4,10 @@ from functools import wraps
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 
 from . import get_conn
+from .db import get_setting, set_setting
 from .meetups import (add_attendee, add_pasted, board, end_game, get_or_create_meetup, on_info_changed, redraw,
                       refill_today, set_status, start, sync_somoim, today)
-from .members import create_member, list_members, set_info
+from .members import changes, create_member, list_members, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -213,3 +214,51 @@ def redraw_game(gid):
         flash("이미 다시 뽑은 경기입니다")
         return redirect(url_for("admin.home"))
     return redirect(url_for("admin.meetup", mid=row["meetup_id"]))
+
+
+@bp.get("/members")
+@admin_required
+def members():
+    conn = get_conn()
+    return render_template("admin_members.html", members=list_members(conn), changes=changes(conn, limit=100))
+
+
+@bp.post("/members/<int:member_id>")
+@admin_required
+def member_update(member_id):
+    conn = get_conn()
+    try:
+        set_info(conn, member_id, _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade")), by="admin")
+        on_info_changed(conn, member_id)
+    except ValueError as e:
+        flash(str(e))
+    return redirect(url_for("admin.members"))
+
+
+@bp.post("/members/<int:member_id>/reset-pin")
+@admin_required
+def member_reset_pin(member_id):
+    reset_pin(get_conn(), member_id)
+    flash("PIN을 초기화했습니다")
+    return redirect(url_for("admin.members"))
+
+
+@bp.route("/settings", methods=["GET", "POST"])
+@admin_required
+def settings():
+    conn = get_conn()
+    if request.method == "POST":
+        try:
+            offset, window = float(request.form["female_offset"]), int(request.form["mix_window"])
+        except ValueError:
+            offset, window = -1, -1
+        if 0 <= offset <= 5 and 4 <= window <= 20:
+            set_setting(conn, "female_offset", offset)
+            set_setting(conn, "mix_window", window)
+            refill_today(conn)
+            flash("설정을 저장했습니다")
+        else:
+            flash("여자 보정값은 0~5, 혼복 후보 범위는 4~20 사이로 입력해 주세요")
+        return redirect(url_for("admin.settings"))
+    return render_template("admin_settings.html", female_offset=get_setting(conn, "female_offset"),
+                           mix_window=int(get_setting(conn, "mix_window")))

@@ -55,3 +55,36 @@ def test_guest_added_to_meetup(admin, seeded_meetup, conn_of):
     row = conn_of().execute("SELECT m.is_guest, a.source FROM attendees a JOIN members m ON m.id = a.member_id "
                             "WHERE m.nickname = '손님'").fetchone()
     assert tuple(row) == (1, "guest")
+
+
+def test_settings_validation(admin, conn_of):
+    from badminton.db import get_setting
+    admin.post("/admin/settings", data={"female_offset": "abc", "mix_window": "6"})
+    assert get_setting(conn_of(), "female_offset") == 1
+    admin.post("/admin/settings", data={"female_offset": "9", "mix_window": "6"})
+    assert get_setting(conn_of(), "female_offset") == 1
+    admin.post("/admin/settings", data={"female_offset": "1.5", "mix_window": "8"})
+    assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_window") == 8
+
+
+def test_admin_edit_logged_as_admin(admin, conn_of):
+    from badminton.members import changes, create_member
+    m = create_member(conn_of(), "가")
+    admin.post(f"/admin/members/{m}", data={"gender": "M", "grade": "C"})
+    assert {c["by"] for c in changes(conn_of())} == {"admin"}
+
+
+def test_admin_reset_pin(admin, conn_of):
+    from badminton.members import check_pin, create_member, set_pin
+    m = create_member(conn_of(), "가")
+    set_pin(conn_of(), m, "1234")
+    admin.post(f"/admin/members/{m}/reset-pin")
+    assert not check_pin(conn_of(), m, "1234")
+
+
+def test_members_page_lists_changes(admin, conn_of):
+    from badminton.members import create_member, set_info
+    m = create_member(conn_of(), "가나다")
+    set_info(conn_of(), m, "F", "B", by="self")
+    html = admin.get("/admin/members").get_data(as_text=True)
+    assert "가나다" in html and "변경 기록" in html
