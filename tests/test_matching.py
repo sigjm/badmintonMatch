@@ -42,6 +42,29 @@ def test_pick_four_excludes_uneven_gender_ratios():
     assert sum(p.gender == "F" for p in picked) == 2
 
 
+def test_pick_four_expands_to_full_queue_when_window_ratio_invalid():
+    # 앞쪽 6명(window)에는 1번 여성 + 남성 5명뿐이라 2:2 혼복이나 4:0 남복/여복이 불가 (1:3만 가능)
+    # 하지만 7번째에 여성이 있어서 전체 대기열로 확장하면 2:2 혼복이 가능해짐
+    window_players = [P(1, "F", "A")] + [P(i, "M", "A") for i in range(2, 7)]
+    q = window_players + [P(7, "F", "A"), P(8, "M", "A")]
+    picked = pick_four(q, mix_window=6)
+    assert picked is not None
+    # 1순위 여성(1번)과 7번 여성이 포함되어 2:2 혼복이어야 함
+    assert {p.id for p in picked} >= {1, 7}
+    assert sum(p.gender == "F" for p in picked) == 2
+
+
+def test_pick_four_leaves_court_empty_when_no_valid_ratio_exists():
+    # 대기열 전체(8명) 중 남성이 1순위 1명뿐이고 나머지 7명이 여성인 경우:
+    # 1순위를 포함해서는 1:3(여3남1)밖에 안 되므로 성비 조건(0, 2, 4)을 만족할 수 없음
+    q = [P(1, "M", "A")] + [P(i, "F", "A") for i in range(2, 9)]
+    assert pick_four(q, mix_window=6) is None
+
+    # 반대로 여성이 1순위 1명뿐이고 나머지 7명이 남성인 경우:
+    q2 = [P(1, "F", "A")] + [P(i, "M", "A") for i in range(2, 9)]
+    assert pick_four(q2, mix_window=6) is None
+
+
 def test_split_mixed_only_and_balanced():
     ms, md, fa, fc = P(1, "M", "S"), P(2, "M", "D"), P(3, "F", "A"), P(4, "F", "C")
     teams = split_teams([ms, md, fa, fc], 1)

@@ -192,3 +192,56 @@ def test_group_search_failure_shows_message(admin, monkeypatch):
         raise SomoimError("down")
     monkeypatch.setattr("badminton.admin.search_groups", boom)
     assert "검색하지 못했습니다" in admin.get("/admin/groups?q=RBT").get_data(as_text=True)
+
+
+def test_admin_meetup_updates_requires_login(client, seeded_meetup):
+    mid, _ = seeded_meetup
+    resp = client.get(f"/admin/m/{mid}/updates")
+    assert resp.status_code == 302
+    assert "/admin/login" in resp.headers["Location"]
+
+
+def test_admin_meetup_updates_json_keys(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    resp = admin.get(f"/admin/m/{mid}/updates")
+    assert resp.status_code == 200
+    assert resp.headers.get("Cache-Control") == "no-store"
+    data = resp.get_json()
+    assert set(data.keys()) >= {"meetup_id", "court_board", "queue", "active_courts", "queue_count"}
+    assert data["meetup_id"] == mid
+    assert isinstance(data["active_courts"], int)
+    assert isinstance(data["queue_count"], int)
+
+
+def test_admin_manual_match_requires_login(client, seeded_meetup):
+    mid, _ = seeded_meetup
+    resp = client.post(f"/admin/m/{mid}/manual/1")
+    assert resp.status_code == 302
+    assert "/admin/login" in resp.headers["Location"]
+
+
+def test_admin_manual_match_routes(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    # 1. 선수 미선택 실패 플래시
+    resp = admin.post(f"/admin/m/{mid}/manual/2", data={}, follow_redirects=True)
+    assert "선수 네 명을 모두 선택해 주세요" in resp.get_data(as_text=True)
+
+    # 2. 빈 코트 미선택 실패 플래시
+    resp2 = admin.post(f"/admin/m/{mid}/manual", data={"a1": 1, "a2": 2, "b1": 3, "b2": 4}, follow_redirects=True)
+    assert "배정할 빈 코트를 선택해 주세요" in resp2.get_data(as_text=True)
+
+    # 3. 코트 2면으로 확장 후 수동 배정 성공
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee, start
+    c = conn_of()
+    start(c, mid, 2)
+    p1 = create_member(c, "수동1", gender="M", grade="A")
+    p2 = create_member(c, "수동2", gender="M", grade="B")
+    p3 = create_member(c, "수동3", gender="F", grade="A")
+    p4 = create_member(c, "수동4", gender="F", grade="B")
+    for p in (p1, p2, p3, p4):
+        add_attendee(c, mid, p, "paste")
+    resp3 = admin.post(f"/admin/m/{mid}/manual/2", data={"a1": p1, "a2": p2, "b1": p3, "b2": p4}, follow_redirects=True)
+    assert "코트 2에 수동 대진을 배정했습니다" in resp3.get_data(as_text=True)
+    game2 = c.execute("SELECT * FROM games WHERE meetup_id = ? AND court = 2 AND ended_at IS NULL", (mid,)).fetchone()
+    assert game2 is not None and (game2["a1"], game2["a2"], game2["b1"], game2["b2"]) == (p1, p2, p3, p4)

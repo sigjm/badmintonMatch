@@ -26,11 +26,27 @@ def test_me_post_is_disallowed(client):
 
 
 def test_board_updates_endpoint(client, seeded_meetup):
+    # 로그인 없는 일반 공개 사용자가 실시간 폴링 가능
+    resp = client.get("/board/updates")
+    assert resp.status_code == 200
+    assert resp.headers.get("Cache-Control") == "no-store"
+    data = resp.get_json()
+    assert set(data.keys()) >= {"meetup_id", "court_board", "queue", "active_courts", "queue_count"}
+    mid, _ = seeded_meetup
+    assert data["meetup_id"] == mid
+    assert data["active_courts"] == 1
+    assert isinstance(data["court_board"], str)
+    assert isinstance(data["queue"], str)
+
+
+def test_board_updates_endpoint_without_meetup(client):
+    # 정모가 없는 상태에서도 에러 없이 200과 기본 JSON 반환
     resp = client.get("/board/updates")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert "court_board" in data and "queue" in data
-    assert data["active_courts"] >= 1
+    assert set(data.keys()) >= {"meetup_id", "court_board", "queue", "active_courts", "queue_count"}
+    assert data["meetup_id"] is None
+    assert data["active_courts"] == 0
 
 
 def test_board_switches_group_by_query(client, conn_of):

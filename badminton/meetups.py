@@ -116,11 +116,12 @@ def queue(conn, meetup_id: int) -> list[Player]:
 
 
 def manual_candidates(conn, meetup_id: int) -> list:
-    """현재 참석 중이며 다른 코트에서 경기 중이 아닌 회원들. 급수·성별 미입력도 수동 배정 가능."""
+    """현재 참석 중이며 다른 코트에서 경기 중이 아니고 성별과 급수가 입력된 회원들."""
     playing = _playing(conn, meetup_id)
     rows = conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.games
                            FROM attendees a JOIN members m ON m.id = a.member_id
                            WHERE a.meetup_id = ? AND a.status = 'present'
+                             AND m.gender IS NOT NULL AND m.grade IS NOT NULL
                            ORDER BY m.nickname, m.id""", (meetup_id,)).fetchall()
     return [r for r in rows if r["id"] not in playing]
 
@@ -176,6 +177,11 @@ def assign_manual(conn, meetup_id: int, court: int, player_ids: list[int]) -> No
         f"AND member_id IN ({placeholders})", (meetup_id, *player_ids))}
     if present != set(player_ids):
         raise ValueError("현재 참석 중인 선수만 배정할 수 있습니다")
+    incomplete = conn.execute(
+        f"SELECT count(*) FROM members WHERE id IN ({placeholders}) "
+        f"AND (gender IS NULL OR grade IS NULL)", (*player_ids,)).fetchone()[0]
+    if incomplete > 0:
+        raise ValueError("성별과 급수가 모두 입력된 선수만 배정할 수 있습니다")
     if set(player_ids) & _playing(conn, meetup_id):
         raise ValueError("다른 코트에서 경기 중인 선수는 선택할 수 없습니다")
 

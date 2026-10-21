@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from badminton.members import create_member, set_info
 from badminton.meetups import (SEOUL, add_attendee, add_pasted, board, end_game, get_or_create_meetup,
                                on_info_changed, queue, redraw, session_day, set_status, start, sync_somoim, today)
@@ -214,3 +216,60 @@ def test_on_info_changed_with_specific_meetup_id(conn):
     on_info_changed(conn, m, changed, meetup_id=future_mid)
     after_q = conn.execute("SELECT queued_at FROM attendees WHERE meetup_id = ? AND member_id = ?", (future_mid, m)).fetchone()[0]
     assert after_q >= before_q
+
+
+def test_assign_manual_validations(conn):
+    from badminton.meetups import assign_manual
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 처음에는 3명만 참석시켜 코트 1, 2가 모두 빈 상태로 시작되게 함
+    p1 = mk(conn, "선수1", "M", "A")
+    p2 = mk(conn, "선수2", "M", "B")
+    p3 = mk(conn, "선수3", "F", "A")
+    for p in (p1, p2, p3):
+        add_attendee(conn, mid, p, "paste")
+    start(conn, mid, 2)  # 코트 2면 시작 (4명 미만이므로 자동 매칭 없이 코트 1, 2 모두 비어 있음)
+
+    # 추가 선수 등록
+    p4 = mk(conn, "선수4", "F", "B")
+    p5 = create_member(conn, "선수5", grade="A")  # gender is None
+    p6 = create_member(conn, "선수6", gender="M")  # grade is None
+    p7 = mk(conn, "선수7", "M", "C")
+    for p in (p4, p5, p6, p7):
+        add_attendee(conn, mid, p, "paste")
+
+    # 1. 코트 범위 밖 거부
+    with pytest.raises(ValueError, match="현재 운영 중인 코트"):
+        assign_manual(conn, mid, 0, [p1, p2, p3, p4])
+    with pytest.raises(ValueError, match="현재 운영 중인 코트"):
+        assign_manual(conn, mid, 3, [p1, p2, p3, p4])
+
+    # 2. 같은 사람 중복 거부
+    with pytest.raises(ValueError, match="서로 다른 선수 네 명"):
+        assign_manual(conn, mid, 1, [p1, p1, p3, p4])
+
+    # 3. 참석 상태가 아닌 사람 거부
+    set_status(conn, mid, p1, "away")
+    with pytest.raises(ValueError, match="현재 참석 중인 선수만"):
+        assign_manual(conn, mid, 1, [p1, p2, p3, p4])
+    set_status(conn, mid, p1, "present")
+
+    # 4. 급수/성별 비어 있는 사람 거부
+    with pytest.raises(ValueError, match="성별과 급수"):
+        assign_manual(conn, mid, 1, [p1, p2, p3, p5])
+    with pytest.raises(ValueError, match="성별과 급수"):
+        assign_manual(conn, mid, 1, [p1, p2, p3, p6])
+
+    # 5. 정상 배정: p1, p2, p3, p4 -> 코트 1에 배정 (팀 A: p1, p2 / 팀 B: p3, p4)
+    assign_manual(conn, mid, 1, [p1, p2, p3, p4])
+    game = conn.execute("SELECT * FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    assert game is not None
+    assert (game["a1"], game["a2"], game["b1"], game["b2"]) == (p1, p2, p3, p4)
+
+    # 6. 이미 경기 중인 사람 거부
+    p8 = mk(conn, "선수8", "F", "C")
+    p9 = mk(conn, "선수9", "M", "D")
+    p10 = mk(conn, "선수10", "F", "D")
+    for p in (p8, p9, p10):
+        add_attendee(conn, mid, p, "paste")
+    with pytest.raises(ValueError, match="다른 코트에서 경기 중인"):
+        assign_manual(conn, mid, 2, [p1, p7, p8, p9])
