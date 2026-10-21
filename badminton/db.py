@@ -40,8 +40,16 @@ def connect(path: str) -> sqlite3.Connection:
     return conn
 
 
-def get_setting(conn, key: str) -> float:
-    return conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()[0]
+DEFAULT_SETTINGS = {"female_offset": 1.5, "mix_window": 6.0}
+
+
+def get_setting(conn, key: str, default: float | None = None) -> float:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if row is not None and row[0] is not None:
+        return float(row[0])
+    if default is not None:
+        return float(default)
+    return float(DEFAULT_SETTINGS.get(key, 0.0))
 
 
 def set_setting(conn, key: str, value: float) -> None:
