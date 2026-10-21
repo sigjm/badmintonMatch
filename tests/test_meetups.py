@@ -302,8 +302,8 @@ def test_reservations_max_capped_by_courts(conn):
     assert len(b["queue"]) == 4
 
 
-def test_reservations_two_slots_on_three_courts(conn):
-    # 코트 3이면 대기 8명 -> 예약 2개
+def test_reservations_one_slot_when_eight_waiting_on_three_courts(conn):
+    # (1) 20명·코트 3 시작 직후 대기 8명이면 예약은 1개, 예약 안 된 대기 4명.
     mid = get_or_create_meetup(conn, today(), "t", None)
     # 총 20명 (코트 3면에 12명, 대기 8명)
     players = [mk(conn, f"m{i}", "M", "A") for i in range(10)] + [mk(conn, f"f{i}", "F", "A") for i in range(10)]
@@ -311,22 +311,51 @@ def test_reservations_two_slots_on_three_courts(conn):
     start(conn, mid, 3)
 
     resvs = reservations(conn, mid)
-    assert len(resvs) == 2
-    assert [r["seq"] for r in resvs] == [1, 2]
+    assert len(resvs) == 1
+    assert resvs[0]["seq"] == 1
 
-    # 대기 8명이 모두 예약 1, 2로 들어갔으므로 남은 queue는 0명
-    assert len(queue(conn, mid)) == 0
+    # 남은 대기자(예약 안 된 사람)는 4명
+    assert len(queue(conn, mid)) == 4
     b = board(conn, mid)
-    assert len(b["reservations"]) == 2
-    assert [r["no"] for r in b["reservations"]] == [1, 2]
-    assert len(b["queue"]) == 0
+    assert len(b["reservations"]) == 1
+    assert len(b["queue"]) == 4
+
+
+def test_end_game_promotes_reservation_and_mixes_eight_candidates(conn):
+    # (2) 경기 하나가 끝나면 예약1이 코트로 들어가고, 새 예약이 8명 후보에서 만들어지며 방금 끝난 4명과 완전히 같은 조가 아니다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 총 20명 (코트 3면에 12명, 대기 8명)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(10)] + [mk(conn, f"f{i}", "F", "A") for i in range(10)]
+    seat(conn, mid, *players)
+    start(conn, mid, 3)
+
+    resv1 = reservations(conn, mid)[0]
+    r1_four = {resv1["a1"], resv1["a2"], resv1["b1"], resv1["b2"]}
+
+    # 코트 1 경기 종료: 코트 1에 있던 4명
+    g1 = conn.execute("SELECT id, a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    g1_id = g1["id"]
+    g1_four = {g1["a1"], g1["a2"], g1["b1"], g1["b2"]}
+    end_game(conn, g1_id)
+
+    # 1. 예약 1이 코트 1로 들어감
+    g1_new = conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    assert set(g1_new) == r1_four
+
+    # 2. 새 예약이 8명 후보(이전 대기 4명 + 방금 끝난 4명)에서 만들어짐
+    new_resvs = reservations(conn, mid)
+    assert len(new_resvs) == 1
+    new_r_four = {new_resvs[0]["a1"], new_resvs[0]["a2"], new_resvs[0]["b1"], new_resvs[0]["b2"]}
+
+    # 방금 끝난 4명과 완전히 같은 조가 아님 (섞였음)
+    assert new_r_four != g1_four
 
 
 def test_end_game_promotes_reservation_and_shifts_and_refills(conn):
     # 경기 끝 -> 예약 1이 그 코트로, 예약 번호가 당겨지고 새 예약이 채워진다.
     mid = get_or_create_meetup(conn, today(), "t", None)
-    # 총 24명 (코트 3면에 12명, 대기 12명 -> 예약 3개 최대)
-    players = [mk(conn, f"m{i}", "M", "A") for i in range(12)] + [mk(conn, f"f{i}", "F", "A") for i in range(12)]
+    # 총 28명 (코트 3면에 12명, 대기 16명 -> 예약 3개 최대)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(14)] + [mk(conn, f"f{i}", "F", "A") for i in range(14)]
     seat(conn, mid, *players)
     start(conn, mid, 3)
 
@@ -358,11 +387,13 @@ def test_end_game_promotes_reservation_and_shifts_and_refills(conn):
 def test_reservations_keep_members_when_other_games_end(conn):
     # 예약은 다른 경기가 끝나도 멤버가 바뀌지 않는다.
     mid = get_or_create_meetup(conn, today(), "t", None)
-    players = [mk(conn, f"m{i}", "M", "A") for i in range(8)] + [mk(conn, f"f{i}", "F", "A") for i in range(8)]
+    # 총 20명 (코트 2면(8명), 대기 12명 -> 예약 2개)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(10)] + [mk(conn, f"f{i}", "F", "A") for i in range(10)]
     seat(conn, mid, *players)
-    start(conn, mid, 2)  # 코트 2면(8명), 대기 8명 -> 예약 2개
+    start(conn, mid, 2)
 
     r_init = reservations(conn, mid)
+    assert len(r_init) == 2
     r2_members = (r_init[1]["a1"], r_init[1]["a2"], r_init[1]["b1"], r_init[1]["b2"])
 
     # 코트 1 경기 종료 -> 예약 1이 코트 1로 승격
