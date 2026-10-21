@@ -221,7 +221,8 @@ def test_on_info_changed_with_specific_meetup_id(conn):
 
 
 def test_assign_manual_validations(conn):
-    from badminton.meetups import assign_manual
+    from badminton.meetups import (add_manual_reservation, update_reservation,
+                                   prioritize_reservation, start_reservation_now)
     mid = get_or_create_meetup(conn, today(), "t", None)
     # 처음에는 3명만 참석시켜 코트 1, 2가 모두 빈 상태로 시작되게 함
     p1 = mk(conn, "선수1", "M", "A")
@@ -229,52 +230,76 @@ def test_assign_manual_validations(conn):
     p3 = mk(conn, "선수3", "F", "A")
     for p in (p1, p2, p3):
         add_attendee(conn, mid, p, "paste")
+
+    # 1. 미시작 정모 거부
+    with pytest.raises(ValueError, match="먼저 코트를 시작해 주세요"):
+        add_manual_reservation(conn, mid, [p1, p2, p3, p1])
+
     start(conn, mid, 2)  # 코트 2면 시작 (4명 미만이므로 자동 매칭 없이 코트 1, 2 모두 비어 있음)
 
     # 추가 선수 등록
     p4 = mk(conn, "선수4", "F", "B")
-    p5 = create_member(conn, "선수5", grade="A")  # gender is None
-    p6 = create_member(conn, "선수6", gender="M")  # grade is None
+    p5 = mk(conn, "선수5", "M", "A")
+    p6 = mk(conn, "선수6", "F", "C")
     p7 = mk(conn, "선수7", "M", "C")
-    for p in (p4, p5, p6, p7):
+    p8 = mk(conn, "선수8", "F", "D")
+    p9 = mk(conn, "선수9", "M", "D")
+    for p in (p4, p5, p6, p7, p8, p9):
         add_attendee(conn, mid, p, "paste")
 
-    # 1. 코트 범위 밖 거부
-    with pytest.raises(ValueError, match="현재 운영 중인 코트"):
-        assign_manual(conn, mid, 0, [p1, p2, p3, p4])
-    with pytest.raises(ValueError, match="현재 운영 중인 코트"):
-        assign_manual(conn, mid, 3, [p1, p2, p3, p4])
-
-    # 2. 같은 사람 중복 거부
+    # 2. 같은 사람 중복 거부 (add_manual_reservation)
     with pytest.raises(ValueError, match="서로 다른 선수 네 명"):
-        assign_manual(conn, mid, 1, [p1, p1, p3, p4])
+        add_manual_reservation(conn, mid, [p1, p1, p3, p4])
 
     # 3. 참석 상태가 아닌 사람 거부
     set_status(conn, mid, p1, "away")
     with pytest.raises(ValueError, match="현재 참석 중인 선수만"):
-        assign_manual(conn, mid, 1, [p1, p2, p3, p4])
+        add_manual_reservation(conn, mid, [p1, p2, p3, p4])
     set_status(conn, mid, p1, "present")
 
-    # 4. 급수/성별 비어 있는 사람 거부
-    with pytest.raises(ValueError, match="성별과 급수"):
-        assign_manual(conn, mid, 1, [p1, p2, p3, p5])
-    with pytest.raises(ValueError, match="성별과 급수"):
-        assign_manual(conn, mid, 1, [p1, p2, p3, p6])
+    # 4. 수동 예약 추가 성공 (add_manual_reservation)
+    rid1 = add_manual_reservation(conn, mid, [p1, p2, p3, p4])
+    resv1 = conn.execute("SELECT * FROM reservations WHERE id = ?", (rid1,)).fetchone()
+    assert resv1 is not None
+    assert resv1["seq"] == 1 and resv1["source"] == "manual"
+    assert (resv1["a1"], resv1["a2"], resv1["b1"], resv1["b2"]) == (p1, p2, p3, p4)
 
-    # 5. 정상 배정: p1, p2, p3, p4 -> 코트 1에 배정 (팀 A: p1, p2 / 팀 B: p3, p4)
-    assign_manual(conn, mid, 1, [p1, p2, p3, p4])
-    game = conn.execute("SELECT * FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
-    assert game is not None
-    assert (game["a1"], game["a2"], game["b1"], game["b2"]) == (p1, p2, p3, p4)
+    # 5. 이미 예약된 선수 다시 선택 불가
+    with pytest.raises(ValueError, match="이미 예약된 선수"):
+        add_manual_reservation(conn, mid, [p1, p5, p6, p7])
 
-    # 6. 이미 경기 중인 사람 거부
-    p8 = mk(conn, "선수8", "F", "C")
-    p9 = mk(conn, "선수9", "M", "D")
-    p10 = mk(conn, "선수10", "F", "D")
-    for p in (p8, p9, p10):
-        add_attendee(conn, mid, p, "paste")
-    with pytest.raises(ValueError, match="다른 코트에서 경기 중인"):
-        assign_manual(conn, mid, 2, [p1, p7, p8, p9])
+    # 6. 두 번째 수동 예약 추가
+    rid2 = add_manual_reservation(conn, mid, [p5, p6, p7, p8])
+    resv2 = conn.execute("SELECT * FROM reservations WHERE id = ?", (rid2,)).fetchone()
+    assert resv2 is not None
+    assert resv2["seq"] == 2 and resv2["source"] == "manual"
+
+    # 7. update_reservation 검증 (중복, 다른 예약 포함 불가, 정상 수정)
+    with pytest.raises(ValueError, match="서로 다른 선수 네 명"):
+        update_reservation(conn, rid2, [p5, p5, p7, p8])
+    with pytest.raises(ValueError, match="다른 예약에 포함된 선수"):
+        update_reservation(conn, rid2, [p1, p6, p7, p8])
+    res = update_reservation(conn, rid2, [p5, p6, p7, p9])
+    assert res is not None and res[0] == mid
+    resv2_updated = conn.execute("SELECT * FROM reservations WHERE id = ?", (rid2,)).fetchone()
+    assert (resv2_updated["a1"], resv2_updated["a2"], resv2_updated["b1"], resv2_updated["b2"]) == (p5, p6, p7, p9)
+
+    # 8. prioritize_reservation 검증 (rid2를 1순위로 올림)
+    prioritize_reservation(conn, rid2)
+    resv2_prio = conn.execute("SELECT seq FROM reservations WHERE id = ?", (rid2,)).fetchone()[0]
+    resv1_prio = conn.execute("SELECT seq FROM reservations WHERE id = ?", (rid1,)).fetchone()[0]
+    assert resv2_prio == 1 and resv1_prio == 2
+
+    # 9. start_reservation_now 검증 (rid2를 빈 코트 1에 즉시 시작)
+    ret_mid, status, game_id, court = start_reservation_now(conn, rid2)
+    assert ret_mid == mid and status == "started" and court == 1
+    # DB 확인: 코트 1에 게임 생성, rid2는 예약에서 삭제, rid1은 seq 1로 당겨짐
+    game1 = conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone()
+    assert game1 is not None and game1["court"] == 1
+    assert (game1["a1"], game1["a2"], game1["b1"], game1["b2"]) == (p5, p6, p7, p9)
+    assert conn.execute("SELECT 1 FROM reservations WHERE id = ?", (rid2,)).fetchone() is None
+    resv1_after = conn.execute("SELECT seq FROM reservations WHERE id = ?", (rid1,)).fetchone()[0]
+    assert resv1_after == 1
 
 
 def test_reservations_max_capped_by_courts(conn):
