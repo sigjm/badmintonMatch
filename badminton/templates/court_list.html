@@ -13,7 +13,7 @@
   </div>
   <div class="court-time">경기 시간 <span data-game-clock data-started-at="{{ c.started_at }}">{{ c.elapsed_clock }}</span></div>
   {% else %}
-  {% if c.ready_in %}<div class="empty court-rest" data-court-rest data-ready-until="{{ c.ready_until }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
+  {% if c.ready_in %}<div class="empty court-rest" data-court-rest data-ready-in="{{ c.ready_in }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
   {% else %}<div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>{% endif %}
   {% endif %}
   {% if admin and c.game_id %}

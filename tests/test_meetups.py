@@ -634,12 +634,35 @@ def test_court_rest_keeps_court_empty_for_15_seconds(conn, monkeypatch):
     mid, gid = one_court_game(conn, extra=4)
     end_game(conn, gid)
     court = board(conn, mid)["courts"][0]
-    assert court["game_id"] is None and 0 < court["ready_in"] <= 15 and court["ready_until"] is not None
+    assert court["game_id"] is None and 0 < court["ready_in"] <= 15 and "ready_until" not in court
     meetups.fill_courts(conn, mid)  # 15초 전에는 다시 불러도 비어 있다
     assert board(conn, mid)["courts"][0]["game_id"] is None
     conn.execute("UPDATE games SET ended_at = ended_at - 16 WHERE id = ?", (gid,))
     meetups.fill_courts(conn, mid)
     assert board(conn, mid)["courts"][0]["game_id"] is not None
+
+
+def test_court_rest_ready_in_uses_ceil(conn, monkeypatch):
+    from badminton import meetups
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = one_court_game(conn, extra=4)
+    end_game(conn, gid)
+    now = time.time()
+    # 15.0초 남았을 때 ceil은 15
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now, gid))
+    assert board(conn, mid)["courts"][0]["ready_in"] == 15
+    # 14.1초 남았을 때 ceil은 15
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now - 0.9, gid))
+    assert board(conn, mid)["courts"][0]["ready_in"] == 15
+    # 14.0초 남았을 때 ceil은 14
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now - 1.0, gid))
+    assert board(conn, mid)["courts"][0]["ready_in"] == 14
+    # 0.1초 남았을 때 ceil은 1
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now - 14.9, gid))
+    assert board(conn, mid)["courts"][0]["ready_in"] == 1
+    # 0초 이하일 때는 None
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now - 15.0, gid))
+    assert board(conn, mid)["courts"][0]["ready_in"] is None
 
 
 def test_court_rest_skipped_for_redraw_and_force(conn, monkeypatch):

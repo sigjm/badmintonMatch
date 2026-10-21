@@ -855,7 +855,7 @@
     const isActionPopupOpen = () => document.querySelector("[data-long-press-actions].actions-open, [data-action-panel]:not([hidden])") !== null;
 
     const refreshLiveSections = async () => {
-      if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return;
+      if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return false;
       refreshing = true;
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 8000);
@@ -866,18 +866,18 @@
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        if (!response.ok) return;
+        if (!response.ok) return false;
         if (!response.headers.get("content-type")?.includes("application/json")) {
           window.location.assign(response.url);
-          return;
+          return false;
         }
         const data = await response.json();
-        if (manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return;
+        if (manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return false;
         const currentMeetupId = root.dataset.meetupId || "";
         const updatedMeetupId = data.meetup_id == null ? "" : String(data.meetup_id);
         if (updatedMeetupId !== currentMeetupId) {
           window.location.reload();
-          return;
+          return false;
         }
         [["#meetup-court-board", data.court_board], ["#meetup-reservations", data.reservation_list],
          ["#meetup-queue", data.queue], ["#meetup-excluded", data.excluded]].forEach(([id, html]) => {
@@ -891,7 +891,9 @@
         if (queueCount) queueCount.textContent = `${data.queue_count}명`;
         updateWaitLabels();
         document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
+        return true;
       } catch (_error) {
+        return false;
         // 잠시 연결이 끊기거나 타임아웃되어도 다음 3초 주기에 다시 시도한다.
       } finally {
         clearTimeout(timeoutId);
@@ -913,18 +915,27 @@
       const now = Date.now() / 1000;
       let shouldRefresh = false;
       document.querySelectorAll("[data-court-rest]").forEach((rest) => {
-        const until = Number(rest.dataset.readyUntil);
-        if (!until) return;
-        const remaining = Math.max(0, Math.ceil(until - now));
+        const serverReadyIn = Number(rest.dataset.readyIn);
+        if (isNaN(serverReadyIn)) return;
+        if (rest.dataset.lastReadyIn !== rest.dataset.readyIn) {
+          rest.dataset.lastReadyIn = rest.dataset.readyIn;
+          rest.dataset.receivedAt = String(now);
+        }
+        const receivedAt = Number(rest.dataset.receivedAt) || now;
+        const elapsed = Math.max(0, now - receivedAt);
+        const remaining = Math.max(0, Math.ceil(serverReadyIn - elapsed));
         const secSpan = rest.querySelector("[data-court-rest-sec]");
         if (secSpan) secSpan.textContent = remaining;
         if (remaining <= 0 && !rest.dataset.triggered) {
-          rest.dataset.triggered = "true";
           shouldRefresh = true;
         }
       });
       if (shouldRefresh) {
-        refreshLiveSections();
+        refreshLiveSections().then((started) => {
+          if (started) {
+            document.querySelectorAll("[data-court-rest]").forEach((r) => { r.dataset.triggered = "true"; });
+          }
+        });
       }
     };
 
@@ -1023,9 +1034,8 @@
       openedByHold = false;
     };
     const isInteractive = (target) => {
-      if (target.closest("#meetup-court-board [data-long-press-actions]")) {
-        return Boolean(target.closest("[data-action-panel], button, a, input, select, textarea, form, [contenteditable='true']"));
-      }
+      if (target.closest("[data-action-panel]")) return true;
+      if (target.closest(selector)) return false;
       return Boolean(target.closest(
         "[data-player-status], button, a, input, select, textarea, form, [contenteditable='true']"
       ));
@@ -1067,6 +1077,10 @@
         event.stopImmediatePropagation();
         return;
       }
+      if (event.target.closest("[data-action-panel] button, [data-action-panel] a, [data-action-panel] [type='submit']")) {
+        closeActions();
+        return;
+      }
       const courtCard = event.target.closest("#meetup-court-board [data-long-press-actions]");
       if (courtCard && !event.target.closest("[data-action-panel]")) {
         event.preventDefault();
@@ -1077,6 +1091,11 @@
       const openCard = [...document.querySelectorAll(selector)].find((card) => card.dataset.key === openKey);
       if (openCard && !openCard.contains(event.target)) closeActions();
     }, true);
+    document.addEventListener("submit", (event) => {
+      if (event.target.closest("[data-action-panel]")) {
+        closeActions();
+      }
+    });
     document.addEventListener("keydown", (event) => {
       const card = event.target.closest(selector);
       if (card && event.target === card && (event.key === "Enter" || event.key === " ")) {
