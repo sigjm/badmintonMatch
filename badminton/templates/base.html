@@ -106,6 +106,7 @@
   .btn.line:hover { border-color:var(--primary-hover); color:var(--primary-hover); }
   .btn.line:active { border-color:var(--primary-active); color:var(--primary-active); }
   .btn.sm { height:32px; font-size:14px; border-radius:6px; }
+  .btn.warn, .btn.warn:hover { background:#fff7e6; border-color:#ffd591; color:#d46b08; box-shadow:none; }
   .btn:disabled, .btn:disabled:hover { background:var(--fill-2); border-color:var(--border); color:var(--text-4); box-shadow:none; cursor:not-allowed; }
   .inline { display:inline; margin:0; }
   .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -678,17 +679,34 @@
 
   (() => {
     // 코트 호출 안내 방송: 켜 두면 코트에 새 경기가 들어갈 때 "N코트, 누구 누구 님 들어가세요"를 읽는다.
+    // 켜짐 상태와 읽은 경기는 이 기기에 저장해서 화면을 다시 열어도 이어진다 (코트 시작·다시 불러오기도 화면을 다시 연다).
     // 서버 AI 음성(Supertonic)이 안 되면 기기 내장 음성으로 읽는다.
     const toggle = document.querySelector("[data-announce-toggle]");
     if (!toggle) return;
+    const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_e) { return fallback; } };
+    const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_e) { /* 저장 못 해도 이 화면에서는 동작 */ } };
+    const RECENT_SECONDS = 90;  // 화면을 다시 열었을 때 이만큼 안에 시작한 경기는 아직 안 읽었으면 읽는다
     const player = new Audio();  // 한 개를 계속 써야 아이폰이 첫 터치 뒤에도 소리를 낸다
-    const announced = new Set();
+    const announced = new Set(load("announcedGames", []));  // 실제로 소리 낸 경기 (기기에 저장)
+    const queued = new Set();  // 대기열에 있는 경기 (화면을 다시 열면 사라지므로 저장하지 않는다)
     const pending = [];
-    let on = false;
+    let on = Boolean(load("announceOn", false));
     let busy = false;
-    const playingCourts = () => [...document.querySelectorAll(".court[data-game-id]")].filter((court) => court.dataset.gameId);
-    playingCourts().forEach((court) => announced.add(court.dataset.gameId));  // 화면을 열 때 이미 하던 경기는 읽지 않는다
-    const speakOnDevice = (text) => new Promise((done) => {
+    let needsTap = false;  // 브라우저가 자동 재생을 막았을 때: 다음 터치에 이어서 읽는다
+
+    const render = () => {
+      toggle.setAttribute("aria-pressed", String(on));
+      toggle.textContent = !on ? "안내 방송 켜기" : needsTap ? "안내 방송: 화면을 한 번 눌러 주세요" : "안내 방송 켜짐";
+      toggle.classList.toggle("line", !on);
+      toggle.classList.toggle("warn", on && needsTap);
+    };
+    const remember = (id) => {
+      announced.add(id);
+      save("announcedGames", [...announced].slice(-200));
+    };
+    // 끝났다는 신호가 안 오는 브라우저가 있어 최대 시간을 둔다 (안 그러면 방송 대기열이 거기서 영영 멈춘다)
+    const atMost = (seconds, start) => new Promise((done) => { start(done); window.setTimeout(done, seconds * 1000); });
+    const speakOnDevice = (text) => atMost(15, (done) => {
       if (!window.speechSynthesis || !text) { done(); return; }
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "ko-KR";
@@ -696,39 +714,81 @@
       window.speechSynthesis.speak(utterance);
     });
     const playNext = async () => {
-      if (busy || !pending.length) return;
+      if (busy || needsTap || !pending.length) return;
       busy = true;
-      const { url, text } = pending.shift();
+      const item = pending[0];
       try {
-        player.src = url;
+        player.src = item.url;
         await player.play();
-        await new Promise((done) => { player.onended = player.onerror = () => done(); });
-      } catch (_error) {
-        await speakOnDevice(text);
+        pending.shift();
+        if (item.id) remember(item.id);
+        await atMost(20, (done) => { player.onended = player.onerror = () => done(); });
+      } catch (error) {
+        if (error?.name === "NotAllowedError") {
+          needsTap = true;
+          busy = false;
+          render();
+          return;
+        }
+        pending.shift();
+        if (item.id) remember(item.id);
+        await speakOnDevice(item.text);
       }
+      if (item.id) queued.delete(item.id);
       busy = false;
       playNext();
     };
-    const say = (url, text) => { pending.push({ url, text }); playNext(); };
-    const sayCourt = (court) => court?.dataset.gameId && say(`/announce/${court.dataset.gameId}.mp3`, court.dataset.announce);
+    const say = (url, text, id) => { pending.push({ url, text, id }); playNext(); };
+    const sayCourt = (court) => {
+      const id = court?.dataset.gameId;
+      if (!id || queued.has(id)) return;
+      queued.add(id);
+      say(`/announce/${id}.mp3`, court.dataset.announce, id);
+    };
+    const playingCourts = () => [...document.querySelectorAll(".court[data-game-id]")].filter((court) => court.dataset.gameId);
+    const announceNewGames = (recentOnly) => {
+      const now = Date.now() / 1000;
+      playingCourts().forEach((court) => {
+        const id = court.dataset.gameId;
+        if (announced.has(id) || queued.has(id)) return;
+        const startedAt = Number(court.querySelector("[data-game-clock]")?.dataset.startedAt || 0);
+        if (on && (!recentOnly || now - startedAt < RECENT_SECONDS)) sayCourt(court);
+        else remember(id);
+      });
+    };
+
     toggle.addEventListener("click", () => {
       on = !on;
-      toggle.setAttribute("aria-pressed", String(on));
-      toggle.textContent = on ? "안내 방송 켜짐" : "안내 방송 켜기";
-      toggle.classList.toggle("line", !on);
-      if (on) say("/announce/hello.mp3", "안내 방송을 시작합니다.");  // 누른 순간 소리를 내야 이후 자동 재생이 허용된다
+      save("announceOn", on);
+      needsTap = false;
+      pending.length = 0;
+      queued.clear();
+      player.pause();
+      render();
+      if (on) {
+        playingCourts().forEach((court) => remember(court.dataset.gameId));  // 켜는 순간 이미 하던 경기는 읽지 않는다
+        say("/announce/hello.mp3", "안내 방송을 시작합니다.");  // 누른 순간 소리를 내야 이후 자동 재생이 허용된다
+      }
     });
+    document.addEventListener("pointerdown", () => {
+      if (!needsTap) return;
+      needsTap = false;
+      render();
+      playNext();  // 터치 안에서 바로 재생해야 브라우저가 허용한다
+    }, true);
     document.addEventListener("click", (event) => {
       const replay = event.target.closest("[data-announce-replay]");
       if (replay) sayCourt(replay.closest(".court"));
     });
-    document.addEventListener("badminton:sections-updated", () => {
-      playingCourts().forEach((court) => {
-        if (announced.has(court.dataset.gameId)) return;
-        announced.add(court.dataset.gameId);
-        if (on) sayCourt(court);
-      });
-    });
+    document.addEventListener("badminton:sections-updated", () => announceNewGames(false));
+
+    render();
+    if (on) {
+      say("/announce/hello.mp3", "안내 방송을 시작합니다.");  // 다시 연 화면: 자동 재생이 막혀 있으면 '화면을 눌러 주세요'로 바뀐다
+      announceNewGames(true);  // 다시 여는 사이(예: 코트 시작)에 들어간 경기
+    } else {
+      announceNewGames(true);  // 꺼져 있으면 읽지 않고 읽은 것으로만 표시
+    }
   })();
 </script>
 </body>
