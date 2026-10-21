@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import sqlite3
 
 SCHEMA = """
@@ -40,9 +41,32 @@ def connect(path: str) -> sqlite3.Connection:
     return conn
 
 
-def get_setting(conn, key: str) -> float:
-    return conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()[0]
+DEFAULT_SETTINGS = {"female_offset": 1.5, "mix_window": 6.0}
+
+
+def get_setting(conn, key: str, default: float | None = None) -> float:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if row is not None and row[0] is not None:
+        return float(row[0])
+    if default is not None:
+        return float(default)
+    return float(DEFAULT_SETTINGS.get(key, 0.0))
 
 
 def set_setting(conn, key: str, value: float) -> None:
     conn.execute("INSERT OR REPLACE INTO settings VALUES (?, ?)", (key, value))
+
+
+@contextmanager
+def transaction(conn: sqlite3.Connection):
+    """autocommit 모드(isolation_level=None)에서도 안전한 원자적 트랜잭션을 보장한다."""
+    if conn.in_transaction:
+        yield conn
+    else:
+        conn.execute("BEGIN")
+        try:
+            yield conn
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise

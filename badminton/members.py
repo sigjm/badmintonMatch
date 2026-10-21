@@ -3,6 +3,7 @@ import time
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from .db import transaction
 from .matching import GRADE_POINTS
 
 
@@ -44,9 +45,10 @@ def rename_member(conn, member_id: int, nickname: str, by: str) -> None:
     old_nick = row["nickname"]
     if old_nick != nickname:
         now = time.time()
-        conn.execute("UPDATE members SET nickname = ? WHERE id = ?", (nickname, member_id))
-        conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, 'nickname', ?, ?, ?)",
-                     (member_id, by, old_nick, nickname, now))
+        with transaction(conn):
+            conn.execute("UPDATE members SET nickname = ? WHERE id = ?", (nickname, member_id))
+            conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, 'nickname', ?, ?, ?)",
+                         (member_id, by, old_nick, nickname, now))
 
 
 def set_info(conn, member_id: int, gender: str | None, grade: str | None, by: str) -> list[tuple]:
@@ -55,12 +57,13 @@ def set_info(conn, member_id: int, gender: str | None, grade: str | None, by: st
     row = conn.execute("SELECT gender, grade FROM members WHERE id = ?", (member_id,)).fetchone()
     now = time.time()
     changed = []
-    for field, new in (("gender", gender), ("grade", grade)):
-        if row[field] != new:
-            changed.append((field, row[field], new))
-            conn.execute(f"UPDATE members SET {field} = ? WHERE id = ?", (new, member_id))
-            conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, ?, ?, ?, ?)",
-                         (member_id, by, field, row[field], new, now))
+    with transaction(conn):
+        for field, new in (("gender", gender), ("grade", grade)):
+            if row[field] != new:
+                changed.append((field, row[field], new))
+                conn.execute(f"UPDATE members SET {field} = ? WHERE id = ?", (new, member_id))
+                conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, ?, ?, ?, ?)",
+                             (member_id, by, field, row[field], new, now))
     return changed
 
 

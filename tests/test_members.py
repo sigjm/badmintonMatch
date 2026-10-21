@@ -70,3 +70,21 @@ def test_rename_member_noop_when_identical(conn):
     rename_member(conn, m, "동일이름", by="admin")
     assert len(changes(conn)) == 0
 
+
+def test_get_setting_fallback_on_missing_or_none(conn):
+    # settings 테이블에 키가 없거나 값이 None이어도 500 오류 없이 기본값(또는 지정 기본값)을 반환해야 함
+    conn.execute("DELETE FROM settings WHERE key = 'female_offset'")
+    assert get_setting(conn, "female_offset") == 1.5
+    assert get_setting(conn, "unknown_key", default=42.0) == 42.0
+
+
+def test_transaction_rolls_back_on_error(conn):
+    from badminton.db import transaction
+    try:
+        with transaction(conn):
+            conn.execute("INSERT INTO members(nickname) VALUES ('롤백테스트')")
+            raise RuntimeError("작업 중단")
+    except RuntimeError:
+        pass
+    assert conn.execute("SELECT count(*) FROM members WHERE nickname = '롤백테스트'").fetchone()[0] == 0
+
