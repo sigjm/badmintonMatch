@@ -91,9 +91,14 @@
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
   .court .empty { grid-column:2; margin:0; }
-  .court-actions { grid-column:3; grid-row:1 / span 2; display:flex; flex-direction:column; gap:8px; }  /* 버튼 없는 공개 화면에선 3번째 칸이 안 생김 */
+  .court-actions { grid-column:3; grid-row:1 / span 2; display:flex; flex-direction:column; gap:8px; }
+  .court-actions[hidden], .reservation-actions[hidden] { display:none; }
   .court-actions form { margin:0; }
   .court-actions .btn { width:100%; }
+  [data-long-press-actions] { -webkit-user-select:none; user-select:none; }
+  [data-long-press-actions]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
+  [data-long-press-actions].actions-open { border-color:var(--primary-border); box-shadow:0 0 0 2px rgba(22,119,255,.08); }
+  .hold-hint { display:block; margin-top:2px; color:var(--text-3); font-size:11px; font-weight:500; }
   .board-big .court-no { width:56px; height:56px; font-size:24px; }
   .board-big .team { padding:10px 8px; font-size:17px; }
   /* 실시간 코트 보드: 팀은 좌우 두 열, 각 팀의 선수는 위아래로 표시 */
@@ -110,7 +115,8 @@
   .live-courts .court-player .player-chip .player-name.is-male,
   .live-courts .court-player .player-chip .player-name.is-female { color:#fff; font-weight:700; }
   .reservation-board .reservation-card { grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto auto; gap:8px 14px; padding:14px; }
-  .reservation-board.is-admin .reservation-card { grid-template-columns:auto minmax(0,1fr) minmax(112px,150px); }
+  .reservation-board.is-admin .reservation-card { grid-template-columns:auto minmax(0,1fr); }
+  .reservation-board.is-admin .reservation-card.actions-open { grid-template-columns:auto minmax(0,1fr) minmax(112px,150px); }
   .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; }
   .reservation-board .court-match { grid-column:2; grid-row:1; align-items:stretch; gap:10px; }
   .reservation-board .team { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; border-radius:8px; }
@@ -308,7 +314,8 @@
     .court-actions { grid-column:1 / -1; grid-row:auto; flex-direction:row; }
     .court-actions form { flex:1; }
     .reservation-board .reservation-card { grid-template-columns:40px minmax(0,1fr); gap:8px 10px; padding:12px; }
-    .reservation-board.is-admin .reservation-card { grid-template-columns:40px minmax(0,1fr); }
+    .reservation-board.is-admin .reservation-card,
+    .reservation-board.is-admin .reservation-card.actions-open { grid-template-columns:40px minmax(0,1fr); }
     .reservation-board .court-match { grid-column:2; grid-row:1; gap:6px; }
     .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; width:40px; height:44px; font-size:18px; }
     .reservation-board .team { padding:7px 5px; gap:6px; }
@@ -887,6 +894,108 @@
     window.setInterval(tickGameClocks, 1_000);
     refreshLiveSections();
     window.setInterval(refreshLiveSections, 3_000);
+  })();
+
+  // 코트·예약 운영 버튼은 카드를 길게 누르거나 키보드로 선택했을 때 펼친다.
+  (() => {
+    const selector = "[data-long-press-actions]";
+    let openKey = null;
+    let holdTimer = null;
+    let holdTarget = null;
+    let holdPointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let openedByHold = false;
+    let swallowReleaseClick = false;
+    let swallowTimer = null;
+
+    const syncOpenCard = () => {
+      const cards = [...document.querySelectorAll(selector)];
+      let foundOpenCard = false;
+      cards.forEach((card) => {
+        const panel = card.querySelector("[data-action-panel]");
+        const isOpen = Boolean(panel && openKey && card.dataset.key === openKey);
+        if (isOpen) foundOpenCard = true;
+        card.classList.toggle("actions-open", isOpen);
+        card.setAttribute("aria-expanded", String(isOpen));
+        if (panel) panel.hidden = !isOpen;
+      });
+      if (openKey && !foundOpenCard) openKey = null;
+    };
+    const closeActions = () => {
+      openKey = null;
+      syncOpenCard();
+    };
+    const toggleActions = (card) => {
+      openKey = openKey === card.dataset.key ? null : card.dataset.key;
+      syncOpenCard();
+    };
+    const cancelHold = () => {
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
+      holdTarget = null;
+      holdPointerId = null;
+      openedByHold = false;
+    };
+    const isInteractive = (target) => target.closest(
+      "[data-player-status], button, a, input, select, textarea, form, [contenteditable='true']"
+    );
+
+    document.addEventListener("pointerdown", (event) => {
+      cancelHold();
+      if (!event.isPrimary || event.button > 0) return;
+      const card = event.target.closest(selector);
+      if (!card || isInteractive(event.target) || !card.dataset.key) return;
+      holdTarget = card;
+      holdPointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      holdTimer = window.setTimeout(() => {
+        openedByHold = true;
+        swallowReleaseClick = true;
+        window.clearTimeout(swallowTimer);
+        swallowTimer = window.setTimeout(() => { swallowReleaseClick = false; }, 1_000);
+        toggleActions(card);
+      }, 550);
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (holdTimer && event.pointerId === holdPointerId && holdTarget &&
+          Math.hypot(event.clientX - startX, event.clientY - startY) > 10) cancelHold();
+    });
+    document.addEventListener("pointerup", (event) => {
+      if (event.pointerId !== holdPointerId) return;
+      if (openedByHold) window.setTimeout(() => { swallowReleaseClick = false; }, 0);
+      cancelHold();
+    });
+    document.addEventListener("pointercancel", cancelHold);
+    window.addEventListener("blur", cancelHold);
+    document.addEventListener("click", (event) => {
+      if (swallowReleaseClick && event.detail > 0) {
+        swallowReleaseClick = false;
+        window.clearTimeout(swallowTimer);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (!openKey) return;
+      const openCard = [...document.querySelectorAll(selector)].find((card) => card.dataset.key === openKey);
+      if (openCard && !openCard.contains(event.target)) closeActions();
+    }, true);
+    document.addEventListener("keydown", (event) => {
+      const card = event.target.closest(selector);
+      if (card && event.target === card && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        toggleActions(card);
+      } else if (event.key === "Escape" && openKey) {
+        closeActions();
+      }
+    });
+    document.addEventListener("contextmenu", (event) => {
+      const card = event.target.closest(selector);
+      if (card && !isInteractive(event.target)) event.preventDefault();
+    });
+    document.addEventListener("badminton:sections-updated", syncOpenCard);
+    syncOpenCard();
   })();
 
   (() => {
