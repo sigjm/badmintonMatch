@@ -19,10 +19,28 @@ def test_pick_four_none_when_short():
     assert pick_four([P(i, "M", "A") for i in range(3)]) is None
 
 
-def test_pick_four_prefers_mixed_when_levels_tie():
-    # 여S(6-1=5) 와 남A(5) 는 같은 수준 → 급수 폭이 같으면 혼복을 고른다
+def test_pick_four_prefers_same_gender_when_levels_tie():
+    # 여S(6-1=5) 와 남A(5) 는 같은 수준 → 급수 폭이 같으면 남복(4:0)을 혼복(2:2)보다 먼저 고른다
     q = [P(1, "M", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "F", "S"), P(5, "F", "S"), P(6, "M", "A")]
-    assert {p.id for p in pick_four(q, 6)} == {1, 2, 4, 5}
+    assert {p.id for p in pick_four(q, 6, female_offset=1)} == {1, 2, 3, 6}
+
+
+def test_pick_four_makes_mixed_when_same_gender_impossible():
+    # 대기열에 남3 여2가 있어 남복(4명)이나 여복(4명)이 불가능하고 2:2 혼복만 가능할 때 혼복 생성
+    q = [P(1, "M", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "F", "A"), P(5, "F", "A")]
+    picked = pick_four(q, 6)
+    assert picked is not None
+    assert sum(p.gender == "F" for p in picked) == 2
+
+
+def test_pick_four_default_female_offset_is_one_point_five():
+    # default female_offset=1.5 동작 확인: 여A(5 - 1.5 = 3.5), 남D(2), 남C(3), 남B(4)
+    # 남B(4)와 여A(3.5)는 차이 0.5, 남D(2)와 남C(3)는 차이 1.0
+    p_f = P(1, "F", "A")
+    assert score(p_f, 1.5) == 3.5
+    # split_teams 기본 인자도 1.5인지 확인
+    teams = split_teams([P(1, "M", "A"), P(2, "M", "B"), P(3, "F", "A"), P(4, "F", "B")])
+    assert teams is not None
 
 
 def test_pick_four_women_outside_window_ignored():

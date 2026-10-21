@@ -36,4 +36,4 @@ def test_pin_rules(conn):
 
 
 def test_settings_defaults(conn):
-    assert get_setting(conn, "female_offset") == 1 and get_setting(conn, "mix_window") == 6
+    assert get_setting(conn, "female_offset") == 1.5 and get_setting(conn, "mix_window") == 6

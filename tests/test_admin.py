@@ -60,9 +60,9 @@ def test_guest_added_to_meetup(admin, seeded_meetup, conn_of):
 def test_settings_validation(admin, conn_of):
     from badminton.db import get_setting
     admin.post("/admin/settings", data={"female_offset": "abc", "mix_window": "6"})
-    assert get_setting(conn_of(), "female_offset") == 1
+    assert get_setting(conn_of(), "female_offset") == 1.5
     admin.post("/admin/settings", data={"female_offset": "9", "mix_window": "6"})
-    assert get_setting(conn_of(), "female_offset") == 1
+    assert get_setting(conn_of(), "female_offset") == 1.5
     admin.post("/admin/settings", data={"female_offset": "1.5", "mix_window": "8"})
     assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_window") == 8
 

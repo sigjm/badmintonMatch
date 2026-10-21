@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS games(
 CREATE TABLE IF NOT EXISTS reservations(
   id INTEGER PRIMARY KEY, meetup_id INTEGER NOT NULL REFERENCES meetups, seq INTEGER NOT NULL,
   a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, created_at REAL NOT NULL);
-INSERT OR IGNORE INTO settings VALUES ('female_offset', 1), ('mix_window', 6);
+INSERT OR IGNORE INTO settings VALUES ('female_offset', 1.5), ('mix_window', 6);
 """
 
 
