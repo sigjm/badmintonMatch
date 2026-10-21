@@ -1,4 +1,4 @@
-from badminton.somoim import SomoimError
+from badminton.somoim import Group, SomoimError, SomoimMember
 from conftest import GROUP_ONE_EVENT
 
 
@@ -88,3 +88,67 @@ def test_members_page_lists_changes(admin, conn_of):
     set_info(conn_of(), m, "F", "B", by="self")
     html = admin.get("/admin/members").get_data(as_text=True)
     assert "가나다" in html and "변경 기록" in html
+
+
+GROUP_NO_FLAGS = Group(events=GROUP_ONE_EVENT.events,
+                       members=[SomoimMember(m.mid, m.nickname, frozenset(), False) for m in GROUP_ONE_EVENT.members])
+
+
+def test_reimport_with_no_attendee_flags_keeps_everyone(admin, monkeypatch, conn_of):  # Review Focus 1
+    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    admin.post("/admin/import", data={"date": "2026-10-23"})
+    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_NO_FLAGS)
+    html = admin.post("/admin/m/1/import").get_data(as_text=True)
+    assert "붙여넣기" in html
+    assert conn_of().execute("SELECT count(*) FROM attendees WHERE status='present'").fetchone()[0] == 2
+
+
+def test_first_import_with_no_attendees_creates_nothing(admin, monkeypatch, conn_of):
+    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_NO_FLAGS)
+    assert "붙여넣기" in admin.post("/admin/import", data={"date": "2026-10-23"}).get_data(as_text=True)
+    assert conn_of().execute("SELECT count(*) FROM meetups").fetchone()[0] == 0
+
+
+def test_paste_after_failed_reimport_fills_same_meetup(admin, monkeypatch, conn_of):
+    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    admin.post("/admin/import", data={"date": "2026-10-23"})
+
+    def boom(gid):
+        raise SomoimError("x")
+
+    monkeypatch.setattr("badminton.admin.fetch_group", boom)
+    html = admin.post("/admin/m/1/import").get_data(as_text=True)
+    assert 'name="mid" value="1"' in html
+    admin.post("/admin/paste", data={"mid": "1", "date": "2026-10-23", "name": "x", "text": "새사람"})
+    c = conn_of()
+    assert c.execute("SELECT count(*) FROM meetups").fetchone()[0] == 1
+    assert c.execute("SELECT count(*) FROM attendees WHERE meetup_id = 1").fetchone()[0] == 3
+
+
+def test_pin_reset_confirm_not_injectable(admin, conn_of):
+    import re
+    from badminton.members import create_member, set_pin
+    m = create_member(conn_of(), "x');alert(1);('")
+    set_pin(conn_of(), m, "1234")
+    html = admin.get("/admin/members").get_data(as_text=True)
+    assert not any("alert" in a for a in re.findall(r'onsubmit="([^"]*)"', html))
+
+
+def test_change_log_shows_time_and_labels(admin, conn_of):
+    import re
+    from badminton.members import create_member, set_info
+    m = create_member(conn_of(), "가나다")
+    set_info(conn_of(), m, "F", "N", by="self")
+    html = admin.get("/admin/members").get_data(as_text=True)
+    assert "초심" in html and "없음 → 여" in html and re.search(r"\d\d-\d\d \d\d:\d\d", html)
+
+
+def test_status_select_hides_canceled_unless_current(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    assert 'value="canceled"' not in admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+
+def test_session_cookie_flags(tmp_path):
+    from badminton import create_app
+    app = create_app({"DATABASE": str(tmp_path / "c.db")})
+    assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax" and app.config["SESSION_COOKIE_SECURE"] is True

@@ -11,6 +11,12 @@ def upsert_somoim(conn, mid: str, nickname: str) -> int:
     if row:
         conn.execute("UPDATE members SET nickname = ? WHERE id = ?", (nickname, row["id"]))
         return row["id"]
+    # 붙여넣기로 먼저 만들어진 같은 닉네임 회원이 딱 한 명이면 그 회원을 소모임 회원과 연결한다 (급수 유지)
+    pasted = conn.execute("SELECT id FROM members WHERE nickname = ? AND somoim_mid IS NULL AND is_guest = 0",
+                          (nickname,)).fetchall()
+    if len(pasted) == 1:
+        conn.execute("UPDATE members SET somoim_mid = ? WHERE id = ?", (mid, pasted[0]["id"]))
+        return pasted[0]["id"]
     return conn.execute("INSERT INTO members(somoim_mid, nickname) VALUES (?, ?)", (mid, nickname)).lastrowid
 
 
@@ -26,15 +32,19 @@ def _check_codes(gender, grade):
         raise ValueError("성별 또는 급수 값이 올바르지 않습니다")
 
 
-def set_info(conn, member_id: int, gender: str | None, grade: str | None, by: str) -> None:
+def set_info(conn, member_id: int, gender: str | None, grade: str | None, by: str) -> list[tuple]:
+    """바뀐 필드를 (필드, 이전 값, 새 값) 목록으로 돌려준다."""
     _check_codes(gender, grade)
     row = conn.execute("SELECT gender, grade FROM members WHERE id = ?", (member_id,)).fetchone()
     now = time.time()
+    changed = []
     for field, new in (("gender", gender), ("grade", grade)):
         if row[field] != new:
+            changed.append((field, row[field], new))
             conn.execute(f"UPDATE members SET {field} = ? WHERE id = ?", (new, member_id))
             conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, ?, ?, ?, ?)",
                          (member_id, by, field, row[field], new, now))
+    return changed
 
 
 def set_pin(conn, member_id: int, pin: str) -> None:
@@ -58,5 +68,6 @@ def list_members(conn, *, guests: bool | None = None) -> list:
 
 
 def changes(conn, limit: int = 100) -> list:
-    return conn.execute("""SELECT c.*, m.nickname FROM changes c JOIN members m ON m.id = c.member_id
+    return conn.execute("""SELECT c.*, m.nickname, strftime('%m-%d %H:%M', c.at, 'unixepoch', '+9 hours') AS when_kst
+                           FROM changes c JOIN members m ON m.id = c.member_id
                            ORDER BY c.at DESC, c.id DESC LIMIT ?""", (limit,)).fetchall()

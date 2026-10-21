@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from .db import get_setting
@@ -12,8 +12,13 @@ SEOUL = ZoneInfo("Asia/Seoul")
 ACTIVE = "SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL"
 
 
+def session_day(now: datetime) -> str:
+    # ponytail: 새벽 6시 전은 전날 정모로 본다 (22시 정모가 자정을 넘김). 새벽 정모가 생기면 정모별 종료 시각으로 바꿀 것
+    return (now - timedelta(hours=6)).date().isoformat()
+
+
 def today() -> str:
-    return datetime.now(SEOUL).date().isoformat()
+    return session_day(datetime.now(SEOUL))
 
 
 def get_or_create_meetup(conn, date: str, name: str, eid: str | None) -> int:
@@ -59,7 +64,7 @@ def sync_somoim(conn, meetup_id: int, members: list[SomoimMember]) -> dict:
 def add_pasted(conn, meetup_id: int, text: str) -> dict:
     result = {"added": [], "created": [], "ambiguous": []}
     for nick in dict.fromkeys(line.strip() for line in text.splitlines() if line.strip()):
-        ids = [r["id"] for r in conn.execute("SELECT id FROM members WHERE nickname = ?", (nick,))]
+        ids = [r["id"] for r in conn.execute("SELECT id FROM members WHERE nickname = ? AND is_guest = 0", (nick,))]
         if len(ids) > 1:
             result["ambiguous"].append(nick)
             continue
@@ -141,7 +146,8 @@ def redraw(conn, game_id: int) -> None:
     g = _game(conn, game_id)
     if g is None or g["ended_at"] is not None:
         return
-    conn.execute("DELETE FROM games WHERE id = ?", (game_id,))
+    # 지우지 않고 끝난 것으로 표시: 새 경기가 같은 id를 받아 다른 폰의 오래된 "경기 끝"이 새 경기를 끝내는 일을 막는다
+    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (time.time(), game_id))
     fill_courts(conn, g["meetup_id"])
 
 
@@ -153,7 +159,7 @@ def board(conn, meetup_id: int) -> dict:
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}
     court_list = []
-    for c in range(1, courts + 1):
+    for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
         court_list.append({"court": c, "game_id": g["id"] if g else None,
                            "teams": [[names[g["a1"]], names[g["a2"]]], [names[g["b1"]], names[g["b2"]]]] if g else None})
@@ -175,12 +181,10 @@ def refill_today(conn) -> None:
         fill_courts(conn, r["id"])
 
 
-def on_info_changed(conn, member_id: int) -> None:
-    # 방금 비어 있던 성별/급수가 채워졌을 때만 대기열 맨 뒤로 넣는다 (이미 대기 중인 사람의 급수 수정은 순서 유지)
-    filled = conn.execute("""SELECT 1 FROM changes WHERE member_id = ? AND old IS NULL
-                             AND at = (SELECT max(at) FROM changes WHERE member_id = ?)""",
-                          (member_id, member_id)).fetchone()
-    if filled:
+def on_info_changed(conn, member_id: int, changed: list[tuple]) -> None:
+    """changed는 members.set_info가 돌려준 (필드, 이전 값, 새 값) 목록.
+    비어 있던 성별/급수가 이번에 채워졌을 때만 대기열 맨 뒤로 넣는다 (대기 중인 사람의 급수 수정은 순서 유지)."""
+    if any(old is None for _, old, _ in changed):
         conn.execute("""UPDATE attendees SET queued_at = ? WHERE member_id = ? AND status = 'present'
                         AND meetup_id IN (SELECT id FROM meetups WHERE date = ?)""", (time.time(), member_id, today()))
     refill_today(conn)

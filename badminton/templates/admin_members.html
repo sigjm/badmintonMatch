@@ -14,7 +14,7 @@
         <span><span class="name">{{ r.nickname }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
         {% if r.pin_hash %}
         <form method="post" action="{{ url_for('admin.member_reset_pin', member_id=r.id) }}" class="inline"
-              onsubmit="return confirm('{{ r.nickname }}님의 PIN을 초기화할까요?')"><button class="btn line sm">PIN 초기화</button></form>
+              onsubmit="return confirm('이 회원의 PIN을 초기화할까요?')"><button class="btn line sm">PIN 초기화</button></form>
         {% else %}<span class="meta">PIN 없음</span>{% endif %}
       </div>
       <form method="post" action="{{ url_for('admin.member_update', member_id=r.id) }}" class="row-ctl">
@@ -36,8 +36,9 @@
 <section class="section">
   <div class="head"><span>변경 기록</span><span>최근 100건</span></div>
   {% for c in changes %}
-  <div class="log"><b>{{ c.nickname }}</b> {{ '성별' if c.field == 'gender' else '급수' }}
-    {{ c.old or '없음' }} → {{ c.new or '없음' }} <span class="muted">· {{ '본인' if c.by == 'self' else '운영진' }}</span></div>
+  {% set lbl = GENDER_LABELS if c.field == 'gender' else GRADE_LABELS %}
+  <div class="log"><span class="muted">{{ c.when_kst }}</span> <b>{{ c.nickname }}</b> {{ '성별' if c.field == 'gender' else '급수' }}
+    {{ lbl.get(c.old, '없음') }} → {{ lbl.get(c.new, '없음') }} <span class="muted">· {{ '본인' if c.by == 'self' else '운영진' }}</span></div>
   {% else %}
   <p class="empty">아직 변경 기록이 없습니다.</p>
   {% endfor %}

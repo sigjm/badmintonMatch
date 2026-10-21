@@ -32,6 +32,7 @@
 <section class="section">
   <div class="head"><span>붙여넣기로 등록</span></div>
   <form method="post" action="{{ url_for('admin.paste') }}">
+    {% if mid %}<input type="hidden" name="mid" value="{{ mid }}">{% endif %}
     <p class="small muted">소모임 앱에서 참석자 닉네임을 복사해 한 줄에 한 명씩 붙여넣어 주세요.</p>
     <div class="bar">
       <input type="date" name="date" value="{{ date }}" required>

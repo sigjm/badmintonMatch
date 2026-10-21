@@ -36,3 +36,25 @@ def test_events_on_date():
 def test_garbage_raises():
     with pytest.raises(SomoimError):
         parse_group("<html>점검 중</html>")
+
+
+def test_bad_event_fields_skipped():
+    bad = dict(EV, eid="g1bad", emm="$undefined")
+    g = parse_group(page([EV, bad], [M("a", "가", "Y")]))
+    assert [e.eid for e in g.events] == ["g1202610232200"]
+
+
+def test_duplicate_member_records_merge_slots():
+    g = parse_group(page([EV], [M("a", "가", "N", "Y"), M("a", "가", "Y")]))
+    assert g.members[0].attending_slots == frozenset({1, 2})
+
+
+def test_fetch_group_wraps_unexpected_errors(monkeypatch):
+    from badminton import somoim
+
+    def reset(*a, **k):
+        raise ConnectionResetError("reset by peer")
+
+    monkeypatch.setattr(somoim.urllib.request, "urlopen", reset)
+    with pytest.raises(SomoimError):
+        somoim.fetch_group("g1")

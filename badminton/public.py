@@ -54,8 +54,8 @@ def _save_me(conn):
     gender = request.form.get("gender") or member["gender"]
     grade = request.form.get("grade") or member["grade"]
     try:
-        set_info(conn, member["id"], gender, grade, by="self")
+        changed = set_info(conn, member["id"], gender, grade, by="self")
     except ValueError as e:
         return str(e), None
-    on_info_changed(conn, member["id"])
+    on_info_changed(conn, member["id"], changed)
     return None, f"{member['nickname']}님 정보를 저장했습니다"

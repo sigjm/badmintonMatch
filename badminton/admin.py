@@ -56,21 +56,27 @@ def home():
     return _home()
 
 
-def _import(date: str, eid: str | None = None, name: str = ""):
-    """소모임에서 그 날짜 정모 참석자를 가져와 동기화한다. 실패하면 DB를 건드리지 않고 붙여넣기를 안내한다."""
+def _import(date: str, eid: str | None = None, name: str = "", mid: int | None = None):
+    """소모임에서 그 날짜 정모 참석자를 가져와 동기화한다. 실패하면 DB를 건드리지 않고 붙여넣기를 안내한다.
+    mid는 다시 불러오기 중인 정모 — 실패 시 붙여넣기가 새 정모가 아니라 그 정모에 들어가게 한다."""
+    fail = dict(date=date, name=name, mid=mid)
     try:
         group = fetch_group(current_app.config["SOMOIM_GROUP_ID"])
     except SomoimError as e:
-        return _home(date=date, name=name, error=f"소모임에서 명단을 가져오지 못했습니다 ({e}). 붙여넣기로 등록해 주세요.")
+        return _home(**fail, error=f"소모임에서 명단을 가져오지 못했습니다 ({e}). 붙여넣기로 등록해 주세요.")
     events = [e for e in events_on(group, date) if eid is None or e.eid == eid]
     if not events:
-        return _home(date=date, name=name, error=f"{date}에 열리는 정모를 소모임에서 찾지 못했습니다. 붙여넣기로 등록해 주세요.")
+        return _home(**fail, error=f"{date}에 열리는 정모를 소모임에서 찾지 못했습니다. 붙여넣기로 등록해 주세요.")
     if len(events) > 1:
         return _home(date=date, choices=events)
     ev = events[0]
+    found = attendees(group, ev)
+    if not found:  # 페이지 구조가 바뀌어 참석 표시를 못 읽은 경우: 동기화하면 전원이 취소되므로 멈춘다
+        return _home(**{**fail, "name": name or ev.name},
+                     error="소모임에서 참석자를 한 명도 찾지 못했습니다. 페이지가 바뀌었을 수 있어요. 붙여넣기로 등록해 주세요.")
     conn = get_conn()
     mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid)
-    r = sync_somoim(conn, mid, attendees(group, ev))
+    r = sync_somoim(conn, mid, found)
     refill_today(conn)
     flash(f"불러오기 완료: 추가 {r['added']} · 취소 {r['canceled']} · 복귀 {r['restored']}")
     return redirect(url_for("admin.meetup", mid=mid))
@@ -96,14 +102,16 @@ def reimport(mid):
     if m["eid"] is None:
         flash("붙여넣기로 만든 정모는 소모임에서 다시 불러올 수 없습니다")
         return redirect(url_for("admin.meetup", mid=mid))
-    return _import(m["date"], m["eid"], m["name"])
+    return _import(m["date"], m["eid"], m["name"], mid)
 
 
 @bp.post("/paste")
 @admin_required
 def paste():
     conn = get_conn()
-    mid = get_or_create_meetup(conn, request.form["date"], request.form.get("name") or "정모", None)
+    mid = request.form.get("mid", type=int)
+    if mid is None or conn.execute("SELECT 1 FROM meetups WHERE id = ?", (mid,)).fetchone() is None:
+        mid = get_or_create_meetup(conn, request.form["date"], request.form.get("name") or "정모", None)
     r = add_pasted(conn, mid, request.form.get("text", ""))
     refill_today(conn)
     msg = f"붙여넣기: 등록 {len(r['added'])} · 새 회원 {len(r['created'])}"
@@ -144,8 +152,9 @@ def info(mid):
     conn = get_conn()
     member_id = int(request.form["member_id"])
     try:
-        set_info(conn, member_id, _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id)
+        changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
+                           _blank_none(request.form.get("grade")), by="admin")
+        on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -207,13 +216,9 @@ def end(gid):
 @bp.post("/game/<int:gid>/redraw")
 @admin_required
 def redraw_game(gid):
-    conn = get_conn()
-    row = conn.execute("SELECT meetup_id FROM games WHERE id = ?", (gid,)).fetchone()
-    redraw(conn, gid)
-    if row is None:
-        flash("이미 다시 뽑은 경기입니다")
-        return redirect(url_for("admin.home"))
-    return redirect(url_for("admin.meetup", mid=row["meetup_id"]))
+    mid = _game_meetup(gid)
+    redraw(get_conn(), gid)
+    return redirect(url_for("admin.meetup", mid=mid))
 
 
 @bp.get("/members")
@@ -228,8 +233,9 @@ def members():
 def member_update(member_id):
     conn = get_conn()
     try:
-        set_info(conn, member_id, _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id)
+        changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
+                           _blank_none(request.form.get("grade")), by="admin")
+        on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.members"))

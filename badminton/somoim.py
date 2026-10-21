@@ -6,7 +6,6 @@
 """
 import json
 import re
-import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
@@ -58,8 +57,11 @@ def _event(o: dict) -> Event | None:
     d, t = o.get("e_d"), o.get("e_t")
     if not isinstance(d, int) or not isinstance(t, int) or not o.get("eid"):
         return None
-    return Event(o["eid"], o.get("en", ""), f"{d // 10000:04d}-{d // 100 % 100:02d}-{d % 100:02d}",
-                 f"{t // 100:02d}:{t % 100:02d}", o.get("el", ""), int(o.get("emm", 0)), int(o.get("enum", 1)))
+    try:
+        return Event(o["eid"], o.get("en", ""), f"{d // 10000:04d}-{d // 100 % 100:02d}-{d % 100:02d}",
+                     f"{t // 100:02d}:{t % 100:02d}", o.get("el", ""), int(o.get("emm", 0)), int(o.get("enum", 1)))
+    except (TypeError, ValueError):
+        return None  # 필드 형식이 바뀐 정모는 건너뛴다
 
 
 def _slot_field(slot: int) -> str:
@@ -76,9 +78,13 @@ def parse_group(html: str) -> Group:
             events.append(e)
     members = {}
     for o in _objects(text, '{"id":'):
-        if "mid" in o and "mn" in o and o["mid"] not in members:
-            slots = frozenset(n for n in range(1, 5) if o.get(_slot_field(n)) == "Y")
-            members[o["mid"]] = SomoimMember(o["mid"], o["mn"], slots, o.get("ban") == "Y")
+        if "mid" not in o or "mn" not in o:
+            continue
+        slots = frozenset(n for n in range(1, 5) if o.get(_slot_field(n)) == "Y")
+        prev = members.get(o["mid"])
+        if prev:  # 같은 회원이 여러 번 나오면(운영진 목록 등) 참석 표시를 합친다
+            slots |= prev.attending_slots
+        members[o["mid"]] = SomoimMember(o["mid"], prev.nickname if prev else o["mn"], slots, o.get("ban") == "Y")
     if not events and not members:
         raise SomoimError("소모임 페이지에서 정모와 회원 정보를 찾지 못했습니다")
     return Group(events, list(members.values()))
@@ -96,7 +102,8 @@ def fetch_group(group_id: str, timeout: float = 10) -> Group:
     req = urllib.request.Request(f"https://www.somoim.co.kr/{group_id}", headers={"User-Agent": "Mozilla/5.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            html = resp.read().decode("utf-8")
-    except (urllib.error.URLError, TimeoutError, UnicodeDecodeError) as e:
-        raise SomoimError(f"소모임 페이지를 받지 못했습니다: {e}") from e
-    return parse_group(html)
+            return parse_group(resp.read().decode("utf-8"))
+    except SomoimError:
+        raise
+    except Exception as e:  # 외부 페이지 경계: 어떤 실패든 붙여넣기 안내로 이어지게 한다
+        raise SomoimError(f"소모임 페이지를 읽지 못했습니다: {e}") from e

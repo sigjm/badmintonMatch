@@ -22,6 +22,8 @@ def create_app(config: dict | None = None) -> Flask:
         ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD", ""),
         SECRET_KEY=os.environ.get("SECRET_KEY"),
         SOMOIM_GROUP_ID=os.environ.get("SOMOIM_GROUP_ID", DEFAULT_GROUP_ID),
+        SESSION_COOKIE_SAMESITE="Lax",  # 다른 사이트에서 보낸 POST에 운영진 세션이 실리지 않게
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") == "1",  # 로컬 http 개발 때만 0
     )
     app.config.update(config or {})
 
@@ -31,7 +33,7 @@ def create_app(config: dict | None = None) -> Flask:
         if conn is not None:
             conn.close()
 
-    app.jinja_env.globals.update(GRADE_LABELS=GRADE_LABELS, STATUS_LABELS=STATUS_LABELS)
+    app.jinja_env.globals.update(GRADE_LABELS=GRADE_LABELS, STATUS_LABELS=STATUS_LABELS, GENDER_LABELS={"M": "남", "F": "여"})
 
     from .admin import bp as admin_bp
     from .public import bp as public_bp

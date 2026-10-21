@@ -20,7 +20,8 @@ def conn(tmp_path):
 
 @pytest.fixture
 def app(tmp_path):
-    return create_app({"DATABASE": str(tmp_path / "app.db"), "ADMIN_PASSWORD": "pw", "SECRET_KEY": "t", "TESTING": True})
+    return create_app({"DATABASE": str(tmp_path / "app.db"), "ADMIN_PASSWORD": "pw", "SECRET_KEY": "t", "TESTING": True,
+                       "SESSION_COOKIE_SECURE": False})
 
 
 @pytest.fixture
