@@ -353,36 +353,56 @@ def test_admin_meetup_updates_json_keys(admin, seeded_meetup):
 
 def test_admin_manual_match_requires_login(client, seeded_meetup):
     mid, _ = seeded_meetup
-    resp = client.post(f"/admin/m/{mid}/manual/1")
+    resp = client.post(f"/admin/m/{mid}/manual")
     assert resp.status_code == 302
     assert "/admin/login" in resp.headers["Location"]
 
 
-def test_admin_manual_match_routes(admin, seeded_meetup, conn_of):
-    mid, _ = seeded_meetup
+def test_admin_manual_match_routes(admin, seeded_meetup, conn_of, monkeypatch):
+    from badminton import meetups
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = seeded_meetup
+    c = conn_of()
     # 1. 선수 미선택 실패 플래시
-    resp = admin.post(f"/admin/m/{mid}/manual/2", data={}, follow_redirects=True)
+    resp = admin.post(f"/admin/m/{mid}/manual", data={}, follow_redirects=True)
     assert "선수 네 명을 모두 선택해 주세요" in resp.get_data(as_text=True)
 
-    # 2. 빈 코트 미선택 실패 플래시
-    resp2 = admin.post(f"/admin/m/{mid}/manual", data={"a1": 1, "a2": 2, "b1": 3, "b2": 4}, follow_redirects=True)
-    assert "빈 코트가 없습니다" in resp2.get_data(as_text=True)  # 코트를 안 고르면 빈 첫 코트, 다 차 있으면 안내
-
-    # 3. 코트 2면으로 확장 후 수동 배정 성공
+    # 2. 추가 선수 등록 후 수동 예약(/manual) 성공
     from badminton.members import create_member
-    from badminton.meetups import add_attendee, start
-    c = conn_of()
-    start(c, mid, 2)
+    from badminton.meetups import add_attendee
     p1 = create_member(c, "수동1", gender="M", grade="A")
     p2 = create_member(c, "수동2", gender="M", grade="B")
     p3 = create_member(c, "수동3", gender="F", grade="A")
     p4 = create_member(c, "수동4", gender="F", grade="B")
-    for p in (p1, p2, p3, p4):
+    p5 = create_member(c, "수동5", gender="M", grade="C")
+    for p in (p1, p2, p3, p4, p5):
         add_attendee(c, mid, p, "paste")
-    resp3 = admin.post(f"/admin/m/{mid}/manual/2", data={"a1": p1, "a2": p2, "b1": p3, "b2": p4}, follow_redirects=True)
-    assert "코트 2에 수동 대진을 배정했습니다" in resp3.get_data(as_text=True)
-    game2 = c.execute("SELECT * FROM games WHERE meetup_id = ? AND court = 2 AND ended_at IS NULL", (mid,)).fetchone()
-    assert game2 is not None and (game2["a1"], game2["a2"], game2["b1"], game2["b2"]) == (p1, p2, p3, p4)
+
+    resp2 = admin.post(f"/admin/m/{mid}/manual", data={"a1": p1, "a2": p2, "b1": p3, "b2": p4}, follow_redirects=True)
+    assert "수동 예약을 추가했습니다" in resp2.get_data(as_text=True)
+    resv = c.execute("SELECT * FROM reservations WHERE meetup_id = ? AND a1 = ?", (mid, p1)).fetchone()
+    assert resv is not None and resv["source"] == "manual"
+    rid = resv["id"]
+
+    # 3. 예약 수정 라우트 (/admin/reservation/<rid>/edit)
+    resp3 = admin.post(f"/admin/reservation/{rid}/edit", data={"a1": p1, "a2": p2, "b1": p3, "b2": p5}, follow_redirects=True)
+    assert "예약을 수정했습니다" in resp3.get_data(as_text=True)
+    resv_edited = c.execute("SELECT * FROM reservations WHERE id = ?", (rid,)).fetchone()
+    assert (resv_edited["a1"], resv_edited["a2"], resv_edited["b1"], resv_edited["b2"]) == (p1, p2, p3, p5)
+
+    # 4. 우선순위 라우트 (/admin/reservation/<rid>/priority)
+    resp4 = admin.post(f"/admin/reservation/{rid}/priority", follow_redirects=True)
+    assert "예약을 다음 순서로 이동했습니다" in resp4.get_data(as_text=True)
+    resv_prio = c.execute("SELECT seq FROM reservations WHERE id = ?", (rid,)).fetchone()
+    assert resv_prio["seq"] == 1
+
+    # 5. 즉시 시작 라우트 (/admin/reservation/<rid>/start-now) - 코트 1 경기를 종료 후 즉시 시작
+    admin.post(f"/admin/game/{gid}/end")
+    resp5 = admin.post(f"/admin/reservation/{rid}/start-now", follow_redirects=True)
+    assert "예약 경기를 1코트에서 바로 시작했습니다" in resp5.get_data(as_text=True)
+    g = c.execute("SELECT court, a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    assert g is not None and (g["a1"], g["a2"], g["b1"], g["b2"]) == (p1, p2, p3, p5)
+    assert c.execute("SELECT 1 FROM reservations WHERE id = ?", (rid,)).fetchone() is None
 
 
 def test_redraw_reservation_requires_login(client):
@@ -429,8 +449,8 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
 
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert 'aria-label="예약 1"' in html
-    assert 'aria-label="예약 2"' in html
+    assert 'aria-label="예약 1, 길게 누르거나' in html
+    assert 'aria-label="예약 2, 길게 누르거나' in html
     assert "닉A(남A)" in html and "닉H(여D)" in html
     assert "/admin/reservation/9/redraw" in html
     assert "다시 뽑기" in html
@@ -440,7 +460,7 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert 'aria-label="예약 1"' in data["reservation_list"]
+    assert 'aria-label="예약 1, 길게 누르거나' in data["reservation_list"]
     assert "닉D(여B)" in data["reservation_list"]
     assert "/admin/reservation/9/redraw" in data["reservation_list"]
     assert "다시 뽑기" in data["reservation_list"]
@@ -521,10 +541,10 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     add_attendee(c, mid, waiting, "paste")
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     assert "경기 시간" in html
-    assert 'class="pcard is-queued"' in html and "대기 1" in html
+    assert 'class="pcard is-queued' in html and "대기 1" in html
     assert "data-open-info" in html and 'name="status" value="away"' in html and 'value="gone"' in html
     public = client.get("/board").get_data(as_text=True)
-    assert "경기 시간" in public and 'class="pcard is-queued"' in public
+    assert "경기 시간" in public and 'class="pcard is-queued' in public
     assert 'name="status"' not in public and ">정보</button>" not in public
 
 
@@ -594,11 +614,16 @@ def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn
     assert "data-manual-draft" in html and html.count("data-draft-slot=") == 4 and "data-manual-fill" in html
     ids = [r[0] for r in c.execute("SELECT member_id FROM attendees WHERE meetup_id = ? ORDER BY member_id", (mid,))]
     resp = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
-    assert "코트 1에 수동 대진을 배정했습니다" in resp.get_data(as_text=True)
+    assert "수동 예약을 추가했습니다" in resp.get_data(as_text=True)
+    resv = c.execute("SELECT id, a1, a2, b1, b2, source FROM reservations WHERE meetup_id = ?", (mid,)).fetchone()
+    assert resv is not None and resv["source"] == "manual" and [resv["a1"], resv["a2"], resv["b1"], resv["b2"]] == ids
+    again = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
+    assert "이미 예약된 선수는 다시 선택할 수 없습니다" in again.get_data(as_text=True)
+    start_resp = admin.post(f"/admin/reservation/{resv['id']}/start-now", follow_redirects=True)
+    assert "예약 경기를 1코트에서 바로 시작했습니다" in start_resp.get_data(as_text=True)
     g = c.execute("SELECT court, a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()
     assert g["court"] == 1 and [g["a1"], g["a2"], g["b1"], g["b2"]] == ids
-    again = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
-    assert "빈 코트가 없습니다" in again.get_data(as_text=True)
+    assert c.execute("SELECT 1 FROM reservations WHERE id = ?", (resv["id"],)).fetchone() is None
 
 
 def test_guest_and_court_count_forms_save_without_full_reload(admin, seeded_meetup):
