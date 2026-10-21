@@ -166,11 +166,19 @@ def test_meetup_page_renders(admin, seeded_meetup):
     assert "코트 1" in html and ("경기 끝" in html or "게임 끝내기" in html)
 
 
-def test_end_and_redraw_routes(admin, seeded_meetup):
+def test_end_and_redraw_routes(admin, seeded_meetup, conn_of):
     mid, gid = seeded_meetup
+    c = conn_of()
     assert admin.post(f"/admin/game/{gid}/end").status_code == 302
     assert admin.post(f"/admin/game/{gid}/end").status_code == 302  # 두 번째도 오류 없이 처리
-    assert admin.post(f"/admin/game/{gid}/redraw").status_code == 302
+    assert c.execute("SELECT ended_at FROM games WHERE id = ?", (gid,)).fetchone()[0] is not None
+    assert [r[0] for r in c.execute("SELECT games FROM attendees WHERE meetup_id = ?", (mid,))] == [1, 1, 1, 1]
+    nxt = c.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
+    assert nxt != gid  # 같은 4명이 다시 코트를 채움
+    assert admin.post(f"/admin/game/{nxt}/redraw").status_code == 302
+    assert c.execute("SELECT canceled FROM games WHERE id = ?", (nxt,)).fetchone()[0] == 1
+    assert c.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0] == 1
+    assert [r[0] for r in c.execute("SELECT games FROM attendees WHERE meetup_id = ?", (mid,))] == [1, 1, 1, 1]
 
 
 def test_guest_added_to_meetup(admin, seeded_meetup, conn_of):
@@ -276,7 +284,8 @@ def test_session_cookie_flags(tmp_path):
     from badminton import create_app
     app = create_app({"DATABASE": str(tmp_path / "c.db"), "ADMIN_PASSWORD": "pw", "SECRET_KEY": "t",
                       "TESTING": True})
-    assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax" and app.config["SESSION_COOKIE_SECURE"] is True
+    cookie = app.test_client().post("/admin/login", data={"password": "pw"}).headers["Set-Cookie"]
+    assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=Lax" in cookie
 
 
 def test_add_group_by_link_and_select_it(admin, monkeypatch, conn_of):
@@ -378,33 +387,26 @@ def test_redraw_reservation_requires_login(client):
     assert "/admin/login" in resp.headers["Location"]
 
 
-def test_redraw_reservation_calls_meetups_and_redirects(admin, monkeypatch, seeded_meetup):
-    from badminton import meetups
+def test_redraw_reservation_route_replaces_reservation(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee, refill_reservations, reservations
+    from badminton.members import create_member
     mid, _ = seeded_meetup
-    called = []
+    c = conn_of()
+    for i in range(9):
+        add_attendee(c, mid, create_member(c, f"r{i}", gender="M", grade="C"), "paste")
+    refill_reservations(c, mid)
+    (old,) = reservations(c, mid)
+    resp = admin.post(f"/admin/reservation/{old['id']}/redraw")
+    assert resp.status_code == 302 and resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    (new,) = reservations(c, mid)
+    four = lambda r: {r["a1"], r["a2"], r["b1"], r["b2"]}
+    assert four(new) != four(old) and new["seq"] == 1
 
-    def fake_redraw(conn, rid):
-        called.append(rid)
-        return mid
 
-    monkeypatch.setattr(meetups, "redraw_reservation", fake_redraw, raising=False)
-    resp = admin.post("/admin/reservation/42/redraw")
-    assert resp.status_code == 302
-    assert resp.headers["Location"].endswith(f"/admin/m/{mid}")
-    assert called == [42]
-
-
-def test_redraw_reservation_fallback_mid_from_form(admin, monkeypatch, seeded_meetup):
-    from badminton import meetups
+def test_redraw_unknown_reservation_falls_back_to_form_mid(admin, seeded_meetup):
     mid, _ = seeded_meetup
-
-    def fake_redraw_none(conn, rid):
-        return None
-
-    monkeypatch.setattr(meetups, "redraw_reservation", fake_redraw_none, raising=False)
-    resp = admin.post("/admin/reservation/42/redraw", data={"mid": mid})
-    assert resp.status_code == 302
-    assert resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    resp = admin.post("/admin/reservation/999/redraw", data={"mid": mid})
+    assert resp.status_code == 302 and resp.headers["Location"].endswith(f"/admin/m/{mid}")
 
 
 def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_meetup):

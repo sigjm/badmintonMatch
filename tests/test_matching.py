@@ -128,3 +128,12 @@ def test_pick_four_avoids_last_game_mates():
     q = [P(i, "M", "A") for i in range(1, 7)]
     recent = {1: {2, 3, 4}, 2: {1, 3, 4}, 3: {1, 2, 4}, 4: {1, 2, 3}}
     assert {p.id for p in pick_four(q, 6, 1, recent)} == {1, 2, 5, 6}
+
+
+def test_pick_four_avoids_given_four_when_possible():
+    q = [P(i, "M", "C", t=i) for i in range(6)]
+    first = {p.id for p in pick_four(q)}
+    second = {p.id for p in pick_four(q, avoid=frozenset(first))}
+    assert second != first and 0 in second  # 대기 1순위는 그대로 포함
+    only_four = q[:4]
+    assert {p.id for p in pick_four(only_four, avoid=frozenset({0, 1, 2, 3}))} == {0, 1, 2, 3}  # 대안이 없으면 그대로

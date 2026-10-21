@@ -26,11 +26,12 @@ def sort_queue(players: list[Player]) -> list[Player]:
 
 
 def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1.5,
-              recent: dict[int, set[int]] | None = None) -> list[Player] | None:
+              recent: dict[int, set[int]] | None = None, avoid: frozenset[int] | None = None) -> list[Player] | None:
     """대기열 맨 앞 사람을 포함해 급수가 비슷한 4명을 고른다.
     기본 후보는 앞쪽 mix_window명과 최소 경기 수 그룹이며, 성비 조건을 만족하지 못할 때만 전체 대기열로 넓힌다.
     recent(사람 → 직전 경기에서 같이 친 사람들)가 주어지면 그 사람들끼리 다시 묶이는 쌍이 적은 조합을 먼저 고른다.
-    (남복/여복 우선, 혼복 후순위) → (급수 폭 + 직전 멤버 겹친 쌍 × 2) 최소 → 겹침 적은 쪽 → 대기 순서 앞쪽 순."""
+    (남복/여복 우선, 혼복 후순위) → (급수 폭 + 직전 멤버 겹친 쌍 × 2) 최소 → 겹침 적은 쪽 → 대기 순서 앞쪽 순.
+    avoid(다시 뽑기 직전의 4명)와 똑같은 조합은 다른 조합이 하나라도 있으면 고르지 않는다."""
     recent = recent or {}
     if len(queue) < 4:
         return None
@@ -47,6 +48,8 @@ def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1
             # 허용 성비는 혼복 2:2 또는 같은 성별 복식이다. 1:3, 3:1은 만들지 않는다.
             if women not in (0, 2, 4):
                 continue
+            if avoid and frozenset(p.id for p in four) == avoid:
+                continue
             scores = [score(p, female_offset) for p in four]
             repeat = sum(1 for x, y in combinations(four, 2) if y.id in recent.get(x.id, ()))
             spread = max(scores) - min(scores)
@@ -60,6 +63,8 @@ def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1
     if best is None and pool != queue:
         # 대기 1순위는 유지하면서 성비가 가능한 조합을 전체 대기열에서 찾는다.
         best = best_balanced(queue)
+    if best is None and avoid:
+        return pick_four(queue, mix_window, female_offset, recent)  # 다른 조합이 없으면 그대로
     return best[1] if best else None
 
 

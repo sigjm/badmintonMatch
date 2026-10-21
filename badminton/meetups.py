@@ -193,7 +193,7 @@ def _recent_mates(conn, meetup_id: int) -> dict[int, set[int]]:
     return mates
 
 
-def refill_reservations(conn, meetup_id: int) -> None:
+def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = None) -> None:
     meetup = conn.execute("SELECT courts, started FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if meetup is None or not meetup["started"]:
         return
@@ -209,7 +209,7 @@ def refill_reservations(conn, meetup_id: int) -> None:
         q = queue(conn, meetup_id)
         if len(q) < 8:
             break
-        four = pick_four(q, window, offset, recent)
+        four = pick_four(q, window, offset, recent, avoid)
         if four is None:
             break
         # 새로 만드는 예약이 1순위 예약(current_count == 0)인데,
@@ -234,13 +234,14 @@ def redraw_reservation(conn, reservation_id: int) -> int | None:
     if row is None:
         return None
     meetup_id = row["meetup_id"]
+    old = conn.execute("SELECT a1, a2, b1, b2 FROM reservations WHERE id = ?", (reservation_id,)).fetchone()
     conn.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
     _renumber_reservations(conn, meetup_id)
-    refill_reservations(conn, meetup_id)
+    refill_reservations(conn, meetup_id, avoid=frozenset(old))
     return meetup_id
 
 
-def fill_courts(conn, meetup_id: int, force: bool = False) -> None:
+def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int] | None = None) -> None:
     """빈 코트를 채운다. force가 아니면 방금 경기가 끝난 코트는 COURT_REST_SECONDS 동안 비워 둔다."""
     courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
     busy = {r["court"] for r in conn.execute("SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL",
@@ -277,7 +278,7 @@ def fill_courts(conn, meetup_id: int, force: bool = False) -> None:
             continue
 
         # 2. 예약이 없으면 바로 pick_four
-        four = pick_four(queue(conn, meetup_id), window, offset, recent)
+        four = pick_four(queue(conn, meetup_id), window, offset, recent, avoid)
         if four is None:
             break
         (a1, a2), (b1, b2) = split_teams(four, offset)
@@ -351,7 +352,7 @@ def redraw(conn, game_id: int) -> None:
     # 지우지 않고 끝난 것으로 표시: 새 경기가 같은 id를 받아 다른 폰의 오래된 "경기 끝"이 새 경기를 끝내는 일을 막는다
     # canceled=1로 표시하여 직전 경기 파트너/상대 벌점 계산에서 제외한다
     conn.execute("UPDATE games SET ended_at = ?, canceled = 1 WHERE id = ?", (time.time(), game_id))
-    fill_courts(conn, g["meetup_id"])
+    fill_courts(conn, g["meetup_id"], avoid=frozenset((g["a1"], g["a2"], g["b1"], g["b2"])))
 
 
 def _minutes_label(seconds: float) -> str:

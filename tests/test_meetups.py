@@ -641,3 +641,27 @@ def test_memo_is_trimmed_shown_and_cleared(conn):
         set_memo(conn, mid, waiting, "가" * 101)
     set_memo(conn, mid, waiting, "   ")
     assert board(conn, mid)["queue_cards"][0]["memo"] is None
+
+
+def _four(row):
+    return {row["a1"], row["a2"], row["b1"], row["b2"]}
+
+
+def test_redraw_game_without_reservation_picks_different_four(conn):
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"m{i}", "M", "C") for i in range(6)])
+    start(conn, mid, 1)
+    g = conn.execute("SELECT * FROM games WHERE ended_at IS NULL").fetchone()
+    redraw(conn, g["id"])
+    g2 = conn.execute("SELECT * FROM games WHERE ended_at IS NULL").fetchone()
+    assert _four(g2) != _four(g)
+
+
+def test_redraw_reservation_picks_different_four(conn):
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"m{i}", "M", "C") for i in range(13)])
+    start(conn, mid, 1)
+    (old,) = reservations(conn, mid)
+    redraw_reservation(conn, old["id"])
+    (new,) = reservations(conn, mid)
+    assert _four(new) != _four(old)
