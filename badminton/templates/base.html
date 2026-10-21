@@ -91,13 +91,18 @@
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
   .court .empty { grid-column:2; margin:0; }
-  .court-actions { grid-column:3; grid-row:1 / span 2; display:flex; flex-direction:column; gap:8px; }
+  .court-actions {
+    position:absolute; z-index:100; display:flex; flex-direction:column; gap:8px;
+    box-sizing:border-box; width:min(176px,calc(100vw - 24px)); max-width:calc(100vw - 24px); padding:10px;
+    border:1px solid var(--split); border-radius:12px; background:var(--card); box-shadow:0 12px 32px rgba(0,0,0,.22);
+  }
   .court-actions[hidden], .reservation-actions[hidden] { display:none; }
   .court-actions form { margin:0; }
-  .court-actions .btn { width:100%; }
-  [data-long-press-actions] { -webkit-user-select:none; user-select:none; }
+  .court-actions .btn { box-sizing:border-box; width:100%; }
+  [data-long-press-actions] { position:relative; -webkit-user-select:none; user-select:none; }
   [data-long-press-actions]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
-  [data-long-press-actions].actions-open { border-color:var(--primary-border); box-shadow:0 0 0 2px rgba(22,119,255,.08); }
+  [data-long-press-actions].actions-open { z-index:1; border-color:var(--primary-border); box-shadow:0 0 0 2px rgba(22,119,255,.08); }
+  .actions-popup-active { position:relative; z-index:80; }
   .hold-hint { display:block; margin-top:2px; color:var(--text-3); font-size:11px; font-weight:500; }
   .board-big .court-no { width:56px; height:56px; font-size:24px; }
   .board-big .team { padding:10px 8px; font-size:17px; }
@@ -116,7 +121,6 @@
   .live-courts .court-player .player-chip .player-name.is-female { color:#fff; font-weight:700; }
   .reservation-board .reservation-card { grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto auto; gap:8px 14px; padding:14px; }
   .reservation-board.is-admin .reservation-card { grid-template-columns:auto minmax(0,1fr); }
-  .reservation-board.is-admin .reservation-card.actions-open { grid-template-columns:auto minmax(0,1fr) minmax(112px,150px); }
   .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; }
   .reservation-board .court-match { grid-column:2; grid-row:1; align-items:stretch; gap:10px; }
   .reservation-board .team { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; border-radius:8px; }
@@ -130,8 +134,9 @@
   .reservation-player-select[aria-disabled="true"] { cursor:default; }
   .reservation-player-select .manual-player-order { position:absolute; right:5px; bottom:4px; color:#fff; text-shadow:0 1px 2px #333; }
   .reservation-waiting { grid-column:2; grid-row:2; margin:0; color:#ad4e00; font-size:12px; font-weight:700; }
-  .reservation-actions { grid-column:3; grid-row:1 / span 2; display:grid; grid-template-columns:1fr; gap:6px; }
-  .reservation-actions .btn { width:100%; white-space:nowrap; }
+  .reservation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:min(260px,calc(100vw - 24px)); }
+  .reservation-actions form { min-width:0; margin:0; }
+  .reservation-actions .btn { box-sizing:border-box; width:100%; padding:0 8px; white-space:nowrap; }
 
   /* 버튼 */
   .btn {
@@ -311,18 +316,13 @@
     .court-no { width:40px; height:44px; font-size:18px; }
     .court-match { gap:6px; }
     .team { padding:8px 4px; font-size:14px; }
-    .court-actions { grid-column:1 / -1; grid-row:auto; flex-direction:row; }
-    .court-actions form { flex:1; }
     .reservation-board .reservation-card { grid-template-columns:40px minmax(0,1fr); gap:8px 10px; padding:12px; }
-    .reservation-board.is-admin .reservation-card,
-    .reservation-board.is-admin .reservation-card.actions-open { grid-template-columns:40px minmax(0,1fr); }
+    .reservation-board.is-admin .reservation-card { grid-template-columns:40px minmax(0,1fr); }
     .reservation-board .court-match { grid-column:2; grid-row:1; gap:6px; }
     .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; width:40px; height:44px; font-size:18px; }
     .reservation-board .team { padding:7px 5px; gap:6px; }
     .reservation-board .court-player .player-chip { min-height:42px; padding:8px 4px; font-size:14px; }
     .reservation-waiting { grid-column:2; grid-row:2; }
-    .reservation-actions { grid-column:1 / -1; grid-row:auto; grid-template-columns:repeat(2,minmax(0,1fr)); }
-    .reservation-actions form { flex:initial; }
     .manual-match-panel { grid-column:1 / -1; }
     .board-big .court-no { width:44px; height:48px; font-size:20px; }
     .board-big .team { font-size:15px; }
@@ -759,6 +759,10 @@
       const target = event.target.closest("[data-player-status]");
       if (!target) return;
       event.preventDefault();
+      if (target.closest("#meetup-court-board, #meetup-reservations")) {
+        closeStatusMenu();
+        return;
+      }
       openStatusMenu(target, event.clientX, event.clientY);
     });
     let startX = 0, startY = 0;
@@ -767,6 +771,11 @@
       const target = event.target.closest("[data-player-status]");
       if (!target) return;
       clearTimeout(statusHoldTimer);
+      statusHoldTimer = null;
+      if (target.closest("#meetup-court-board, #meetup-reservations")) {
+        closeStatusMenu();
+        return;
+      }
       startX = event.clientX;
       startY = event.clientY;
       statusHoldTimer = window.setTimeout(() => {
@@ -896,10 +905,11 @@
     window.setInterval(refreshLiveSections, 3_000);
   })();
 
-  // 코트·예약 운영 버튼은 카드를 길게 누르거나 키보드로 선택했을 때 펼친다.
+  // 코트·예약 운영 버튼은 카드를 길게 누르거나 키보드로 선택했을 때 팝업으로 표시한다.
   (() => {
     const selector = "[data-long-press-actions]";
     let openKey = null;
+    let openPoint = null;
     let holdTimer = null;
     let holdTarget = null;
     let holdPointerId = null;
@@ -909,25 +919,65 @@
     let swallowReleaseClick = false;
     let swallowTimer = null;
 
+    const placePanel = (card, panel) => {
+      const cardRect = card.getBoundingClientRect();
+      const point = openPoint || { x: cardRect.width / 2, y: cardRect.height / 2 };
+      panel.hidden = false;
+      panel.style.left = "0px";
+      panel.style.top = "0px";
+      const panelRect = panel.getBoundingClientRect();
+      const margin = 8;
+      const maxLeft = Math.max(margin, window.innerWidth - panelRect.width - margin);
+      const maxTop = Math.max(margin, window.innerHeight - panelRect.height - margin);
+      let left = cardRect.left + point.x - panelRect.width / 2;
+      let top = cardRect.top + point.y + 12;
+      if (top + panelRect.height > window.innerHeight - margin) {
+        top = cardRect.top + point.y - panelRect.height - 12;
+      }
+      left = Math.max(margin, Math.min(left, maxLeft));
+      top = Math.max(margin, Math.min(top, maxTop));
+      panel.style.left = `${left - cardRect.left}px`;
+      panel.style.top = `${top - cardRect.top}px`;
+    };
     const syncOpenCard = () => {
+      document.querySelectorAll(".actions-popup-active").forEach((section) => section.classList.remove("actions-popup-active"));
       const cards = [...document.querySelectorAll(selector)];
       let foundOpenCard = false;
+      let openCard = null;
+      let openPanel = null;
       cards.forEach((card) => {
         const panel = card.querySelector("[data-action-panel]");
         const isOpen = Boolean(panel && openKey && card.dataset.key === openKey);
-        if (isOpen) foundOpenCard = true;
+        if (isOpen) {
+          foundOpenCard = true;
+          openCard = card;
+          openPanel = panel;
+          card.closest("#meetup-court-board, #meetup-reservations")?.classList.add("actions-popup-active");
+        }
         card.classList.toggle("actions-open", isOpen);
         card.setAttribute("aria-expanded", String(isOpen));
         if (panel) panel.hidden = !isOpen;
       });
-      if (openKey && !foundOpenCard) openKey = null;
+      if (openKey && !foundOpenCard) {
+        openKey = null;
+        openPoint = null;
+      } else if (openCard && openPanel) {
+        placePanel(openCard, openPanel);
+      }
     };
     const closeActions = () => {
       openKey = null;
+      openPoint = null;
       syncOpenCard();
     };
-    const toggleActions = (card) => {
-      openKey = openKey === card.dataset.key ? null : card.dataset.key;
+    const toggleActions = (card, x, y) => {
+      if (openKey === card.dataset.key) {
+        closeActions();
+        return;
+      }
+      const rect = card.getBoundingClientRect();
+      openKey = card.dataset.key;
+      openPoint = { x: x - rect.left, y: y - rect.top };
       syncOpenCard();
     };
     const cancelHold = () => {
@@ -955,7 +1005,7 @@
         swallowReleaseClick = true;
         window.clearTimeout(swallowTimer);
         swallowTimer = window.setTimeout(() => { swallowReleaseClick = false; }, 1_000);
-        toggleActions(card);
+        toggleActions(card, startX, startY);
       }, 550);
     });
     document.addEventListener("pointermove", (event) => {
@@ -985,7 +1035,8 @@
       const card = event.target.closest(selector);
       if (card && event.target === card && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
-        toggleActions(card);
+        const rect = card.getBoundingClientRect();
+        toggleActions(card, rect.left + rect.width / 2, rect.top + rect.height / 2);
       } else if (event.key === "Escape" && openKey) {
         closeActions();
       }
@@ -995,6 +1046,7 @@
       if (card && !isInteractive(event.target)) event.preventDefault();
     });
     document.addEventListener("badminton:sections-updated", syncOpenCard);
+    window.addEventListener("resize", syncOpenCard);
     syncOpenCard();
   })();
 

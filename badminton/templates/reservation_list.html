@@ -23,11 +23,11 @@
 {% set reservations = board.reservations|default([]) %}
 {% set editable = admin|default(false) and m is defined and m is not none %}
 <section class="section reservation-board{% if editable %} is-admin{% endif %}">
-  <div class="head"><span>예약</span><span>{{ reservations|length }}개{% if editable and reservations %}<small class="hold-hint">예약 카드의 빈 곳을 길게 눌러 버튼 표시</small>{% endif %}</span></div>
+  <div class="head"><span>예약</span><span>{{ reservations|length }}개{% if editable and reservations %}<small class="hold-hint">예약 카드의 빈 곳을 길게 눌러 관리 팝업 열기</small>{% endif %}</span></div>
   {% if reservations %}
   <div class="reservations">
     {% for res in reservations|sort(attribute='no') %}
-    <div class="court resv reservation-card" data-key="resv-{{ res.id }}" aria-label="예약 {{ res.no }}{% if editable %}, 길게 누르거나 Enter 또는 Space로 버튼 표시{% endif %}"{% if editable %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="reservation-actions-{{ res.id }}"{% endif %}>
+    <div class="court resv reservation-card" data-key="resv-{{ res.id }}" aria-label="예약 {{ res.no }}{% if editable %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if editable %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="reservation-actions-{{ res.id }}"{% endif %}>
       <div class="court-no">{{ res.no }}<small>{{ '수동 예약' if editable and res.source == 'manual' else '예약' }}</small></div>
       <div class="court-match">
         {% for team in res.team_players|default(res.teams) %}
@@ -42,7 +42,7 @@
       </div>
       {% if res.waiting_for_game %}<p class="reservation-waiting">게임 중인 멤버가 있습니다 · 경기 종료 후 배정됩니다</p>{% endif %}
       {% if editable %}
-      <div class="court-actions reservation-actions" id="reservation-actions-{{ res.id }}" data-action-panel hidden>
+      <div class="court-actions reservation-actions" id="reservation-actions-{{ res.id }}" data-action-panel role="group" aria-label="예약 {{ res.no }} 관리" hidden>
         <button type="button" class="btn line sm" data-edit-reservation data-reservation-id="{{ res.id }}"
                 data-edit-url="{{ url_for('admin.edit_reservation', rid=res.id) }}">수정</button>
         <form method="post" action="{{ url_for('admin.prioritize_reservation_route', rid=res.id) }}" data-save-without-reload>
