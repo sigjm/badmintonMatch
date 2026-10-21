@@ -284,6 +284,10 @@
   .operation-controls { margin:0 0 20px; }
   .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
   .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
+  .pcard[data-player-status] { position:relative; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  .pcard[data-player-status] * { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  .pcard[data-player-status]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
+  .quick-status-menu, .quick-status-menu * { -webkit-touch-callout:default; -webkit-user-select:auto; user-select:auto; }
   .pcard.is-gone, .pcard.is-canceled { background:var(--fill); }
   .pcard.is-gone .pcard-name, .pcard.is-canceled .pcard-name { color:var(--text-3); }
   .pcard.is-gender-male, .pcard.is-gender-male.is-gone, .pcard.is-gender-male.is-canceled { background:var(--player-male); border-color:var(--player-male); color:#fff; }
@@ -678,11 +682,6 @@
         closeStatusMenu();
         return;
       }
-      const infoButton = event.target.closest("[data-open-info]");
-      if (infoButton) {
-        openStatusMenu(infoButton, event.clientX, event.clientY);
-        return;
-      }
       const draftSlot = event.target.closest("[data-draft-slot]");
       if (draftSlot) {
         const index = Number(draftSlot.dataset.draftSlot);
@@ -720,19 +719,35 @@
     const statusMenu = document.querySelector("#quick-status-menu");
     const quickStatusForm = document.querySelector("#quick-status-form");
     let statusHoldTimer = null;
+    let statusHoldTarget = null;
+    let statusHoldPointerId = null;
+    let statusStartX = 0, statusStartY = 0;
+    let statusOpenedByHold = false;
+    let swallowStatusReleaseClick = false;
+    let swallowStatusTimer = null;
     let suppressManualClick = false;
+
+    const cancelStatusHold = () => {
+      window.clearTimeout(statusHoldTimer);
+      statusHoldTimer = null;
+      statusHoldTarget = null;
+      statusHoldPointerId = null;
+      statusOpenedByHold = false;
+    };
     const closeStatusMenu = () => {
       if (statusMenu) statusMenu.hidden = true;
     };
     const openStatusMenu = (target, x, y) => {
       if (!statusMenu || !quickStatusForm) return;
-      const memberId = target.dataset.playerStatus || target.dataset.memberId;
+      const card = target.closest(".pcard") || target;
+      const memberId = card.dataset.playerStatus || card.dataset.memberId || target.dataset.playerStatus || target.dataset.memberId;
       if (!memberId) return;
 
-      const display = target.querySelector(".player-name") || target;
-      const nickname = target.dataset.nickname || display.dataset.nickname || display.dataset.playerName || target.dataset.playerName || display.textContent.trim().split("/").pop() || "";
-      const gender = target.dataset.gender || display.dataset.gender || "";
-      const grade = target.dataset.grade || display.dataset.grade || "";
+      const display = card.querySelector(".player-name") || target.querySelector(".player-name") || target;
+      const nickname = card.dataset.nickname || target.dataset.nickname || display.dataset.nickname || display.dataset.playerName || target.dataset.playerName || display.textContent.trim().split("/").pop() || "";
+      const gender = card.dataset.gender || target.dataset.gender || display.dataset.gender || "";
+      const grade = card.dataset.grade || target.dataset.grade || display.dataset.grade || "";
+      const memo = card.dataset.memo ?? target.dataset.memo ?? "";
 
       const label = statusMenu.querySelector("[data-status-player-name]");
       if (label) label.textContent = nickname || display.textContent.trim();
@@ -757,7 +772,7 @@
         const memoMember = memoForm.querySelector("[data-memo-member]");
         if (memoMember) memoMember.value = memberId;
         const memoText = memoForm.querySelector("[data-memo-text]");
-        if (memoText) memoText.value = target.dataset.memo || "";
+        if (memoText) memoText.value = memo;
       }
 
       const renameForm = document.querySelector("#quick-rename-form");
@@ -780,53 +795,88 @@
     };
     document.addEventListener("contextmenu", (event) => {
       if (!statusMenu || !quickStatusForm) return;
-      const target = event.target.closest("[data-player-status]");
+      const target = event.target.closest(".pcard[data-player-status]");
       if (!target) return;
-      event.preventDefault();
       if (target.closest("#meetup-court-board, #meetup-reservations")) {
         closeStatusMenu();
         return;
       }
+      if (event.target.closest("#quick-status-menu")) return;
+      event.preventDefault();
+      if (statusOpenedByHold || swallowStatusReleaseClick) return;
+      cancelStatusHold();
       openStatusMenu(target, event.clientX, event.clientY);
     });
-    let startX = 0, startY = 0;
     document.addEventListener("pointerdown", (event) => {
+      cancelStatusHold();
       if (!statusMenu || !event.isPrimary || event.button > 0) return;
-      const target = event.target.closest("[data-player-status]");
+      const target = event.target.closest(".pcard[data-player-status]");
       if (!target) return;
-      clearTimeout(statusHoldTimer);
-      statusHoldTimer = null;
       if (target.closest("#meetup-court-board, #meetup-reservations")) {
         closeStatusMenu();
         return;
       }
-      startX = event.clientX;
-      startY = event.clientY;
+      if (event.target.closest("#quick-status-menu")) return;
+
+      statusHoldTarget = target;
+      statusHoldPointerId = event.pointerId;
+      statusStartX = event.clientX;
+      statusStartY = event.clientY;
       statusHoldTimer = window.setTimeout(() => {
-        openStatusMenu(target, event.clientX, event.clientY);
-        suppressManualClick = Boolean(target.closest("[data-manual-player]"));
-        if (suppressManualClick) window.setTimeout(() => { suppressManualClick = false; }, 800);
-      }, 550);
+        statusOpenedByHold = true;
+        swallowStatusReleaseClick = true;
+        suppressManualClick = true;
+        window.clearTimeout(swallowStatusTimer);
+        swallowStatusTimer = window.setTimeout(() => {
+          swallowStatusReleaseClick = false;
+          suppressManualClick = false;
+        }, 1_000);
+        openStatusMenu(target, statusStartX, statusStartY);
+      }, 300);
     });
     document.addEventListener("pointermove", (event) => {
-      if (statusHoldTimer && Math.hypot(event.clientX - startX, event.clientY - startY) > 10) {
-        clearTimeout(statusHoldTimer);
-        statusHoldTimer = null;
+      if (statusHoldTimer && event.pointerId === statusHoldPointerId && statusHoldTarget &&
+          Math.hypot(event.clientX - statusStartX, event.clientY - statusStartY) > 10) {
+        cancelStatusHold();
       }
     });
-    ["pointerup", "pointercancel", "pointerleave"].forEach((type) => {
-      document.addEventListener(type, () => clearTimeout(statusHoldTimer));
+    document.addEventListener("pointerup", (event) => {
+      if (event.pointerId !== statusHoldPointerId) return;
+      if (statusOpenedByHold) {
+        window.setTimeout(() => {
+          swallowStatusReleaseClick = false;
+          suppressManualClick = false;
+        }, 400);
+      }
+      cancelStatusHold();
     });
+    document.addEventListener("pointercancel", cancelStatusHold);
+    window.addEventListener("blur", cancelStatusHold);
     document.addEventListener("click", (event) => {
+      if (swallowStatusReleaseClick) {
+        swallowStatusReleaseClick = false;
+        suppressManualClick = false;
+        window.clearTimeout(swallowStatusTimer);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (event.target.closest("[data-close-quick-menu]")) {
         closeStatusMenu();
         return;
       }
       if (!statusMenu || statusMenu.hidden || event.target.closest("#quick-status-menu")) return;
-      if (!event.target.closest("[data-player-status]")) closeStatusMenu();
-    });
+      closeStatusMenu();
+    }, true);
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeStatusMenu();
+      const card = event.target.closest(".pcard[data-player-status]");
+      if (card && event.target === card && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        const rect = card.getBoundingClientRect();
+        openStatusMenu(card, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      } else if (event.key === "Escape") {
+        closeStatusMenu();
+      }
     });
     document.addEventListener("badminton:manual-match-saved", () => {
       selectedPlayers.length = 0;

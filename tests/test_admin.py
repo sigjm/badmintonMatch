@@ -541,10 +541,21 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     add_attendee(c, mid, waiting, "paste")
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     assert "경기 시간" in html
-    assert 'class="pcard is-queued' in html and "대기 1" in html
-    assert "data-open-info" in html and 'name="status" value="away"' in html and 'value="gone"' in html
+    assert 'class="pcard is-queued' in html
+    # 대기 1 태그 및 카드 안 버튼 삭제 확인
+    assert "대기 1" not in html
+    assert "data-open-info" not in html and 'class="pcard-actions"' not in html
+    # 꾹 누르기 관리 팝업 속성 및 안내 문구 확인
+    assert f'data-player-status="{waiting}"' in html
+    assert 'tabindex="0"' in html
+    assert "길게 누르거나 Enter 또는 Space로 관리 팝업 열기" in html
+    assert "카드를 길게 눌러 관리 팝업 열기" in html
+    assert 'id="quick-status-menu"' in html
+    assert 'data-set-player-status="away"' in html and 'data-set-player-status="gone"' in html
     public = client.get("/board").get_data(as_text=True)
     assert "경기 시간" in public and 'class="pcard is-queued' in public
+    assert f'data-player-status="{waiting}"' not in public and 'tabindex="0"' not in public
+    assert 'id="quick-status-menu"' not in public
     assert 'name="status"' not in public and ">정보</button>" not in public
 
 
