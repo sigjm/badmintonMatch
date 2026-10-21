@@ -4,7 +4,8 @@ import pytest
 
 from badminton.members import create_member, set_info
 from badminton.meetups import (SEOUL, add_attendee, add_pasted, board, end_game, get_or_create_meetup,
-                               on_info_changed, queue, redraw, session_day, set_status, start, sync_somoim, today)
+                               on_info_changed, queue, redraw, redraw_reservation, refill_reservations,
+                               reservations, session_day, set_status, start, sync_somoim, today)
 from badminton.somoim import SomoimMember
 
 
@@ -273,3 +274,203 @@ def test_assign_manual_validations(conn):
         add_attendee(conn, mid, p, "paste")
     with pytest.raises(ValueError, match="다른 코트에서 경기 중인"):
         assign_manual(conn, mid, 2, [p1, p7, p8, p9])
+
+
+def test_reservations_max_capped_by_courts(conn):
+    # start 후 대기 8명, 코트 1 -> 예약 최대 1개 (코트 수만큼)
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 총 12명 (남6, 여6)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(6)] + [mk(conn, f"f{i}", "F", "A") for i in range(6)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)
+
+    # 코트 1면에 4명 경기 중
+    resvs = reservations(conn, mid)
+    assert len(resvs) == 1
+    assert resvs[0]["seq"] == 1
+
+    # 남은 대기자는 4명 (예약된 4명은 queue에서 제외)
+    q = queue(conn, mid)
+    assert len(q) == 4
+
+    # board() 계약 확인
+    b = board(conn, mid)
+    assert "reservations" in b
+    assert len(b["reservations"]) == 1
+    assert b["reservations"][0]["no"] == 1
+    assert len(b["reservations"][0]["teams"]) == 2
+    assert len(b["queue"]) == 4
+
+
+def test_reservations_two_slots_on_three_courts(conn):
+    # 코트 3이면 대기 8명 -> 예약 2개
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 총 20명 (코트 3면에 12명, 대기 8명)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(10)] + [mk(conn, f"f{i}", "F", "A") for i in range(10)]
+    seat(conn, mid, *players)
+    start(conn, mid, 3)
+
+    resvs = reservations(conn, mid)
+    assert len(resvs) == 2
+    assert [r["seq"] for r in resvs] == [1, 2]
+
+    # 대기 8명이 모두 예약 1, 2로 들어갔으므로 남은 queue는 0명
+    assert len(queue(conn, mid)) == 0
+    b = board(conn, mid)
+    assert len(b["reservations"]) == 2
+    assert [r["no"] for r in b["reservations"]] == [1, 2]
+    assert len(b["queue"]) == 0
+
+
+def test_end_game_promotes_reservation_and_shifts_and_refills(conn):
+    # 경기 끝 -> 예약 1이 그 코트로, 예약 번호가 당겨지고 새 예약이 채워진다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 총 24명 (코트 3면에 12명, 대기 12명 -> 예약 3개 최대)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(12)] + [mk(conn, f"f{i}", "F", "A") for i in range(12)]
+    seat(conn, mid, *players)
+    start(conn, mid, 3)
+
+    resvs_before = reservations(conn, mid)
+    assert len(resvs_before) == 3
+    r1_four = {resvs_before[0]["a1"], resvs_before[0]["a2"], resvs_before[0]["b1"], resvs_before[0]["b2"]}
+    r2_id = resvs_before[1]["id"]
+    r2_four = {resvs_before[1]["a1"], resvs_before[1]["a2"], resvs_before[1]["b1"], resvs_before[1]["b2"]}
+
+    # 코트 1 경기 종료
+    g1 = conn.execute("SELECT id FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()[0]
+    end_game(conn, g1)
+
+    # 1. 예약 1의 선수들이 코트 1의 새 경기에 투입됨
+    g1_new = conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()
+    assert set(g1_new) == r1_four
+
+    # 2. 예약 번호가 당겨짐 (기존 예약 2가 이제 seq 1이 됨)
+    resvs_after = reservations(conn, mid)
+    assert len(resvs_after) == 3
+    assert resvs_after[0]["id"] == r2_id
+    assert resvs_after[0]["seq"] == 1
+    assert {resvs_after[0]["a1"], resvs_after[0]["a2"], resvs_after[0]["b1"], resvs_after[0]["b2"]} == r2_four
+
+    # 3. 새 예약이 마지막 번호(seq 3)로 채워짐
+    assert [r["seq"] for r in resvs_after] == [1, 2, 3]
+
+
+def test_reservations_keep_members_when_other_games_end(conn):
+    # 예약은 다른 경기가 끝나도 멤버가 바뀌지 않는다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(8)] + [mk(conn, f"f{i}", "F", "A") for i in range(8)]
+    seat(conn, mid, *players)
+    start(conn, mid, 2)  # 코트 2면(8명), 대기 8명 -> 예약 2개
+
+    r_init = reservations(conn, mid)
+    r2_members = (r_init[1]["a1"], r_init[1]["a2"], r_init[1]["b1"], r_init[1]["b2"])
+
+    # 코트 1 경기 종료 -> 예약 1이 코트 1로 승격
+    g1 = conn.execute("SELECT id FROM games WHERE meetup_id = ? AND court = 1 AND ended_at IS NULL", (mid,)).fetchone()[0]
+    end_game(conn, g1)
+
+    # 기존 예약 2는 번호만 1로 당겨지고 4명 멤버는 그대로 유지되어야 함
+    r_next = reservations(conn, mid)
+    assert (r_next[0]["a1"], r_next[0]["a2"], r_next[0]["b1"], r_next[0]["b2"]) == r2_members
+
+
+def test_away_status_drops_reservation_and_keeps_others_queue_time(conn):
+    # 예약된 사람을 away로 바꾸면 그 예약만 사라지고 나머지 3명은 queued_at이 그대로다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(6)] + [mk(conn, f"f{i}", "F", "A") for i in range(6)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)  # 코트 1면(4명), 대기 8명 -> 예약 1개, 대기 4명
+
+    r1 = reservations(conn, mid)[0]
+    p_away = r1["a1"]
+    other_3 = [r1["a2"], r1["b1"], r1["b2"]]
+    times_before = {p: conn.execute("SELECT queued_at FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, p)).fetchone()[0] for p in other_3}
+
+    # a1 선수를 away로 변경
+    set_status(conn, mid, p_away, "away")
+
+    # 1. 예약 1이 해제되고, 새로 채워진 예약에는 away된 사람이 없음
+    resvs = reservations(conn, mid)
+    if resvs:
+        assert p_away not in (resvs[0]["a1"], resvs[0]["a2"], resvs[0]["b1"], resvs[0]["b2"])
+
+    # 2. 나머지 3명의 queued_at은 변경되지 않고 그대로 유지
+    for p in other_3:
+        t_after = conn.execute("SELECT queued_at FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, p)).fetchone()[0]
+        assert t_after == times_before[p]
+
+
+def test_redraw_reservation(conn):
+    # redraw_reservation
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(6)] + [mk(conn, f"f{i}", "F", "A") for i in range(6)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)
+
+    r1 = reservations(conn, mid)[0]
+    r1_id = r1["id"]
+    t1 = r1["created_at"]
+    ret_mid = redraw_reservation(conn, r1_id)
+    assert ret_mid == mid
+
+    # 해당 예약을 지우고 새 예약으로 다시 채움
+    r_new = reservations(conn, mid)
+    assert len(r_new) == 1
+    assert r_new[0]["seq"] == 1
+    assert r_new[0]["created_at"] >= t1
+
+    # 없는 id일 때는 None
+    assert redraw_reservation(conn, 99999) is None
+
+
+def test_queue_excludes_reserved_players(conn):
+    # queue()에서 예약된 사람이 빠진다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(6)] + [mk(conn, f"f{i}", "F", "A") for i in range(6)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)  # 코트 1면(4명), 예약 1(4명), 대기열 4명
+
+    resv_players = {reservations(conn, mid)[0][k] for k in ("a1", "a2", "b1", "b2")}
+    q_players = {p.id for p in queue(conn, mid)}
+    # 예약된 선수들은 대기열에 포함되지 않아야 함
+    assert resv_players.isdisjoint(q_players)
+    assert len(q_players) == 4
+
+
+def test_reservation_does_not_make_uneven_gender_ratios(conn):
+    # 남1여3 (또는 여1남3)이 예약으로도 만들어지지 않는다.
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    # 경기 중 4명 (남2 여2) + 남은 대기 4명 (남1 여3)
+    p_game = [mk(conn, "g_m1", "M", "A"), mk(conn, "g_m2", "M", "A"), mk(conn, "g_f1", "F", "A"), mk(conn, "g_f2", "F", "A")]
+    p_uneven = [mk(conn, "u_m1", "M", "A"), mk(conn, "u_f1", "F", "A"), mk(conn, "u_f2", "F", "A"), mk(conn, "u_f3", "F", "A")]
+    seat(conn, mid, *p_game, *p_uneven)
+    start(conn, mid, 1)
+
+    # 남1여3은 성비 규칙에 위배되므로 예약이 생기지 않음
+    assert len(reservations(conn, mid)) == 0
+    # 4명은 예약되지 않은 채 대기열에 그대로 남음
+    assert len(queue(conn, mid)) == 4
+
+
+def test_info_cleared_drops_reservation(conn):
+    # 급수나 성별이 비워지면 그 회원이 속한 예약이 해제된다
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "A") for i in range(6)] + [mk(conn, f"f{i}", "F", "A") for i in range(6)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)  # 코트 1면(4명), 예약 1개(4명), 대기 4명
+
+    r1 = reservations(conn, mid)[0]
+    target_member = r1["a1"]
+
+    # target_member의 급수를 None으로 변경
+    changed = set_info(conn, target_member, "M", None, by="admin")
+    on_info_changed(conn, target_member, changed, meetup_id=mid)
+
+    # 1. 새로 채워진 예약에는 target_member가 없어야 함
+    new_resvs = reservations(conn, mid)
+    if new_resvs:
+        assert target_member not in (new_resvs[0]["a1"], new_resvs[0]["a2"], new_resvs[0]["b1"], new_resvs[0]["b2"])
+
+    # 2. target_member는 급수 미입력으로 대진 제외(excluded)에 들어가야 함
+    b = board(conn, mid)
+    assert any(x["nickname"] == "m0" or x.get("id") == target_member for x in b["excluded"])
