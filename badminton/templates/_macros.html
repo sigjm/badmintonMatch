@@ -1,0 +1,4 @@
+{% macro player_name(nickname, gender, grade) -%}
+{% set grade_label = GRADE_LABELS.get(grade, grade or '미정') %}
+<span class="name player-name{% if gender == 'F' %} is-female{% endif %}" data-player-name="{{ nickname }}" data-gender="{{ gender or '' }}" data-grade-label="{{ grade_label }}">{{ grade_label }}/{{ nickname }}</span>
+{%- endmacro %}

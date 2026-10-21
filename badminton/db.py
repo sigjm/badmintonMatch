@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS attendees(
   queued_at REAL NOT NULL, PRIMARY KEY(meetup_id, member_id));
 CREATE TABLE IF NOT EXISTS games(
   id INTEGER PRIMARY KEY, meetup_id INTEGER REFERENCES meetups, court INTEGER NOT NULL,
-  a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, started_at REAL NOT NULL, ended_at REAL);
+  a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, started_at REAL NOT NULL, ended_at REAL,
+  canceled INTEGER NOT NULL DEFAULT 0);
 INSERT OR IGNORE INTO settings VALUES ('female_offset', 1), ('mix_window', 6);
 """
 
@@ -31,6 +32,8 @@ def connect(path: str) -> sqlite3.Connection:
     # 모임 여러 개 지원 전에 만든 DB에는 meetups.group_id가 없다
     if "group_id" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
         conn.execute("ALTER TABLE meetups ADD COLUMN group_id INTEGER REFERENCES groups")
+    if "canceled" not in [r[1] for r in conn.execute("PRAGMA table_info(games)")]:
+        conn.execute("ALTER TABLE games ADD COLUMN canceled INTEGER NOT NULL DEFAULT 0")
     return conn
 
 

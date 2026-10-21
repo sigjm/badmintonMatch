@@ -34,8 +34,15 @@ def get_or_create_meetup(conn, date: str, name: str, eid: str | None, group_id: 
 
 
 def add_attendee(conn, meetup_id: int, member_id: int, source: str) -> None:
-    conn.execute("INSERT OR IGNORE INTO attendees(meetup_id, member_id, status, source, queued_at) "
-                 "VALUES (?, ?, 'present', ?, ?)", (meetup_id, member_id, source, time.time()))
+    row = conn.execute("SELECT status FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                       (meetup_id, member_id)).fetchone()
+    now = time.time()
+    if row is None:
+        conn.execute("INSERT INTO attendees(meetup_id, member_id, status, source, queued_at) "
+                     "VALUES (?, ?, 'present', ?, ?)", (meetup_id, member_id, source, now))
+    elif row["status"] != "present":
+        conn.execute("UPDATE attendees SET status = 'present', queued_at = ? WHERE meetup_id = ? AND member_id = ?",
+                     (now, meetup_id, member_id))
 
 
 def sync_somoim(conn, meetup_id: int, members: list[SomoimMember]) -> dict:
@@ -108,11 +115,21 @@ def queue(conn, meetup_id: int) -> list[Player]:
                        for r in rows if r["id"] not in playing])
 
 
+def manual_candidates(conn, meetup_id: int) -> list:
+    """현재 참석 중이며 다른 코트에서 경기 중이 아닌 회원들. 급수·성별 미입력도 수동 배정 가능."""
+    playing = _playing(conn, meetup_id)
+    rows = conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.games
+                           FROM attendees a JOIN members m ON m.id = a.member_id
+                           WHERE a.meetup_id = ? AND a.status = 'present'
+                           ORDER BY m.nickname, m.id""", (meetup_id,)).fetchall()
+    return [r for r in rows if r["id"] not in playing]
+
+
 def _recent_mates(conn, meetup_id: int) -> dict[int, set[int]]:
-    """사람마다 가장 최근에 끝난 경기에서 같이 친 3명."""
+    """사람마다 가장 최근에 끝난 경기에서 같이 친 3명 (다시 뽑기로 취소된 경기는 제외)."""
     mates = {}
     for g in conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NOT NULL "
-                          "ORDER BY ended_at, id", (meetup_id,)):
+                          "AND canceled = 0 ORDER BY ended_at, id", (meetup_id,)):
         four = set(g)
         for p in four:
             mates[p] = four - {p}
@@ -141,6 +158,33 @@ def start(conn, meetup_id: int, courts: int) -> None:
     fill_courts(conn, meetup_id)
 
 
+def assign_manual(conn, meetup_id: int, court: int, player_ids: list[int]) -> None:
+    meetup = conn.execute("SELECT courts, started FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    if meetup is None or not meetup["started"]:
+        raise ValueError("먼저 코트를 시작해 주세요")
+    if not 1 <= court <= meetup["courts"]:
+        raise ValueError("현재 운영 중인 코트만 선택할 수 있습니다")
+    if len(player_ids) != 4 or len(set(player_ids)) != 4:
+        raise ValueError("서로 다른 선수 네 명을 선택해 주세요")
+    if conn.execute("SELECT 1 FROM games WHERE meetup_id = ? AND court = ? AND ended_at IS NULL",
+                    (meetup_id, court)).fetchone():
+        raise ValueError("빈 코트에만 수동 배정할 수 있습니다")
+
+    placeholders = ",".join("?" for _ in player_ids)
+    present = {row["member_id"] for row in conn.execute(
+        f"SELECT member_id FROM attendees WHERE meetup_id = ? AND status = 'present' "
+        f"AND member_id IN ({placeholders})", (meetup_id, *player_ids))}
+    if present != set(player_ids):
+        raise ValueError("현재 참석 중인 선수만 배정할 수 있습니다")
+    if set(player_ids) & _playing(conn, meetup_id):
+        raise ValueError("다른 코트에서 경기 중인 선수는 선택할 수 없습니다")
+
+    conn.execute("""INSERT INTO games(meetup_id, court, a1, a2, b1, b2, started_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                 (meetup_id, court, *player_ids, time.time()))
+    fill_courts(conn, meetup_id)
+
+
 def _game(conn, game_id: int):
     return conn.execute("SELECT * FROM games WHERE id = ?", (game_id,)).fetchone()
 
@@ -161,14 +205,16 @@ def redraw(conn, game_id: int) -> None:
     if g is None or g["ended_at"] is not None:
         return
     # 지우지 않고 끝난 것으로 표시: 새 경기가 같은 id를 받아 다른 폰의 오래된 "경기 끝"이 새 경기를 끝내는 일을 막는다
-    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (time.time(), game_id))
+    # canceled=1로 표시하여 직전 경기 파트너/상대 벌점 계산에서 제외한다
+    conn.execute("UPDATE games SET ended_at = ?, canceled = 1 WHERE id = ?", (time.time(), game_id))
     fill_courts(conn, g["meetup_id"])
 
 
 def board(conn, meetup_id: int) -> dict:
-    names = {r["id"]: r["nickname"] for r in conn.execute(
-        "SELECT m.id, m.nickname FROM members m JOIN attendees a ON a.member_id = m.id WHERE a.meetup_id = ?",
+    member_by_id = {r["id"]: {"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"]} for r in conn.execute(
+        "SELECT m.id, m.nickname, m.gender, m.grade FROM members m JOIN attendees a ON a.member_id = m.id WHERE a.meetup_id = ?",
         (meetup_id,))}
+    names = {member_id: member["nickname"] for member_id, member in member_by_id.items()}
     courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}
@@ -176,29 +222,50 @@ def board(conn, meetup_id: int) -> dict:
     for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
         court_list.append({"court": c, "game_id": g["id"] if g else None,
-                           "teams": [[names[g["a1"]], names[g["a2"]]], [names[g["b1"]], names[g["b2"]]]] if g else None})
+                           "teams": [[names[g["a1"]], names[g["a2"]]], [names[g["b1"]], names[g["b2"]]]] if g else None,
+                           "team_players": [[member_by_id[g["a1"]], member_by_id[g["a2"]]],
+                                            [member_by_id[g["b1"]], member_by_id[g["b2"]]]] if g else None})
+    playing = _playing(conn, meetup_id)
     excluded = []
-    for r in conn.execute("""SELECT m.nickname, m.gender, m.grade, a.status FROM attendees a
+    for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status FROM attendees a
                              JOIN members m ON m.id = a.member_id WHERE a.meetup_id = ? ORDER BY m.nickname""",
                           (meetup_id,)):
+        if r["id"] in playing:
+            continue
         if r["status"] != "present":
-            excluded.append({"nickname": r["nickname"], "reason": STATUS_LABELS[r["status"]]})
+            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": STATUS_LABELS[r["status"]]})
         elif r["grade"] is None:
-            excluded.append({"nickname": r["nickname"], "reason": "급수 미입력"})
+            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": "급수 미입력"})
         elif r["gender"] is None:
-            excluded.append({"nickname": r["nickname"], "reason": "성별 미입력"})
-    return {"courts": court_list, "queue": [names[p.id] for p in queue(conn, meetup_id)], "excluded": excluded}
+            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": "성별 미입력"})
+    queued = queue(conn, meetup_id)
+    now = time.time()
+    queue_players = []
+    for player in queued:
+        minutes = max(0, int((now - player.queued_at) // 60))
+        wait_label = f"{minutes // 60}시간 {minutes % 60}분" if minutes >= 60 else f"{minutes}분"
+        queue_players.append({**member_by_id[player.id], "games": player.games,
+                              "queued_at": player.queued_at, "wait_label": wait_label})
+    return {"courts": court_list, "queue": [names[p.id] for p in queued],
+            "queue_players": queue_players, "excluded": excluded}
 
 
-def refill_today(conn) -> None:
-    for r in conn.execute("SELECT id FROM meetups WHERE date = ? AND started = 1", (today(),)).fetchall():
+def refill_upcoming(conn) -> None:
+    """오늘 이후 시작된 정모의 빈 코트를 대기열로 채운다."""
+    for r in conn.execute("SELECT id FROM meetups WHERE date >= ? AND started = 1 ORDER BY date, id",
+                          (today(),)).fetchall():
         fill_courts(conn, r["id"])
 
 
-def on_info_changed(conn, member_id: int, changed: list[tuple]) -> None:
+def on_info_changed(conn, member_id: int, changed: list[tuple], meetup_id: int | None = None) -> None:
     """changed는 members.set_info가 돌려준 (필드, 이전 값, 새 값) 목록.
     비어 있던 성별/급수가 이번에 채워졌을 때만 대기열 맨 뒤로 넣는다 (대기 중인 사람의 급수 수정은 순서 유지)."""
     if any(old is None for _, old, _ in changed):
-        conn.execute("""UPDATE attendees SET queued_at = ? WHERE member_id = ? AND status = 'present'
-                        AND meetup_id IN (SELECT id FROM meetups WHERE date = ?)""", (time.time(), member_id, today()))
-    refill_today(conn)
+        now = time.time()
+        if meetup_id:
+            conn.execute("UPDATE attendees SET queued_at = ? WHERE member_id = ? AND status = 'present' "
+                         "AND meetup_id = ?", (now, member_id, meetup_id))
+        else:
+            conn.execute("""UPDATE attendees SET queued_at = ? WHERE member_id = ? AND status = 'present'
+                            AND meetup_id IN (SELECT id FROM meetups WHERE date >= ?)""", (now, member_id, today()))
+    refill_upcoming(conn)

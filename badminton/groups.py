@@ -1,7 +1,7 @@
 """운영진이 고를 수 있는 소모임 모임 목록."""
 import re
 
-GID_RE = re.compile(r"(?:somoim\.co\.kr/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{13})")
+GID_RE = re.compile(r"(?:somoim\.co\.kr/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12,13})")
 
 
 def parse_gid(text: str) -> str:

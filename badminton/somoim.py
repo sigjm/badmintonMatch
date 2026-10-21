@@ -114,7 +114,7 @@ def fetch_group(group_id: str, timeout: float = 10) -> Group:
         raise SomoimError(f"소모임 페이지를 읽지 못했습니다: {e}") from e
 
 
-SEARCH_RE = re.compile(r'<a[^>]+href="/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{13})"[^>]*>(.*?)</a>', re.S)
+SEARCH_RE = re.compile(r'<a[^>]+href="/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12,13})"[^>]*>(.*?)</a>', re.S)
 
 
 def parse_search(html: str) -> list[tuple[str, str]]:

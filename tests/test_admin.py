@@ -39,7 +39,7 @@ def test_somoim_failure_keeps_attendees_and_offers_paste(admin, monkeypatch, con
 def test_meetup_page_renders(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert "코트 1" in html and "경기 끝" in html
+    assert "코트 1" in html and ("경기 끝" in html or "게임 끝내기" in html)
 
 
 def test_end_and_redraw_routes(admin, seeded_meetup):

@@ -13,6 +13,9 @@ def test_parse_gid_from_link_or_id():
     assert parse_gid(f"https://www.somoim.co.kr/{GID}") == GID
     assert parse_gid(f" https://somoim.co.kr/{GID}?utm=share ") == GID
     assert parse_gid(GID) == GID
+    # 12자리 표준 UUID 형태도 지원
+    uuid12 = "12345678-1234-1234-1234-123456789abc"
+    assert parse_gid(f"https://www.somoim.co.kr/{uuid12}") == uuid12
     with pytest.raises(ValueError):
         parse_gid("https://example.com/hello")
 

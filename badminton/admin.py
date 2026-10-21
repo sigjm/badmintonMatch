@@ -1,13 +1,14 @@
 import hmac
 from functools import wraps
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from . import get_conn
 from .db import get_setting, set_setting
 from .groups import add_group, get_group, list_groups, parse_gid
-from .meetups import (add_attendee, add_pasted, board, end_game, get_or_create_meetup, on_info_changed, redraw,
-                      refill_today, set_status, start, sync_somoim, today)
+from .meetups import (add_attendee, add_pasted, assign_manual, board, end_game, get_or_create_meetup,
+                      fill_courts, manual_candidates, on_info_changed, redraw, refill_upcoming, set_status, start,
+                      sync_somoim, today)
 from .members import changes, create_member, list_members, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
@@ -91,7 +92,7 @@ def _import(group, date: str, eid: str | None = None, name: str = "", mid: int |
     conn = get_conn()
     mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid, group_id=group["id"])
     r = sync_somoim(conn, mid, found)
-    refill_today(conn)
+    refill_upcoming(conn)
     flash(f"불러오기 완료: 추가 {r['added']} · 취소 {r['canceled']} · 복귀 {r['restored']}")
     return redirect(url_for("admin.meetup", mid=mid))
 
@@ -125,11 +126,12 @@ def reimport(mid):
 def paste():
     conn = get_conn()
     mid = request.form.get("mid", type=int)
+    date = request.form.get("date") or today()
     if mid is None or conn.execute("SELECT 1 FROM meetups WHERE id = ?", (mid,)).fetchone() is None:
-        mid = get_or_create_meetup(conn, request.form["date"], request.form.get("name") or "정모", None,
+        mid = get_or_create_meetup(conn, date, request.form.get("name") or "정모", None,
                                    group_id=_current_group()["id"])
     r = add_pasted(conn, mid, request.form.get("text", ""))
-    refill_today(conn)
+    refill_upcoming(conn)
     msg = f"붙여넣기: 등록 {len(r['added'])} · 새 회원 {len(r['created'])}"
     if r["ambiguous"]:
         msg += f" · 같은 닉네임이 여럿이라 건너뜀: {', '.join(r['ambiguous'])}"
@@ -147,8 +149,30 @@ def meetup(mid):
                            WHERE a.meetup_id = ? ORDER BY m.nickname""", (mid,)).fetchall()
     seated = {r["id"] for r in rows}
     guests = [g for g in list_members(conn, guests=True) if g["id"] not in seated]
+    candidates = manual_candidates(conn, mid)
     return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests,
+                           manual_candidates=candidates, manual_candidate_ids={r["id"] for r in candidates},
                            group=get_group(conn, m["group_id"]) or _current_group())
+
+
+@bp.get("/m/<int:mid>/updates")
+@admin_required
+def meetup_updates(mid):
+    conn = get_conn()
+    m = _meetup_row(mid)
+    current_board = board(conn, mid)
+    candidates = manual_candidates(conn, mid)
+    response = jsonify(
+        meetup_id=mid,
+        court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=True,
+                                    manual_candidates=candidates),
+        queue=render_template("queue_list.html", board=current_board, admin=True, m=m,
+                              manual_candidate_ids={r["id"] for r in candidates}),
+        active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]),
+        queue_count=len(current_board["queue"]),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @bp.post("/m/<int:mid>/status")
@@ -159,7 +183,7 @@ def status(mid):
         set_status(conn, mid, int(request.form["member_id"]), request.form["status"])
     except ValueError as e:
         flash(str(e))
-    refill_today(conn)
+    refill_upcoming(conn)
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -171,9 +195,47 @@ def info(mid):
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id, changed)
+        on_info_changed(conn, member_id, changed, meetup_id=mid)
     except ValueError as e:
         flash(str(e))
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/manual/<int:court>")
+@bp.post("/m/<int:mid>/manual", defaults={"court": None})
+@admin_required
+def manual_match(mid, court=None):
+    _meetup_row(mid)
+    court = court or request.form.get("court", type=int)
+    if court is None:
+        flash("배정할 빈 코트를 선택해 주세요")
+        return redirect(url_for("admin.meetup", mid=mid))
+    try:
+        player_ids = [int(request.form.get(name, "")) for name in ("a1", "a2", "b1", "b2")]
+    except (TypeError, ValueError):
+        flash("선수 네 명을 모두 선택해 주세요")
+    else:
+        try:
+            assign_manual(get_conn(), mid, court, player_ids)
+            flash(f"코트 {court}에 수동 대진을 배정했습니다")
+        except ValueError as e:
+            flash(str(e))
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/auto-match")
+@admin_required
+def auto_match(mid):
+    m = _meetup_row(mid)
+    if not m["started"]:
+        flash("먼저 코트를 시작해 주세요")
+    else:
+        conn = get_conn()
+        before = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
+        fill_courts(conn, mid)
+        after = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
+        added = after - before
+        flash(f"빈 코트 자동 매칭 완료: {added}경기" if added else "자동 매칭할 빈 코트가 없거나 대기 가능한 선수가 4명 미만입니다")
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -196,7 +258,7 @@ def guest(mid):
             flash(str(e))
             return redirect(url_for("admin.meetup", mid=mid))
     add_attendee(conn, mid, member_id, "guest")
-    refill_today(conn)
+    refill_upcoming(conn)
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -278,7 +340,7 @@ def settings():
         if 0 <= offset <= 5 and 4 <= window <= 20:
             set_setting(conn, "female_offset", offset)
             set_setting(conn, "mix_window", window)
-            refill_today(conn)
+            refill_upcoming(conn)
             flash("설정을 저장했습니다")
         else:
             flash("여자 보정값은 0~5, 혼복 후보 범위는 4~20 사이로 입력해 주세요")

@@ -11,8 +11,12 @@
   {% endfor %}
   <a class="add" href="{{ url_for('admin.groups') }}">+ 모임</a>
 </div>
-<h1>정모 불러오기</h1>
-<p class="sub">날짜를 고르면 소모임 <b>{{ group.name }}</b>에서 그날 참석자를 가져옵니다.</p>
+<section class="event-banner">
+  <span class="eyebrow">운영 대시보드</span>
+  <h1>정모 관리</h1>
+  <div class="event-meta"><span>{{ group.name }}</span><span>참석·대진·코트 운영</span></div>
+</section>
+<p class="sub">정모 참석자와 대진은 운영진이 직접 관리합니다.</p>
 {% if error %}<div class="note err">{{ error }}</div>{% endif %}
 
 {% if choices %}

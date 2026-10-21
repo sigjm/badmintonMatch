@@ -14,36 +14,23 @@ def test_board_shows_started_meetup(client, seeded_meetup):
     assert "코트 1" in html and "m1" in html and "경기 끝" not in html
 
 
-def test_me_first_time_sets_pin_and_info(client, conn_of):
-    m = create_member(conn_of(), "가")
-    client.post("/me", data={"member_id": m, "pin": "1234", "gender": "F", "grade": "C"})
-    row = conn_of().execute("SELECT gender, grade FROM members WHERE id = ?", (m,)).fetchone()
-    assert tuple(row) == ("F", "C") and check_pin(conn_of(), m, "1234")
-
-
-def test_me_wrong_or_bad_pin_changes_nothing(client, conn_of):  # Review Focus 5
-    m = create_member(conn_of(), "가", gender="M", grade="B")
-    set_pin(conn_of(), m, "1234")
-    for pin, msg in (("0000", "PIN이 맞지 않습니다"), ("12a4", "PIN은 숫자 4자리")):
-        html = client.post("/me", data={"member_id": m, "pin": pin, "gender": "M", "grade": "S"}).get_data(as_text=True)
-        assert msg in html
-    assert conn_of().execute("SELECT grade FROM members WHERE id = ?", (m,)).fetchone()[0] == "B"
-    assert changes(conn_of()) == []
-
-
-def test_me_first_time_bad_pin_rejected(client, conn_of):
-    m = create_member(conn_of(), "가")
-    html = client.post("/me", data={"member_id": m, "pin": "12", "gender": "F", "grade": "C"}).get_data(as_text=True)
-    assert "PIN은 숫자 4자리" in html
-    assert conn_of().execute("SELECT grade FROM members WHERE id = ?", (m,)).fetchone()[0] is None
-
-
-def test_me_list_hides_guests_and_marks_duplicates(client, conn_of):
-    c = conn_of()
-    a, b = create_member(c, "철수"), create_member(c, "철수")
-    create_member(c, "손님", is_guest=True)
+def test_me_is_read_only_notice(client):
     html = client.get("/me").get_data(as_text=True)
-    assert f"철수 (#{a})" in html and f"철수 (#{b})" in html and "손님" not in html
+    assert "회원 정보는 운영진이 관리합니다" in html
+    assert "대진판 보기" in html
+
+
+def test_me_post_is_disallowed(client):
+    resp = client.post("/me", data={"member_id": 1, "gender": "F", "grade": "C"})
+    assert resp.status_code == 405
+
+
+def test_board_updates_endpoint(client, seeded_meetup):
+    resp = client.get("/board/updates")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "court_board" in data and "queue" in data
+    assert data["active_courts"] >= 1
 
 
 def test_board_switches_group_by_query(client, conn_of):

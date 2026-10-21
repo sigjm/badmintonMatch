@@ -3,137 +3,199 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#2672e8">
 {% block head %}{% endblock %}
 <title>{% block title %}금요일 야간민턴{% endblock %}</title>
 <style>
-  /* Apple 스타일 (VoltAgent/awesome-design-md design-md/apple 기준): 강조색 하나, 그림자 없음, 어두운 코트 타일 */
   :root {
-    --canvas:#f5f5f7; --card:#fff; --pearl:#fafafc; --ink:#1d1d1f; --muted:#7a7a7a;
-    --hair:#e0e0e0; --hair-soft:rgba(0,0,0,.08); --blue:#0066cc; --focus:#0071e3;
-    --tile:#272729; --on-dark:#fff; --on-dark-muted:#cccccc; --blue-dark:#2997ff; --red:#d70015;
-    --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237a7a7a' stroke-width='1.5'/%3E%3C/svg%3E");
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --canvas:#000; --card:#1c1c1e; --pearl:#2c2c2e; --ink:#f5f5f7; --muted:#98989d;
-      --hair:#38383a; --hair-soft:rgba(255,255,255,.1); --blue:#2997ff; --focus:#2997ff;
-      --tile:#1c1c1e; --red:#ff6961;
-    }
+    --canvas:#f2f6fc; --card:#fff; --pearl:#edf4ff; --ink:#172b49; --muted:#687991;
+    --hair:#d9e5f4; --hair-soft:rgba(25,66,121,.1); --blue:#2672e8; --blue-dark:#1559bd;
+    --blue-soft:#dceaff; --yellow:#ffd84d; --yellow-ink:#26364e; --red:#c63d48;
+    --green:#188653; --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23687991' stroke-width='1.5'/%3E%3C/svg%3E");
   }
   * { box-sizing:border-box; }
   html { overflow-x:clip; -webkit-text-size-adjust:100%; }
   body {
     margin:0; background:var(--canvas); color:var(--ink);
-    font:400 17px/1.47 system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", sans-serif;
-    letter-spacing:-.374px; -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;
+    font:400 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", sans-serif;
+    letter-spacing:-.24px; -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;
   }
   a { color:var(--blue); }
-  .wrap { max-width:720px; margin:0 auto; padding:0 16px; }
+  .wrap { max-width:820px; margin:0 auto; padding:0 16px; }
 
-  /* 상단 바: 얇은 검은 바 */
-  .gnav { background:#000; position:sticky; top:0; z-index:10; }
-  .gnav .wrap { display:flex; align-items:center; justify-content:space-between; gap:16px; height:44px; }
-  .brand { color:#fff; text-decoration:none; font-size:14px; font-weight:600; letter-spacing:-.224px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nav { display:flex; align-items:center; gap:18px; }
+  .gnav { background:var(--card); border-bottom:1px solid var(--hair); position:sticky; top:0; z-index:10; }
+  .gnav .wrap { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:60px; }
+  .brand { display:flex; align-items:center; gap:9px; color:var(--ink); text-decoration:none; font-size:16px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .brand::before { content:""; width:12px; height:12px; flex:none; border-radius:4px; background:var(--yellow); box-shadow:inset 0 0 0 2px rgba(23,43,73,.08); }
+  .nav { display:flex; align-items:center; gap:4px; }
   .nav a, .nav .linkish {
-    color:rgba(255,255,255,.8); font:inherit; font-size:12px; letter-spacing:-.12px; text-decoration:none;
-    background:none; border:0; padding:10px 0; cursor:pointer; white-space:nowrap;
+    color:var(--muted); font:inherit; font-size:13px; font-weight:650; text-decoration:none;
+    background:none; border:0; border-radius:10px; padding:8px 10px; cursor:pointer; white-space:nowrap;
   }
-  .nav a:hover, .nav .linkish:hover { color:#fff; }
+  .nav a:hover, .nav .linkish:hover { color:var(--blue-dark); background:var(--pearl); }
+  .nav a.operator-login { color:var(--blue-dark); background:var(--blue-soft); border:1px solid #b8d1f4; font-weight:750; }
+  .nav a.operator-login:hover { color:#104a9c; background:#cfe2ff; }
 
-  main.wrap { padding:28px 16px 64px; }
-  h1 { font-size:28px; line-height:1.14; font-weight:600; letter-spacing:-.374px; margin:0 0 6px; }
-  @media (min-width:641px) { h1 { font-size:34px; } }
-  .sub { font-size:14px; color:var(--muted); letter-spacing:-.224px; margin:0 0 4px; }
+  main.wrap { padding:24px 16px 64px; }
+  h1 { font-size:27px; line-height:1.18; font-weight:800; letter-spacing:-.65px; margin:0 0 6px; }
+  @media (min-width:641px) { h1 { font-size:32px; } }
+  .sub { font-size:14px; color:var(--muted); margin:0 0 5px; }
   .muted { color:var(--muted); }
-  .small { font-size:14px; letter-spacing:-.224px; }
-  .empty { color:var(--muted); font-size:15px; margin:6px 0; }
+  .small { font-size:13px; }
+  .empty { color:var(--muted); font-size:14px; margin:6px 0; }
 
-  /* 카드 */
-  .section { background:var(--card); border:1px solid var(--hair-soft); border-radius:18px; padding:16px 20px; margin-top:20px; }
-  .section > .head { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; font-weight:600; letter-spacing:-.224px; margin-bottom:4px; }
-  .section > .head span:last-child { color:var(--muted); font-weight:400; }
-
-  /* 코트: 화면 폭 전체의 어두운 타일 */
-  .tile { background:var(--tile); color:var(--on-dark); margin:24px calc(50% - 50vw) 0; padding:24px max(16px, calc(50vw - 344px)) 8px; }
-  .tile > .head { display:flex; justify-content:space-between; font-size:14px; font-weight:600; letter-spacing:-.224px; color:var(--on-dark-muted); }
-  .court { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:18px 0; border-bottom:1px solid rgba(255,255,255,.1); }
-  .court:last-of-type { border-bottom:0; }
-  .court-no { font-size:40px; font-weight:600; line-height:1; letter-spacing:-.6px; }
-  .court-no small { display:block; font-size:11px; font-weight:400; letter-spacing:0; color:var(--on-dark-muted); margin-top:5px; }
-  .team { font-size:19px; font-weight:600; letter-spacing:-.3px; line-height:1.25; }
-  .team + .team::before { content:"vs"; display:block; font-size:12px; font-weight:400; letter-spacing:0; color:var(--on-dark-muted); margin:3px 0; }
-  .tile .empty { color:var(--on-dark-muted); }
-  .court-actions { display:flex; flex-direction:column; gap:8px; }
-  .board-big .court { grid-template-columns:60px 1fr; }
-  .board-big .court-no { font-size:52px; }
-  .board-big .team { font-size:22px; }
-
-  /* 버튼: 파란 알약 */
-  .btn {
-    display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 22px;
-    border-radius:9999px; border:1px solid var(--blue); background:var(--blue); color:#fff;
-    font:inherit; font-size:17px; letter-spacing:-.374px; text-decoration:none; white-space:nowrap; cursor:pointer;
-    transition:transform .12s ease;
+  .event-banner {
+    position:relative; overflow:hidden; color:#fff; padding:22px 24px; margin:0 0 18px;
+    border-radius:20px; background:linear-gradient(128deg,#3285f2 0%,#1762ce 58%,#174b9d 100%);
+    box-shadow:0 8px 20px rgba(29,91,176,.16);
   }
-  .btn:active { transform:scale(.95); }
-  .btn.line { background:transparent; color:var(--blue); }
-  .btn.sm { min-height:32px; padding:0 14px; font-size:14px; letter-spacing:-.224px; }
-  .tile .btn.line { color:var(--blue-dark); border-color:var(--blue-dark); }
-  .inline { display:inline; margin:0; }
-  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .event-banner::after { content:""; position:absolute; width:170px; height:170px; right:-54px; top:-83px; border:24px solid rgba(255,255,255,.1); border-radius:50%; pointer-events:none; }
+  .event-banner .eyebrow { display:block; color:#dceaff; font-size:11px; font-weight:800; letter-spacing:1px; margin-bottom:7px; }
+  .event-banner h1 { position:relative; z-index:1; margin:0; color:#fff; }
+  .event-meta { display:flex; align-items:center; gap:8px; margin-top:12px; color:#e8f1ff; font-size:13px; }
+  .live-badge { display:inline-flex; align-items:center; gap:6px; color:var(--yellow-ink); background:var(--yellow); border-radius:999px; padding:4px 10px; font-size:12px; font-weight:800; }
+  .live-badge::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
 
-  /* 입력 */
+  .section, .tile { background:var(--card); border:1px solid var(--hair); border-radius:18px; box-shadow:0 4px 14px rgba(32,72,126,.045); }
+  .section { padding:16px 18px; margin-top:16px; }
+  .section > .head, .tile > .head { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:14px; font-weight:800; margin-bottom:7px; }
+  .section > .head span:last-child, .tile > .head span:last-child { color:var(--muted); font-weight:600; }
+  .tile { padding:16px 18px 4px; margin:16px 0 0; }
+  .tile > .head { color:var(--blue-dark); padding-bottom:10px; border-bottom:1px solid var(--hair); }
+  .stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:14px 0; }
+  .stat-card { min-width:0; padding:11px 13px; background:var(--card); border:1px solid var(--hair); border-radius:14px; }
+  .stat-card span { display:block; color:var(--muted); font-size:12px; font-weight:650; }
+  .stat-card strong { display:block; color:var(--blue-dark); font-size:21px; line-height:1.25; margin-top:3px; }
+
+  .court { display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--hair); }
+  .court:last-of-type { border-bottom:0; }
+  .court-no { display:flex; flex-direction:column; align-items:center; justify-content:center; width:50px; height:50px; border-radius:14px; background:var(--blue); color:#fff; font-size:24px; font-weight:850; line-height:1; }
+  .court-no small { display:block; color:#dceaff; font-size:9px; font-weight:700; letter-spacing:.5px; margin-bottom:4px; }
+  .court-match { min-width:0; display:grid; grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr); align-items:center; gap:7px; }
+  .team { min-width:0; padding:10px 9px; border-radius:11px; background:var(--pearl); color:var(--ink); text-align:center; font-size:15px; font-weight:750; line-height:1.3; overflow-wrap:anywhere; }
+  .versus { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--yellow); color:var(--yellow-ink); font-size:10px; font-weight:900; }
+  .court .empty { grid-column:2; }
+  .court-actions { display:flex; flex-direction:column; gap:6px; }
+  .court-actions form { margin:0; }
+  .manual-match-panel { grid-column:2 / -1; min-width:0; }
+  .manual-match-form { display:grid; gap:10px; min-width:0; }
+  .manual-match-help { margin:0; color:var(--muted); font-size:13px; }
+  .queue-player-select, .excluded-player-select { display:inline-flex; align-items:center; gap:4px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  .queue-player-select { flex-direction:column; align-items:flex-start; }
+  .queue-player-select.is-selected, .excluded-player-select.is-selected { color:var(--blue-dark); }
+  .queue-player-select.is-selected .player-name, .excluded-player-select.is-selected .player-name { box-shadow:0 0 0 2px var(--blue); }
+  .manual-player-order { display:none; flex:none; color:var(--blue-dark); font-size:10px; line-height:1; font-weight:850; }
+  .is-selected .manual-player-order { display:inline; }
+  .queue-player-select:disabled, .excluded-player-select:disabled { opacity:.48; cursor:not-allowed; }
+  .manual-selection-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .manual-assign-button:disabled { opacity:.45; cursor:not-allowed; }
+  .quick-status-menu { position:fixed; z-index:1000; display:flex; flex-direction:column; gap:3px; min-width:150px; padding:8px; border:1px solid var(--hair); border-radius:13px; background:#fff; box-shadow:0 12px 34px rgba(23,43,73,.22); }
+  .quick-status-menu[hidden] { display:none; }
+  .quick-status-menu strong { padding:5px 8px; font-size:12px; }
+  .quick-status-menu button { min-height:36px; padding:5px 9px; border:0; border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; }
+  .quick-status-menu button:hover { background:var(--pearl); }
+  .quick-status-form { display:none; }
+  .board-big .court { grid-template-columns:56px minmax(0,1fr); padding:14px 0; }
+  .board-big .court-no { width:54px; height:54px; font-size:27px; }
+  .board-big .team { padding:12px 10px; font-size:16px; }
+  .board-big .court-actions { grid-column:2; flex-direction:row; }
+  .board-big .court-actions form { flex:1; }
+
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 16px;
+    border-radius:12px; border:1px solid var(--blue); background:var(--blue); color:#fff;
+    font:inherit; font-size:14px; font-weight:750; text-decoration:none; white-space:nowrap; cursor:pointer;
+    transition:transform .12s ease,filter .12s ease;
+  }
+  .btn:hover { filter:brightness(.96); }
+  .btn:active { transform:scale(.97); }
+  .btn.line { background:#fff; color:var(--blue-dark); border-color:#9fc2f4; }
+  .btn.go { background:var(--yellow); border-color:var(--yellow); color:var(--yellow-ink); }
+  .btn.sm { min-height:34px; padding:0 11px; font-size:12px; border-radius:10px; }
+  .inline { display:inline; margin:0; }
+  .bar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+
   input, select, textarea {
-    font:inherit; font-size:17px; letter-spacing:-.374px; color:var(--ink); background:var(--card);
-    border:1px solid var(--hair); border-radius:11px; padding:0 14px; min-height:44px; max-width:100%;
+    font:inherit; font-size:15px; color:var(--ink); background:var(--card);
+    border:1px solid var(--hair); border-radius:11px; padding:0 12px; min-height:42px; max-width:100%;
   }
   select { -webkit-appearance:none; appearance:none; padding-right:32px; background:var(--card) var(--chev) no-repeat right 12px center; }
-  textarea { width:100%; min-height:9rem; padding:12px 14px; line-height:1.47; }
-  input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
-  label.field { display:block; margin:16px 0; font-size:14px; letter-spacing:-.224px; color:var(--muted); }
+  textarea { width:100%; min-height:9rem; padding:12px; line-height:1.5; }
+  input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline:2px solid #7db3ff; outline-offset:2px; }
+  label.field { display:block; margin:14px 0; color:var(--muted); font-size:13px; font-weight:650; }
   label.field > input, label.field > select { display:block; width:100%; margin-top:6px; }
 
-  /* 알림 */
-  .note { background:var(--card); border:1px solid var(--hair-soft); border-radius:12px; padding:12px 16px; margin:0 0 16px; font-size:15px; letter-spacing:-.24px; }
-  .note.err { color:var(--red); }
-
-  /* 모임 선택 칩 */
-  .tabs { display:flex; gap:8px; overflow-x:auto; margin:0 -16px 22px; padding:2px 16px; scrollbar-width:none; }
+  .note { background:#fff; border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin:0 0 14px; font-size:14px; }
+  .note.err { color:var(--red); border-color:#f0c9cc; background:#fff8f8; }
+  .tabs { display:flex; gap:7px; overflow-x:auto; margin:0 -16px 18px; padding:2px 16px; scrollbar-width:none; }
   .tabs::-webkit-scrollbar { display:none; }
   .tabs a, .tabs button {
-    flex:none; display:inline-flex; align-items:center; min-height:36px; padding:0 16px; border-radius:9999px;
-    border:1px solid var(--hair); background:var(--card); color:var(--ink); font:inherit; font-size:14px;
-    letter-spacing:-.224px; text-decoration:none; white-space:nowrap; cursor:pointer;
+    flex:none; display:inline-flex; align-items:center; min-height:36px; padding:0 14px; border-radius:11px;
+    border:1px solid var(--hair); background:var(--card); color:var(--muted); font:inherit; font-size:13px;
+    font-weight:700; text-decoration:none; white-space:nowrap; cursor:pointer;
   }
-  .tabs .on { border:2px solid var(--focus); padding:0 15px; font-weight:600; }
-  .tabs .add { border-color:transparent; background:transparent; color:var(--blue); }
+  .tabs .on { border-color:var(--blue); background:var(--blue); color:#fff; box-shadow:0 3px 8px rgba(38,114,232,.18); }
+  .tabs .add { border-color:transparent; background:transparent; color:var(--blue-dark); }
   .tabs form { display:contents; }
 
-  /* 목록 */
   .rows { list-style:none; margin:0; padding:0; }
   .rows > li { padding:12px 0; border-top:1px solid var(--hair); }
   .rows > li:first-child { border-top:0; }
-  .name { font-weight:600; }
-  .meta { color:var(--muted); font-size:14px; letter-spacing:-.224px; }
+  .name { font-weight:750; }
+  .meta { color:var(--muted); font-size:13px; }
   .row-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .row-ctl { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
-  .row-ctl select { min-height:36px; font-size:15px; background-color:var(--pearl); }
-  .tag { font-size:12px; letter-spacing:-.12px; color:var(--muted); background:var(--canvas); border-radius:5px; padding:1px 6px; margin-left:6px; vertical-align:2px; }
-  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--blue); margin-right:7px; vertical-align:2px; }
-  .gid { font-size:12px; letter-spacing:-.12px; color:var(--muted); word-break:break-all; }
-  .log { font-size:14px; letter-spacing:-.224px; padding:9px 0; border-top:1px solid var(--hair); }
+  .row-ctl select { min-height:36px; font-size:13px; background-color:var(--pearl); }
+  .tag { font-size:11px; font-weight:700; color:var(--blue-dark); background:var(--blue-soft); border-radius:7px; padding:3px 7px; margin-left:6px; vertical-align:2px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--yellow); margin-right:7px; vertical-align:1px; }
+  .gid { color:var(--muted); font-size:11px; word-break:break-all; }
+  .log { font-size:13px; padding:9px 0; border-top:1px solid var(--hair); }
   .log:first-of-type { border-top:0; }
+  .player-name { display:inline-block; }
+  .player-name.is-female { color:#ae3f74; background:#fff0f6; border-radius:7px; padding:1px 5px; font-weight:800; }
+  [data-player-status] { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  .team-sep { color:var(--muted); margin:0 3px; }
+  .save-status { color:var(--green); font-size:11px; font-weight:700; white-space:nowrap; }
+  .save-status.is-error { color:var(--red); }
+  .queue { list-style:none; margin:8px 0 4px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+  .queue li { display:inline-flex; align-items:center; gap:7px; background:var(--pearl); border:1px solid var(--hair); border-radius:11px; padding:5px 10px 5px 5px; font-size:14px; font-weight:650; }
+  .queue b { display:inline-grid; place-items:center; min-width:25px; height:25px; border-radius:8px; background:var(--blue); color:#fff; font-size:12px; font-weight:800; }
+  .queue-person { display:flex; flex-direction:column; min-width:0; line-height:1.25; }
+  .queue-meta { margin-top:2px; color:var(--muted); font-size:10px; font-weight:600; white-space:nowrap; }
+  .reasons { list-style:none; margin:6px 0 0; padding:0; font-size:14px; }
+  .reasons li { padding:5px 0; }
+  .reasons .r { color:var(--blue-dark); font-size:12px; font-weight:800; margin-right:8px; }
+  .read-only-card { max-width:520px; margin:30px auto; text-align:center; }
+  .read-only-card .read-only-icon { display:grid; place-items:center; width:56px; height:56px; margin:0 auto 14px; border-radius:18px; background:var(--blue-soft); color:var(--blue-dark); font-size:24px; font-weight:900; }
+  .read-only-card p { color:var(--muted); margin:8px 0 0; }
 
-  /* 대기열 */
-  .queue { list-style:none; margin:6px 0 4px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
-  .queue li { display:inline-flex; align-items:center; background:var(--pearl); border:1px solid var(--hair); border-radius:9999px; padding:3px 12px 3px 4px; font-size:15px; }
-  .queue b { display:inline-grid; place-items:center; min-width:24px; height:24px; border-radius:50%; background:var(--ink); color:var(--card); font-size:12px; font-weight:600; letter-spacing:0; margin-right:7px; }
-  .reasons { list-style:none; margin:6px 0 0; padding:0; font-size:15px; }
-  .reasons li { padding:4px 0; }
-  .reasons .r { color:var(--muted); font-size:14px; font-weight:600; margin-right:8px; }
+  @media (max-width:560px) {
+    .gnav .wrap { min-height:56px; gap:5px; }
+    .brand { max-width:44%; font-size:14px; }
+    .nav { gap:0; }
+    .nav a, .nav .linkish { padding:7px 8px; font-size:12px; }
+    main.wrap { padding-top:18px; }
+    .event-banner { padding:19px 18px; border-radius:17px; }
+    .section { padding:14px; border-radius:15px; }
+    .tile { padding:14px 13px 3px; border-radius:16px; }
+    .court { grid-template-columns:46px minmax(0,1fr); gap:9px; }
+    .court-no { width:44px; height:46px; border-radius:12px; font-size:21px; }
+    .court-match { grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr); gap:4px; }
+    .team { padding:9px 5px; font-size:13px; }
+    .versus { width:26px; height:26px; font-size:9px; }
+    .court-actions { grid-column:1/-1; flex-direction:row; }
+    .court-actions form { flex:1; }
+    .court-actions .btn { width:100%; }
+    .board-big .court { grid-template-columns:46px minmax(0,1fr); }
+    .board-big .court-no { width:44px; height:46px; font-size:22px; }
+    .board-big .court .team { font-size:13px; }
+    .manual-match-panel { grid-column:1 / -1; }
+    .quick-status-menu { min-width:165px; }
+    .stat-grid { gap:6px; }
+    .stat-card { padding:9px; border-radius:12px; }
+    .stat-card strong { font-size:18px; }
+  }
 </style>
 </head>
 <body>
@@ -142,8 +204,278 @@
   {% block nav %}{% endblock %}
 </div></header>
 <main class="wrap">
-  {% for msg in get_flashed_messages() %}<div class="note">{{ msg }}</div>{% endfor %}
+  <div id="flash-messages">{% for msg in get_flashed_messages() %}<div class="note">{{ msg }}</div>{% endfor %}</div>
   {% block content %}{% endblock %}
 </main>
+<script>
+  (() => {
+    const selector = "form[data-save-without-reload]";
+    document.querySelectorAll(`${selector} select`).forEach((field) => {
+      field.dataset.savedValue = field.value;
+    });
+
+    document.addEventListener("submit", async (event) => {
+      const form = event.target.closest(selector);
+      if (!form) return;
+      event.preventDefault();
+      if (form.dataset.saving === "true") return;
+
+      const body = new FormData(form);
+      const submitter = event.submitter;
+      if (submitter?.name && !body.has(submitter.name)) body.append(submitter.name, submitter.value);
+      const fields = [...new Set([...form.elements, ...(submitter ? [submitter] : [])])];
+      const disabled = fields.map((field) => field.disabled);
+      const saveKey = form.dataset.saveKey;
+      const showStatus = (targetForm, message, failed = false) => {
+        const status = targetForm?.querySelector("[data-save-status]");
+        if (!status) return;
+        status.textContent = message;
+        status.classList.toggle("is-error", failed);
+      };
+
+      form.dataset.saving = "true";
+      fields.forEach((field) => { field.disabled = true; });
+      showStatus(form, "저장 중…");
+      try {
+        const response = await fetch(form.action, {
+          method: (form.method || "POST").toUpperCase(),
+          body,
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        if (!response.ok) throw new Error(`저장 실패 (${response.status})`);
+        const html = await response.text();
+        const updated = new DOMParser().parseFromString(html, "text/html");
+        const pageMarkers = ["#meetup-stats", "#member-change-log"];
+        if (!pageMarkers.some((id) => updated.querySelector(id))) {
+          window.location.assign(response.url);
+          return;
+        }
+
+        ["#flash-messages", "#meetup-stats", "#meetup-court-board", "#meetup-queue", "#meetup-attendee-list", "#member-change-log"]
+          .forEach((id) => {
+            const current = document.querySelector(id);
+            const next = updated.querySelector(id);
+            if (current && next) current.replaceWith(next);
+          });
+        document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
+
+        const activeForm = saveKey
+          ? [...document.querySelectorAll(`${selector}[data-save-key]`)].find((candidate) => candidate.dataset.saveKey === saveKey) || form
+          : form;
+        const flashText = updated.querySelector("#flash-messages")?.textContent || "";
+        if (form.id === "manual-match-form" && flashText.includes("수동 대진을 배정했습니다")) {
+          document.dispatchEvent(new CustomEvent("badminton:manual-match-saved"));
+        }
+        activeForm.querySelectorAll("select").forEach((field) => {
+          field.dataset.savedValue = field.value;
+        });
+        const gender = activeForm.querySelector('[name="gender"]');
+        const grade = activeForm.querySelector('[name="grade"]');
+        const display = activeForm.closest("li")?.querySelector(".player-name[data-player-name]");
+        if (display && grade) {
+          const gradeLabel = grade?.value ? grade.options[grade.selectedIndex].textContent : "미정";
+          display.textContent = `${gradeLabel}/${display.dataset.playerName}`;
+          display.dataset.gradeLabel = gradeLabel;
+          if (gender) {
+            display.classList.toggle("is-female", gender.value === "F");
+            display.dataset.gender = gender.value;
+          }
+        }
+        showStatus(activeForm, "저장됨");
+      } catch (error) {
+        form.querySelectorAll("select").forEach((field) => {
+          if (field.dataset.savedValue !== undefined) field.value = field.dataset.savedValue;
+        });
+        const gender = form.querySelector('[name="gender"]');
+        const grade = form.querySelector('[name="grade"]');
+        const display = form.closest("li")?.querySelector(".player-name[data-player-name]");
+        if (display && grade) {
+          const gradeLabel = grade?.value ? grade.options[grade.selectedIndex].textContent : "미정";
+          display.textContent = `${gradeLabel}/${display.dataset.playerName}`;
+          display.dataset.gradeLabel = gradeLabel;
+          if (gender) {
+            display.classList.toggle("is-female", gender.value === "F");
+            display.dataset.gender = gender.value;
+          }
+        }
+        showStatus(form, "저장 실패", true);
+      } finally {
+        fields.forEach((field, index) => { field.disabled = disabled[index]; });
+        delete form.dataset.saving;
+      }
+    });
+  })();
+
+  (() => {
+    const root = document.querySelector("[data-live-updates-url]");
+    if (!root) return;
+
+    let refreshing = false;
+    const updateWaitLabels = () => {
+      const now = Date.now() / 1000;
+      document.querySelectorAll("[data-queue-wait]").forEach((item) => {
+        const elapsed = Math.max(0, Math.floor(now - Number(item.dataset.queuedAt)));
+        const minutes = Math.floor(elapsed / 60);
+        const label = minutes >= 60 ? `${Math.floor(minutes / 60)}시간 ${minutes % 60}분` : `${minutes}분`;
+        const value = item.querySelector("[data-wait-value]");
+        if (value) value.textContent = label;
+      });
+    };
+    const manualFormIsBeingEdited = () => document.querySelector('form[data-saving="true"]') !== null ||
+      [...document.querySelectorAll(".manual-match-form")].some((form) => form.dataset.editing === "true");
+
+    const manualForm = document.querySelector("#manual-match-form");
+    const selectedPlayers = [];
+    const manualSlots = [...document.querySelectorAll("[data-manual-slot]")];
+    const renderManualSelection = () => {
+      manualSlots.forEach((slot, index) => { slot.value = selectedPlayers[index] || ""; });
+      document.querySelectorAll("[data-manual-player]").forEach((button) => {
+        const id = button.dataset.manualPlayer;
+        const index = selectedPlayers.indexOf(id);
+        button.classList.toggle("is-selected", index >= 0);
+        button.setAttribute("aria-pressed", String(index >= 0));
+        button.disabled = selectedPlayers.length >= 4 && index < 0;
+        const order = button.querySelector("[data-player-order]");
+        if (order) order.textContent = index < 0 ? "" : `${index < 2 ? "A" : "B"}${index % 2 + 1}`;
+      });
+      document.querySelectorAll("[data-manual-court]").forEach((button) => {
+        button.disabled = selectedPlayers.length !== 4;
+      });
+      const count = document.querySelector("[data-manual-selection-summary]");
+      const detail = document.querySelector("[data-manual-selection-detail]");
+      if (count) count.textContent = `${selectedPlayers.length}/4명 선택`;
+      if (detail) detail.textContent = `팀 A ${Math.min(selectedPlayers.length, 2)}/2 · 팀 B ${Math.max(0, selectedPlayers.length - 2)}/2`;
+      if (manualForm) {
+        if (selectedPlayers.length) manualForm.dataset.editing = "true";
+        else delete manualForm.dataset.editing;
+      }
+    };
+    document.addEventListener("click", (event) => {
+      const statusChoice = event.target.closest("[data-set-player-status]");
+      if (statusChoice) {
+        const statusForm = document.querySelector("#quick-status-form");
+        if (statusForm) {
+          statusForm.querySelector("[data-status-member]").value = statusForm.dataset.memberId || "";
+          statusForm.querySelector("[data-status-value]").value = statusChoice.dataset.setPlayerStatus;
+          statusForm.requestSubmit();
+        }
+        closeStatusMenu();
+        return;
+      }
+      if (event.target.closest("[data-manual-reset]")) {
+        selectedPlayers.length = 0;
+        renderManualSelection();
+        return;
+      }
+      const button = event.target.closest("[data-manual-player]");
+      if (!button) return;
+      if (suppressManualClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        suppressManualClick = false;
+        return;
+      }
+      const id = button.dataset.manualPlayer;
+      const selectedIndex = selectedPlayers.indexOf(id);
+      if (selectedIndex >= 0) selectedPlayers.splice(selectedIndex, 1);
+      else if (selectedPlayers.length < 4) selectedPlayers.push(id);
+      renderManualSelection();
+    });
+    renderManualSelection();
+
+    const statusMenu = document.querySelector("#quick-status-menu");
+    const quickStatusForm = document.querySelector("#quick-status-form");
+    let statusHoldTimer = null;
+    let suppressManualClick = false;
+    const closeStatusMenu = () => {
+      if (statusMenu) statusMenu.hidden = true;
+    };
+    const openStatusMenu = (target, x, y) => {
+      if (!statusMenu || !quickStatusForm) return;
+      const memberId = target.dataset.playerStatus;
+      const label = statusMenu.querySelector("[data-status-player-name]");
+      const display = target.querySelector(".player-name") || target;
+      quickStatusForm.dataset.memberId = memberId;
+      quickStatusForm.querySelector("[data-status-member]").value = memberId;
+      if (label) label.textContent = display.textContent.trim();
+      statusMenu.hidden = false;
+      const rect = statusMenu.getBoundingClientRect();
+      statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
+      statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
+    };
+    document.addEventListener("pointerdown", (event) => {
+      if (!statusMenu || !event.isPrimary || event.button > 0) return;
+      const target = event.target.closest("[data-player-status]");
+      if (!target) return;
+      clearTimeout(statusHoldTimer);
+      statusHoldTimer = window.setTimeout(() => {
+        openStatusMenu(target, event.clientX, event.clientY);
+        suppressManualClick = Boolean(target.closest("[data-manual-player]"));
+        if (suppressManualClick) window.setTimeout(() => { suppressManualClick = false; }, 800);
+      }, 550);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((type) => {
+      document.addEventListener(type, () => clearTimeout(statusHoldTimer));
+    });
+    document.addEventListener("click", (event) => {
+      if (!statusMenu || statusMenu.hidden || event.target.closest("#quick-status-menu")) return;
+      if (!event.target.closest("[data-player-status]")) closeStatusMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeStatusMenu();
+    });
+    document.addEventListener("badminton:manual-match-saved", () => {
+      selectedPlayers.length = 0;
+      renderManualSelection();
+    });
+    document.addEventListener("badminton:sections-updated", () => {
+      const available = new Set([...document.querySelectorAll("[data-manual-player]")].map((button) => button.dataset.manualPlayer));
+      for (let index = selectedPlayers.length - 1; index >= 0; index -= 1) {
+        if (!available.has(selectedPlayers[index])) selectedPlayers.splice(index, 1);
+      }
+      renderManualSelection();
+    });
+
+    const refreshLiveSections = async () => {
+      if (refreshing || document.hidden || manualFormIsBeingEdited()) return;
+      refreshing = true;
+      try {
+        const response = await fetch(root.dataset.liveUpdatesUrl, { cache: "no-store", headers: { "X-Requested-With": "XMLHttpRequest" } });
+        if (!response.ok) return;
+        if (!response.headers.get("content-type")?.includes("application/json")) {
+          window.location.assign(response.url);
+          return;
+        }
+        const data = await response.json();
+        if (manualFormIsBeingEdited()) return;
+        const currentMeetupId = root.dataset.meetupId || "";
+        const updatedMeetupId = data.meetup_id == null ? "" : String(data.meetup_id);
+        if (updatedMeetupId !== currentMeetupId) {
+          window.location.reload();
+          return;
+        }
+        const courtBoard = document.querySelector("#meetup-court-board");
+        if (courtBoard && data.court_board) courtBoard.innerHTML = data.court_board;
+        const queue = document.querySelector("#meetup-queue");
+        if (queue && data.queue) queue.innerHTML = data.queue;
+        const activeCount = document.querySelector("[data-active-court-count]");
+        const queueCount = document.querySelector("[data-queue-count]");
+        if (activeCount) activeCount.textContent = `${data.active_courts}면`;
+        if (queueCount) queueCount.textContent = `${data.queue_count}명`;
+        updateWaitLabels();
+        document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
+      } catch (_error) {
+        // 잠시 연결이 끊겨도 다음 3초 주기에 다시 시도한다.
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    updateWaitLabels();
+    window.setInterval(updateWaitLabels, 60_000);
+    refreshLiveSections();
+    window.setInterval(refreshLiveSections, 3_000);
+  })();
+</script>
 </body>
 </html>

@@ -1,55 +1,91 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_name %}
 {% block title %}{{ m.name }}{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
-<p class="sub">{{ m.date }}</p>
-<h1>{{ m.name }}</h1>
+<section class="event-banner" data-live-updates-url="{{ url_for('admin.meetup_updates', mid=m.id) }}" data-meetup-id="{{ m.id }}">
+  <span class="eyebrow">운영 콘솔</span>
+  <h1>{{ m.name }}</h1>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 3초 갱신</span></div>
+</section>
 
-<div class="bar" style="margin-top:14px">
+<div class="stat-grid" id="meetup-stats" aria-label="정모 현황">
+  <div class="stat-card"><span>참석자</span><strong>{{ rows|length }}명</strong></div>
+  <div class="stat-card"><span>진행 중인 코트</span><strong data-active-court-count>{{ board.courts|selectattr('game_id')|list|length }}면</strong></div>
+  <div class="stat-card"><span>대기열</span><strong data-queue-count>{{ board.queue|length }}명</strong></div>
+</div>
+
+<section class="section operation-controls">
+  <div class="head"><span>정모 운영</span><span>운영진 전용</span></div>
+  <div class="bar" style="margin-top:10px">
   <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar">
     <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" aria-label="코트 수" style="width:4.5rem">
     <button class="btn">{{ '코트 수 변경' if m.started else '코트 시작' }}</button>
   </form>
+  {% if m.started %}
+  <form method="post" action="{{ url_for('admin.auto_match', mid=m.id) }}" class="inline" data-save-without-reload>
+    <button class="btn line">빈 코트 자동 매칭</button>
+  </form>
+  {% endif %}
   {% if m.eid %}
   <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
   {% endif %}
-</div>
-
-<section class="tile">
-  <div class="head"><span>코트</span><span>{{ board.courts|length }}면</span></div>
-  {% with admin=true %}{% include "court_list.html" %}{% endwith %}
-  {% if not board.courts %}<p class="empty">코트 수를 입력하고 시작을 눌러 주세요.</p>{% endif %}
+  </div>
 </section>
 
-{% include "queue_list.html" %}
+<section class="section manual-picker" id="manual-match-picker">
+  <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
+  {% if m.started and manual_candidates|length >= 4 %}
+  <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
+    <p class="manual-match-help">다음 순서에서 선수 이름을 네 명 누른 뒤 빈 코트를 누르세요. 처음 두 명은 A팀, 다음 두 명은 B팀입니다. 길게 누르면 상태를 바꿀 수 있습니다.</p>
+    <div class="manual-selection-footer">
+      <span class="muted small" data-manual-selection-detail>팀 A 0/2 · 팀 B 0/2</span>
+      <button type="button" class="btn line sm" data-manual-reset>선택 초기화</button>
+    </div>
+    {% for field in ['a1', 'a2', 'b1', 'b2'] %}<input type="hidden" name="{{ field }}" data-manual-slot="{{ loop.index0 }}">{% endfor %}
+  </form>
+  {% elif not m.started %}
+  <p class="empty">코트를 시작하면 선수를 클릭해 빈 코트에 수동 배정할 수 있습니다.</p>
+  {% else %}
+  <p class="empty">수동 대진에는 경기 중이 아닌 참석자 네 명이 필요합니다 (현재 {{ manual_candidates|length }}명).</p>
+  {% endif %}
+</section>
 
-<section class="section">
+<section class="tile" id="meetup-court-board">
+  {% set admin = true %}{% include "_court_board_content.html" %}
+</section>
+
+<div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
+
+<section class="section" id="meetup-attendee-list">
   <div class="head"><span>참석자</span><span>{{ rows|length }}명</span></div>
   <ul class="rows">
     {% for r in rows %}
     <li>
       <div class="row-top">
-        <span><span class="name">{{ r.nickname }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
+        <span data-player-status="{{ r.id }}">{{ player_name(r.nickname, r.gender, r.grade) }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}
         <span class="meta">{{ r.games }}경기</span>
       </div>
       <div class="row-ctl">
-        <form method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="bar" style="gap:6px">
+        <form method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="bar" data-save-without-reload data-save-key="meetup-{{ m.id }}-{{ r.id }}-info" style="gap:6px">
           <input type="hidden" name="member_id" value="{{ r.id }}">
-          <select name="gender" onchange="this.form.submit()" aria-label="성별">
+          <select name="gender" onchange="this.form.requestSubmit()" aria-label="성별">
             <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
             <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
             <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
           </select>
-          <select name="grade" onchange="this.form.submit()" aria-label="급수">
+          <select name="grade" onchange="this.form.requestSubmit()" aria-label="급수">
             <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
             {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
+          <span class="save-status" data-save-status aria-live="polite"></span>
         </form>
-        <form method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="inline">
+        <form method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="inline" data-save-without-reload data-save-key="meetup-{{ m.id }}-{{ r.id }}-status">
           <input type="hidden" name="member_id" value="{{ r.id }}">
-          <select name="status" onchange="this.form.submit()" aria-label="상태">
+          <select name="status" onchange="this.form.requestSubmit()" aria-label="상태">
             {% for code, label in STATUS_LABELS.items() if code != 'canceled' or r.status == code %}<option value="{{ code }}" {% if r.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
+          <span class="save-status" data-save-status aria-live="polite"></span>
         </form>
       </div>
     </li>
@@ -72,4 +108,16 @@
   </form>
   {% endif %}
 </section>
+
+<div id="quick-status-menu" class="quick-status-menu" hidden role="menu" aria-label="참석자 상태 변경">
+  <strong data-status-player-name>상태 변경</strong>
+  <button type="button" data-set-player-status="present">참석</button>
+  <button type="button" data-set-player-status="late">지각</button>
+  <button type="button" data-set-player-status="away">자리 비움</button>
+  <button type="button" data-set-player-status="gone">귀가</button>
+</div>
+<form id="quick-status-form" method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="quick-status-form" data-save-without-reload>
+  <input type="hidden" name="member_id" data-status-member>
+  <input type="hidden" name="status" data-status-value>
+</form>
 {% endblock %}

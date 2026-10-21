@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_name %}
 {% block title %}회원{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
@@ -11,29 +12,30 @@
     {% for r in members %}
     <li>
       <div class="row-top">
-        <span><span class="name">{{ r.nickname }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
+        <span>{{ player_name(r.nickname, r.gender, r.grade) }}{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
         {% if r.pin_hash %}
         <form method="post" action="{{ url_for('admin.member_reset_pin', member_id=r.id) }}" class="inline"
               onsubmit="return confirm('이 회원의 PIN을 초기화할까요?')"><button class="btn line sm">PIN 초기화</button></form>
         {% else %}<span class="meta">PIN 없음</span>{% endif %}
       </div>
-      <form method="post" action="{{ url_for('admin.member_update', member_id=r.id) }}" class="row-ctl">
-        <select name="gender" onchange="this.form.submit()" aria-label="성별">
+      <form method="post" action="{{ url_for('admin.member_update', member_id=r.id) }}" class="row-ctl" data-save-without-reload>
+        <select name="gender" onchange="this.form.requestSubmit()" aria-label="성별">
           <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
           <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
           <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
         </select>
-        <select name="grade" onchange="this.form.submit()" aria-label="급수">
+        <select name="grade" onchange="this.form.requestSubmit()" aria-label="급수">
           <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
           {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
+        <span class="save-status" data-save-status aria-live="polite"></span>
       </form>
     </li>
     {% endfor %}
   </ul>
 </section>
 
-<section class="section">
+<section class="section" id="member-change-log">
   <div class="head"><span>변경 기록</span><span>최근 100건</span></div>
   {% for c in changes %}
   {% set lbl = GENDER_LABELS if c.field == 'gender' else GRADE_LABELS %}

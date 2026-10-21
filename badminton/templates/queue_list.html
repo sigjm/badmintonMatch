@@ -1,7 +1,22 @@
+{% from "_macros.html" import player_name %}
+{% set manual_candidate_ids = manual_candidate_ids|default([]) %}
 <section class="section">
   <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명</span></div>
   {% if board.queue %}
-  <ol class="queue">{% for n in board.queue %}<li><b>{{ loop.index }}</b>{{ n }}</li>{% endfor %}</ol>
+  <ol class="queue">{% for p in board.queue_players %}<li>
+    <b>{{ loop.index }}</b>
+    <span class="queue-person">
+      {% if admin|default(false) and m.started and p.id in manual_candidate_ids %}
+      <button type="button" class="queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false">
+        <span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>
+        <small class="manual-player-order" data-player-order></small>
+      </button>
+      {% else %}
+      {{ player_name(p.nickname, p.gender, p.grade) }}
+      {% endif %}
+      <small class="queue-meta" data-queue-wait data-queued-at="{{ p.queued_at }}"><span data-wait-value>{{ p.wait_label }}</span> 대기 · {{ p.games }}경기</small>
+    </span>
+  </li>{% endfor %}</ol>
   {% else %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
 </section>
 {% if board.excluded %}
@@ -9,7 +24,13 @@
   <div class="head"><span>대진 제외</span><span>{{ board.excluded|length }}명</span></div>
   <ul class="reasons">
     {% for reason, items in board.excluded|groupby('reason') %}
-    <li><span class="r">{{ reason }}</span>{{ items|map(attribute='nickname')|join(', ') }}</li>
+    <li><span class="r">{{ reason }}</span>{% for p in items %}{% if not loop.first %}, {% endif %}
+      {% if admin|default(false) and p.id in manual_candidate_ids %}
+      <button type="button" class="excluded-player-select" data-manual-player="{{ p.id }}" aria-pressed="false">
+        <span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span><small class="manual-player-order" data-player-order></small>
+      </button>
+      {% else %}<span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>{% endif %}
+    {% endfor %}</li>
     {% endfor %}
   </ul>
 </section>

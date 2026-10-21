@@ -1,16 +1,29 @@
+{% from "_macros.html" import player_name %}
 {# 코트 목록 — admin=True면 경기 끝/다시 뽑기 버튼을 보여 준다 #}
 {% for c in board.courts %}
 <div class="court" aria-label="코트 {{ c.court }}">
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
-  <div><div class="team">{{ c.teams[0]|join(' · ') }}</div><div class="team">{{ c.teams[1]|join(' · ') }}</div></div>
+  <div class="court-match">
+    {% for team in c.team_players %}
+    {% if not loop.first %}<span class="versus">VS</span>{% endif %}
+    <div class="team">
+      {% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}<span data-player-status="{{ player.id }}">{{ player_name(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
+    </div>
+    {% endfor %}
+  </div>
   {% else %}
-  <div class="empty">대기 인원 부족</div>
+  <div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>
+  {% if admin and manual_candidates|length >= 4 %}
+  <div class="manual-match-panel">
+    <button type="submit" form="manual-match-form" name="court" value="{{ c.court }}" class="btn line sm manual-assign-button" data-manual-court disabled>이 코트에 배정</button>
+  </div>
+  {% endif %}
   {% endif %}
   {% if admin and c.game_id %}
   <div class="court-actions">
-    <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline"><button class="btn go sm">경기 끝</button></form>
-    <form method="post" action="{{ url_for('admin.redraw_game', gid=c.game_id) }}" class="inline"><button class="btn line sm">다시 뽑기</button></form>
+    <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline" data-save-without-reload><button class="btn go sm">게임 끝내기</button></form>
+    <form method="post" action="{{ url_for('admin.redraw_game', gid=c.game_id) }}" class="inline" data-save-without-reload><button class="btn line sm">다시 뽑기</button></form>
   </div>
   {% endif %}
 </div>

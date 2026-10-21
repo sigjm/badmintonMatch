@@ -182,3 +182,35 @@ def test_next_round_does_not_repeat_same_four(conn):
     end_game(conn, current_game(conn, mid))   # 대기하던 4명이 친다
     end_game(conn, current_game(conn, mid))   # 이제 8명 모두 1판 → 직전 멤버끼리 다시 묶이지 않아야 함
     assert set(game_players(conn, current_game(conn, mid))) != first
+
+
+def test_redrawn_game_excluded_from_recent_mates(conn):
+    mid, gid = one_court_game(conn, extra=1)
+    set_status(conn, mid, game_players(conn, gid)[0], "away")
+    redraw(conn, gid)
+    # redraw된 게임은 canceled=1이므로 _recent_mates에 남지 않는다
+    from badminton.meetups import _recent_mates
+    assert _recent_mates(conn, mid) == {}
+
+
+def test_guest_reactivated_on_readd(conn):
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    g = mk(conn, "게스트1", "M", "A", guest=True)
+    add_attendee(conn, mid, g, "guest")
+    set_status(conn, mid, g, "away")
+    assert conn.execute("SELECT status FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, g)).fetchone()[0] == "away"
+    # 게스트 다시 추가 시 present로 복구
+    add_attendee(conn, mid, g, "guest")
+    assert conn.execute("SELECT status FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, g)).fetchone()[0] == "present"
+
+
+def test_on_info_changed_with_specific_meetup_id(conn):
+    future_mid = get_or_create_meetup(conn, "2099-12-31", "미래정모", None)
+    m = create_member(conn, "미래회원")  # 성별, 급수 없음
+    add_attendee(conn, future_mid, m, "paste")
+    before_q = conn.execute("SELECT queued_at FROM attendees WHERE meetup_id = ? AND member_id = ?", (future_mid, m)).fetchone()[0]
+    # 성별/급수 채우기
+    changed = set_info(conn, m, "M", "B", by="admin")
+    on_info_changed(conn, m, changed, meetup_id=future_mid)
+    after_q = conn.execute("SELECT queued_at FROM attendees WHERE meetup_id = ? AND member_id = ?", (future_mid, m)).fetchone()[0]
+    assert after_q >= before_q

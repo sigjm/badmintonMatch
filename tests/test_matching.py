@@ -30,9 +30,16 @@ def test_pick_four_women_outside_window_ignored():
     assert {p.id for p in pick_four(q, 6)} == {1, 2, 3, 4}
 
 
-def test_pick_four_single_woman_takes_head():
+def test_pick_four_excludes_uneven_gender_ratios():
+    # 3:1 성비는 허용되지 않으므로 4명 조합을 만들지 않고 빈 코트로 둔다
     q = [P(1, "F", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "M", "A"), P(5, "M", "A")]
-    assert {p.id for p in pick_four(q, 6)} == {1, 2, 3, 4}
+    assert pick_four(q, 6) is None
+
+    # 뒤쪽에 다른 여성이 있어 2:2 혼복이 가능하면 매칭을 만든다
+    q_mixed = [P(1, "F", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "M", "A"), P(5, "F", "A")]
+    picked = pick_four(q_mixed, 6)
+    assert picked is not None
+    assert sum(p.gender == "F" for p in picked) == 2
 
 
 def test_split_mixed_only_and_balanced():
