@@ -3,8 +3,9 @@
 {% block title %}회원{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
+{% include "_group_tabs.html" %}
 <h1>회원</h1>
-<p class="sub">{{ members|length }}명 · 성별과 급수를 바꾸면 바로 저장됩니다.</p>
+<p class="sub">{{ group.name }} · {{ members|length }}명 · 이 모임 정모에 참석한 적 있는 사람입니다. 성별과 급수를 바꾸면 바로 저장됩니다.</p>
 
 <section class="section">
   <div class="head"><span>목록</span><span>PIN</span></div>

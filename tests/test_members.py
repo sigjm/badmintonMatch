@@ -88,3 +88,22 @@ def test_transaction_rolls_back_on_error(conn):
         pass
     assert conn.execute("SELECT count(*) FROM members WHERE nickname = '롤백테스트'").fetchone()[0] == 0
 
+
+
+def test_members_and_changes_are_listed_per_group(conn):
+    from badminton.groups import add_group
+    from badminton.meetups import add_attendee, get_or_create_meetup
+    ga, gb = add_group(conn, "a" * 36, "모임A"), add_group(conn, "b" * 36, "모임B")
+    ma = get_or_create_meetup(conn, "2026-10-23", "A정모", None, group_id=ga)
+    mb = get_or_create_meetup(conn, "2026-10-24", "B정모", None, group_id=gb)
+    only_a, only_b, both = create_member(conn, "에이"), create_member(conn, "비이"), create_member(conn, "둘다")
+    guest_a = create_member(conn, "에이손님", is_guest=True, gender="M", grade="C")
+    for mid, ids, src in ((ma, (only_a, both), "paste"), (mb, (only_b, both), "paste"), (ma, (guest_a,), "guest")):
+        for i in ids:
+            add_attendee(conn, mid, i, src)
+    assert [r["nickname"] for r in list_members(conn, guests=False, group_id=ga)] == ["둘다", "에이"]
+    assert [r["nickname"] for r in list_members(conn, guests=False, group_id=gb)] == ["둘다", "비이"]
+    assert [r["nickname"] for r in list_members(conn, guests=True, group_id=gb)] == []
+    set_info(conn, only_b, "F", "D", by="admin")
+    assert [c["nickname"] for c in changes(conn, group_id=ga)] == []
+    assert {c["nickname"] for c in changes(conn, group_id=gb)} == {"비이"}

@@ -205,7 +205,7 @@ def meetup(mid):
                            FROM attendees a JOIN members m ON m.id = a.member_id
                            WHERE a.meetup_id = ? ORDER BY m.nickname""", (mid,)).fetchall()
     seated = {r["id"] for r in rows}
-    guests = [g for g in list_members(conn, guests=True) if g["id"] not in seated]
+    guests = [g for g in list_members(conn, guests=True, group_id=m["group_id"]) if g["id"] not in seated]
     candidates = manual_candidates(conn, mid)
     return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests,
                            manual_candidates=candidates, manual_candidate_ids={r["id"] for r in candidates},
@@ -435,7 +435,10 @@ def delete_reservation(rid):
 @admin_required
 def members():
     conn = get_conn()
-    return render_template("admin_members.html", members=list_members(conn), changes=changes(conn, limit=100))
+    group = _current_group()
+    return render_template("admin_members.html", groups=list_groups(conn), back="members",
+                           members=list_members(conn, group_id=group["id"]),
+                           changes=changes(conn, limit=100, group_id=group["id"]))
 
 
 @bp.post("/members/<int:member_id>")
@@ -519,4 +522,4 @@ def select_group():
     g = get_group(get_conn(), request.form.get("group_id", type=int))
     if g:
         session["group_id"] = g["id"]
-    return redirect(url_for("admin.home"))
+    return redirect(url_for("admin.members") if request.form.get("back") == "members" else url_for("admin.home"))

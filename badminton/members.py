@@ -82,12 +82,23 @@ def reset_pin(conn, member_id: int) -> None:
     conn.execute("UPDATE members SET pin_hash = NULL WHERE id = ?", (member_id,))
 
 
-def list_members(conn, *, guests: bool | None = None) -> list:
-    where = "" if guests is None else f"WHERE is_guest = {int(guests)}"
-    return conn.execute(f"SELECT * FROM members {where} ORDER BY nickname, id").fetchall()
+# 모임 회원 = 그 모임 정모에 한 번이라도 들어온 사람 (회원은 소모임 불러오기·붙여넣기·게스트 추가로만 생긴다).
+# 같은 사람이 두 모임에 다니면 두 목록에 다 나오고, 급수·성별은 하나를 같이 쓴다.
+IN_GROUP = "m.id IN (SELECT a.member_id FROM attendees a JOIN meetups mt ON mt.id = a.meetup_id WHERE mt.group_id = ?)"
 
 
-def changes(conn, limit: int = 100) -> list:
-    return conn.execute("""SELECT c.*, m.nickname, strftime('%m-%d %H:%M', c.at, 'unixepoch', '+9 hours') AS when_kst
-                           FROM changes c JOIN members m ON m.id = c.member_id
-                           ORDER BY c.at DESC, c.id DESC LIMIT ?""", (limit,)).fetchall()
+def list_members(conn, *, guests: bool | None = None, group_id: int | None = None) -> list:
+    where, args = ["1"], []
+    if guests is not None:
+        where.append(f"m.is_guest = {int(guests)}")
+    if group_id is not None:
+        where.append(IN_GROUP)
+        args.append(group_id)
+    return conn.execute(f"SELECT m.* FROM members m WHERE {' AND '.join(where)} ORDER BY m.nickname, m.id", args).fetchall()
+
+
+def changes(conn, limit: int = 100, group_id: int | None = None) -> list:
+    where, args = ("WHERE " + IN_GROUP, [group_id]) if group_id is not None else ("", [])
+    return conn.execute(f"""SELECT c.*, m.nickname, strftime('%m-%d %H:%M', c.at, 'unixepoch', '+9 hours') AS when_kst
+                            FROM changes c JOIN members m ON m.id = c.member_id {where}
+                            ORDER BY c.at DESC, c.id DESC LIMIT ?""", (*args, limit)).fetchall()

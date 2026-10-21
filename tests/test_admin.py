@@ -214,9 +214,11 @@ def test_admin_reset_pin(admin, conn_of):
     assert not check_pin(conn_of(), m, "1234")
 
 
-def test_members_page_lists_changes(admin, conn_of):
+def test_members_page_lists_changes(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee
     from badminton.members import create_member, set_info
     m = create_member(conn_of(), "가나다")
+    add_attendee(conn_of(), seeded_meetup[0], m, "paste")  # 회원 화면은 이 모임 정모에 온 사람만
     set_info(conn_of(), m, "F", "B", by="self")
     html = admin.get("/admin/members").get_data(as_text=True)
     assert "가나다" in html and "변경 기록" in html
@@ -266,10 +268,12 @@ def test_pin_reset_confirm_not_injectable(admin, conn_of):
     assert not any("alert" in a for a in re.findall(r'onsubmit="([^"]*)"', html))
 
 
-def test_change_log_shows_time_and_labels(admin, conn_of):
+def test_change_log_shows_time_and_labels(admin, seeded_meetup, conn_of):
     import re
+    from badminton.meetups import add_attendee
     from badminton.members import create_member, set_info
     m = create_member(conn_of(), "가나다")
+    add_attendee(conn_of(), seeded_meetup[0], m, "paste")
     set_info(conn_of(), m, "F", "N", by="self")
     html = admin.get("/admin/members").get_data(as_text=True)
     assert "초심" in html and "없음 → 여" in html and re.search(r"\d\d-\d\d \d\d:\d\d", html)
@@ -627,3 +631,22 @@ def test_delete_reservation_route(app, admin, seeded_meetup, conn_of):
     resp = admin.post(f"/admin/reservation/{r['id']}/delete", follow_redirects=True)
     assert "예약 1을 삭제했습니다" in resp.get_data(as_text=True)
     assert reservations(c, mid) == []
+
+
+def test_members_page_and_saved_guests_follow_selected_group(admin, seeded_meetup, conn_of):
+    from badminton.groups import add_group
+    from badminton.meetups import add_attendee, get_or_create_meetup
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    other = add_group(c, "c" * 36, "다른모임")
+    other_meetup = get_or_create_meetup(c, "2026-10-30", "다른정모", None, group_id=other)
+    add_attendee(c, other_meetup, create_member(c, "다른모임회원"), "paste")
+    add_attendee(c, other_meetup, create_member(c, "다른모임손님", is_guest=True, gender="F", grade="C"), "guest")
+    html = admin.get("/admin/members").get_data(as_text=True)
+    assert "m1" in html and "다른모임회원" not in html and "다른모임" in html  # 탭에는 다른 모임도 보인다
+    assert "다른모임손님" not in admin.get(f"/admin/m/{mid}").get_data(as_text=True)  # 저장된 게스트도 이 모임 것만
+    resp = admin.post("/admin/groups/select", data={"group_id": other, "back": "members"})
+    assert resp.headers["Location"].endswith("/admin/members")
+    html = admin.get("/admin/members").get_data(as_text=True)
+    assert "다른모임회원" in html and 'data-player-name="m1"' not in html
