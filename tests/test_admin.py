@@ -66,6 +66,20 @@ def test_admin_mutation_rejects_post_without_origin_or_referer(admin):
     assert response.status_code == 403
 
 
+@pytest.mark.parametrize(("admin_password", "secret_key", "missing"), [
+    ("", "session-secret", "ADMIN_PASSWORD"),
+    ("   ", "session-secret", "ADMIN_PASSWORD"),
+    ("admin-secret", None, "SECRET_KEY"),
+    ("admin-secret", "  ", "SECRET_KEY"),
+])
+def test_app_rejects_missing_production_secrets(tmp_path, admin_password, secret_key, missing):
+    from badminton import create_app
+
+    with pytest.raises(RuntimeError, match=missing):
+        create_app({"DATABASE": str(tmp_path / "app.db"), "ADMIN_PASSWORD": admin_password,
+                    "SECRET_KEY": secret_key})
+
+
 @pytest.mark.parametrize(("path", "data"), [
     ("/m/{mid}/info", {"member_id": "bad", "gender": "F", "grade": "B"}),
     ("/m/{mid}/guest", {"member_id": "bad"}),
@@ -234,7 +248,8 @@ def test_status_select_hides_canceled_unless_current(admin, seeded_meetup):
 
 def test_session_cookie_flags(tmp_path):
     from badminton import create_app
-    app = create_app({"DATABASE": str(tmp_path / "c.db")})
+    app = create_app({"DATABASE": str(tmp_path / "c.db"), "ADMIN_PASSWORD": "pw", "SECRET_KEY": "t",
+                      "TESTING": True})
     assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax" and app.config["SESSION_COOKIE_SECURE"] is True
 
 
