@@ -116,7 +116,7 @@ def fill_courts(conn, meetup_id: int) -> None:
     for court in range(1, courts + 1):
         if court in busy:
             continue
-        four = pick_four(queue(conn, meetup_id), window)
+        four = pick_four(queue(conn, meetup_id), window, offset)
         if four is None:
             return
         (a1, a2), (b1, b2) = split_teams(four, offset)

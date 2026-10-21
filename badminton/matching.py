@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from itertools import combinations
 
 GRADE_POINTS = {"S": 6, "A": 5, "B": 4, "C": 3, "D": 2, "N": 1}
 GRADE_LABELS = {"S": "S", "A": "A", "B": "B", "C": "C", "D": "D", "N": "초심"}
@@ -24,15 +25,26 @@ def sort_queue(players: list[Player]) -> list[Player]:
     return sorted(players, key=lambda p: (p.games, p.queued_at, p.id))
 
 
-def pick_four(queue: list[Player], mix_window: int = 6) -> list[Player] | None:
+def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1) -> list[Player] | None:
+    """대기열 맨 앞 사람 + 앞쪽 mix_window명 안에서 급수가 가장 비슷한 3명.
+    경기 수가 가장 적은 사람이 4명 이상이면 그 안에서만 고른다(경기 수 공평성 우선).
+    급수 폭(최고-최저) 최소 → 혼복 → 남복/여복 → 대기 순서 앞쪽 순으로 고른다."""
     if len(queue) < 4:
         return None
     window = queue[:max(mix_window, 4)]
-    men = [p for p in window if p.gender == "M"]
-    women = [p for p in window if p.gender == "F"]
-    if len(men) >= 2 and len(women) >= 2:
-        return men[:2] + women[:2]
-    return queue[:4]
+    tier = [p for p in window if p.games == queue[0].games]
+    pool = tier if len(tier) >= 4 else window
+    head, rest = pool[0], pool[1:]
+    best = None
+    for combo in combinations(range(len(rest)), 3):
+        four = [head] + [rest[i] for i in combo]
+        scores = [score(p, female_offset) for p in four]
+        women = sum(p.gender == "F" for p in four)
+        kind = 0 if women == 2 else 1 if women in (0, 4) else 2
+        key = (max(scores) - min(scores), kind, sum(combo))
+        if best is None or key < best[0]:
+            best = (key, four)
+    return best[1]
 
 
 def split_teams(four: list[Player], female_offset: float) -> tuple[tuple[Player, Player], tuple[Player, Player]]:

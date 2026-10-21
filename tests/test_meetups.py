@@ -39,7 +39,7 @@ def game_players(conn, gid):
 def one_court_game(conn, extra=0):
     mid = get_or_create_meetup(conn, today(), "t", None)
     ids = [mk(conn, "m1", "M", "B"), mk(conn, "m2", "M", "C"), mk(conn, "f1", "F", "B"), mk(conn, "f2", "F", "C")]
-    ids += [mk(conn, f"x{i}", "M", "B") for i in range(extra)]
+    ids += [mk(conn, f"x{i}", "M", "N") for i in range(extra)]  # 초심이라 첫 경기에서 빠지고 대기한다
     seat(conn, mid, *ids)
     start(conn, mid, 1)
     return mid, current_game(conn, mid)
@@ -153,7 +153,7 @@ def test_resave_same_info_keeps_queue_spot(conn):
     mid, gid = one_court_game(conn, extra=1)
     waiting = member_id_of(conn, "x0")
     before = conn.execute("SELECT queued_at FROM attendees WHERE member_id = ?", (waiting,)).fetchone()[0]
-    on_info_changed(conn, waiting, set_info(conn, waiting, "M", "B", by="self"))
+    on_info_changed(conn, waiting, set_info(conn, waiting, "M", "N", by="self"))
     assert conn.execute("SELECT queued_at FROM attendees WHERE member_id = ?", (waiting,)).fetchone()[0] == before
 
 
