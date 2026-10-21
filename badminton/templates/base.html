@@ -75,9 +75,9 @@
   .stat-card strong { display:block; font-size:24px; font-weight:400; line-height:1.33; }
 
   /* 코트·예약 카드 */
-  .court { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center; padding:16px; margin-bottom:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
+  .court { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 16px; align-items:center; padding:16px; margin-bottom:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
   .court:last-child { margin-bottom:0; }
-  .court-no { display:flex; flex-direction:column; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:var(--primary); color:#fff; font-size:20px; font-weight:600; line-height:1; }
+  .court-no { grid-row:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:var(--primary); color:#fff; font-size:20px; font-weight:600; line-height:1; }
   .court-no small { margin-top:3px; font-size:11px; font-weight:400; opacity:.85; }
   .resv .court-no { background:var(--primary-bg); color:var(--primary); border:1px solid var(--primary-border); }
   .court-match { min-width:0; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:8px; }
@@ -85,7 +85,7 @@
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
   .court .empty { grid-column:2; margin:0; }
-  .court-actions { grid-column:3; grid-row:1; display:flex; flex-direction:column; gap:8px; }  /* 버튼 없는 공개 화면에선 3번째 칸이 안 생김 */
+  .court-actions { grid-column:3; grid-row:1 / span 2; display:flex; flex-direction:column; gap:8px; }  /* 버튼 없는 공개 화면에선 3번째 칸이 안 생김 */
   .court-actions form { margin:0; }
   .court-actions .btn { width:100%; }
   .board-big .court-no { width:56px; height:56px; font-size:24px; }
@@ -163,12 +163,12 @@
   .manual-match-panel { grid-column:2 / -1; min-width:0; }
   .manual-match-form { display:grid; gap:12px; min-width:0; }
   .manual-match-help { margin:0; color:var(--text-2); }
-  .queue-player-select, .excluded-player-select { display:inline-flex; align-items:center; gap:4px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  .queue-player-select { display:inline-flex; align-items:center; gap:4px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
   .queue-player-select { flex-direction:column; align-items:flex-start; }
   .is-selected .player-name { outline:2px solid var(--primary); outline-offset:2px; border-radius:4px; }
   .manual-player-order { display:none; flex:none; color:var(--primary); font-size:10px; line-height:1; font-weight:600; }
   .is-selected .manual-player-order { display:inline; }
-  .queue-player-select:disabled, .excluded-player-select:disabled { opacity:.45; cursor:not-allowed; }
+  .queue-player-select:disabled { opacity:.45; cursor:not-allowed; }
   .manual-selection-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 
   /* 길게 누르기 메뉴 (팝오버) */
@@ -195,18 +195,36 @@
 
   /* 다음 순서 */
   .reservations { margin:0 0 16px; }
-  .queue { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
-  .queue li { display:inline-flex; align-items:center; gap:8px; padding:4px 12px 4px 4px; background:var(--fill); border:1px solid var(--split); border-radius:8px; }
-  .queue b { display:inline-grid; place-items:center; min-width:24px; height:24px; border-radius:6px; background:var(--primary-bg); color:var(--primary); font-size:12px; font-weight:600; }
-  .queue-person { display:flex; flex-direction:column; min-width:0; line-height:1.4; }
-  .queue-meta { color:var(--text-3); font-size:12px; white-space:nowrap; }
-  .reasons { list-style:none; margin:0; padding:0; }
-  .reasons li { padding:6px 0; }
-  .reasons .r { display:inline-block; height:22px; padding:0 7px; margin-right:8px; border:1px solid var(--border); border-radius:4px; background:var(--fill); color:var(--text-2); font-size:12px; line-height:20px; }
+  .player-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+  .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
+  .pcard.is-gone, .pcard.is-canceled { background:var(--fill); }
+  .pcard.is-gone .pcard-name, .pcard.is-canceled .pcard-name { color:var(--text-3); }
+  .pcard-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .grade-badge { display:inline-grid; place-items:center; min-width:28px; height:28px; padding:0 5px; border-radius:14px; background:#141414; color:#a0d911; font-size:12px; font-weight:700; }
+  .grade-badge.is-empty { background:var(--fill-2); color:var(--text-3); }
+  .pcard-games { color:var(--text-3); font-size:12px; white-space:nowrap; }
+  .pcard-games b { margin-right:2px; color:var(--text); font-size:18px; font-weight:600; }
+  .pcard-name { min-width:0; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+  .pcard-tags { display:flex; flex-wrap:wrap; gap:4px; }
+  .pcard-tags .tag { margin:0; }
+  .pcard-line { color:var(--text-3); font-size:12px; }
+  .pcard-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:auto 0 0; padding-top:4px; }
+  .pcard-actions .btn { width:100%; padding:0 4px; font-size:13px; }
+  .tag.blue { color:#0958d9; background:#e6f4ff; border-color:#91caff; }
+  .tag.magenta { color:#c41d7f; background:#fff0f6; border-color:#ffadd2; }
+  .tag.green { color:#389e0d; background:#f6ffed; border-color:#b7eb8f; }
+  .tag.gold { color:#d48806; background:#fffbe6; border-color:#ffe58f; }
+  .tag.orange { color:#d46b08; background:#fff7e6; border-color:#ffd591; }
+  .tag.red { color:#cf1322; background:#fff1f0; border-color:#ffa39e; }
+  .court-time { grid-column:2; display:flex; align-items:center; gap:6px; color:var(--text-3); font-size:12px; }
+  .court-time::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--success-dot); }
   .read-only-card { max-width:520px; margin:32px auto; padding:48px 24px; text-align:center; }
   .read-only-card p { color:var(--text-3); margin:8px 0 0; }
 
+  @media (max-width:820px) { .player-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
   @media (max-width:560px) {
+    .player-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .pcard { padding:10px; }
     .gnav .wrap { height:52px; gap:8px; }
     .brand { max-width:42%; font-size:15px; }
     .nav { gap:0; }
@@ -217,7 +235,7 @@
     .stat-grid { gap:8px; }
     .stat-card { padding:12px; }
     .stat-card strong { font-size:20px; }
-    .court { grid-template-columns:40px minmax(0,1fr); gap:10px; padding:12px; }
+    .court { grid-template-columns:40px minmax(0,1fr); gap:6px 10px; padding:12px; }
     .court-no { width:40px; height:44px; font-size:18px; }
     .court-match { gap:6px; }
     .team { padding:8px 4px; font-size:14px; }
@@ -391,6 +409,11 @@
           statusForm.requestSubmit();
         }
         closeStatusMenu();
+        return;
+      }
+      const infoButton = event.target.closest("[data-open-info]");
+      if (infoButton) {
+        openStatusMenu(infoButton, event.clientX, event.clientY);
         return;
       }
       if (event.target.closest("[data-manual-reset]")) {

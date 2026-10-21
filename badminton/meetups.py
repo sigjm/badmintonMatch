@@ -7,7 +7,8 @@ from .matching import Player, pick_four, sort_queue, split_teams
 from .members import create_member, upsert_somoim
 from .somoim import SomoimMember
 
-STATUS_LABELS = {"present": "참석", "late": "지각", "away": "자리 비움", "gone": "귀가", "canceled": "취소"}
+STATUS_LABELS = {"present": "참석", "late": "지각", "away": "휴식", "gone": "퇴장", "canceled": "취소"}
+EXCLUDED_ORDER = {"noinfo": 0, "away": 1, "late": 2, "gone": 3, "canceled": 4}
 SEOUL = ZoneInfo("Asia/Seoul")
 ACTIVE = "SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL"
 
@@ -332,7 +333,13 @@ def redraw(conn, game_id: int) -> None:
     fill_courts(conn, g["meetup_id"])
 
 
+def _minutes_label(seconds: float) -> str:
+    minutes = max(0, int(seconds // 60))
+    return f"{minutes // 60}시간 {minutes % 60}분" if minutes >= 60 else f"{minutes}분"
+
+
 def board(conn, meetup_id: int) -> dict:
+    now = time.time()
     member_by_id = {r["id"]: {"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"]} for r in conn.execute(
         "SELECT m.id, m.nickname, m.gender, m.grade FROM members m JOIN attendees a ON a.member_id = m.id WHERE a.meetup_id = ?",
         (meetup_id,))}
@@ -344,31 +351,40 @@ def board(conn, meetup_id: int) -> dict:
     for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
         court_list.append({"court": c, "game_id": g["id"] if g else None,
+                           "started_at": g["started_at"] if g else None,
+                           "elapsed_label": _minutes_label(now - g["started_at"]) if g else None,
                            "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
                                      [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,
                            "team_players": [[member_by_id.get(g["a1"]), member_by_id.get(g["a2"])],
                                             [member_by_id.get(g["b1"]), member_by_id.get(g["b2"])]] if g else None})
     playing = _playing(conn, meetup_id)
+    last_end = {}
+    for g in conn.execute("SELECT a1, a2, b1, b2, ended_at FROM games WHERE meetup_id = ? AND ended_at IS NOT NULL "
+                          "AND canceled = 0", (meetup_id,)):
+        for pid in (g["a1"], g["a2"], g["b1"], g["b2"]):
+            last_end[pid] = max(last_end.get(pid, 0), g["ended_at"])
     excluded = []
-    for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status FROM attendees a
-                             JOIN members m ON m.id = a.member_id WHERE a.meetup_id = ? ORDER BY m.nickname""",
-                          (meetup_id,)):
+    for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status, a.games FROM attendees a
+                             JOIN members m ON m.id = a.member_id WHERE a.meetup_id = ?""", (meetup_id,)):
         if r["id"] in playing:
             continue
         if r["status"] != "present":
-            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": STATUS_LABELS[r["status"]]})
+            state, reason = r["status"], STATUS_LABELS[r["status"]]
         elif r["grade"] is None:
-            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": "급수 미입력"})
+            state, reason = "noinfo", "급수 미입력"
         elif r["gender"] is None:
-            excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"], "reason": "성별 미입력"})
+            state, reason = "noinfo", "성별 미입력"
+        else:
+            continue
+        excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"],
+                         "games": r["games"], "state": state, "reason": reason})
+    excluded.sort(key=lambda e: (EXCLUDED_ORDER[e["state"]], e["nickname"]))
     queued = queue(conn, meetup_id)
-    now = time.time()
-    queue_players = []
-    for player in queued:
-        minutes = max(0, int((now - player.queued_at) // 60))
-        wait_label = f"{minutes // 60}시간 {minutes % 60}분" if minutes >= 60 else f"{minutes}분"
-        queue_players.append({**member_by_id[player.id], "games": player.games,
-                              "queued_at": player.queued_at, "wait_label": wait_label})
+    queue_cards = []
+    for order, player in enumerate(queued, 1):
+        since = last_end.get(player.id, player.queued_at)
+        queue_cards.append({**member_by_id[player.id], "games": player.games, "order": order,
+                            "played": player.id in last_end, "since": since, "since_label": _minutes_label(now - since)})
     resv_list = []
     for r in reservations(conn, meetup_id):
         resv_list.append({
@@ -380,7 +396,7 @@ def board(conn, meetup_id: int) -> dict:
                              [member_by_id.get(r["b1"]), member_by_id.get(r["b2"])]],
         })
     return {"courts": court_list, "reservations": resv_list, "queue": [names[p.id] for p in queued],
-            "queue_players": queue_players, "excluded": excluded}
+            "queue_cards": queue_cards, "excluded": excluded}
 
 
 def refill_upcoming(conn) -> None:

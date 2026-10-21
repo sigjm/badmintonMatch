@@ -12,6 +12,7 @@
     </div>
     {% endfor %}
   </div>
+  <div class="court-time" data-queue-wait data-queued-at="{{ c.started_at }}">경기 시간 <span data-wait-value>{{ c.elapsed_label }}</span></div>
   {% else %}
   <div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>
   {% if admin and manual_candidates|length >= 4 %}

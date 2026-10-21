@@ -587,3 +587,17 @@ def test_board_tolerates_missing_attendee_in_game(conn):
 
     b = board(conn, mid)
     assert b["courts"][0]["teams"] == [["선수1", "선수2"], ["선수3", "?"]]
+
+
+def test_board_card_data_has_game_time_last_end_and_states(conn):
+    mid, gid = one_court_game(conn, extra=1)  # x0 은 대기
+    court = board(conn, mid)["courts"][0]
+    assert court["started_at"] and court["elapsed_label"] == "0분"
+    end_game(conn, gid)
+    b = board(conn, mid)
+    played = [c for c in b["queue_cards"] if c["played"]]
+    assert played and all(c["since"] for c in played) and b["queue_cards"][0]["order"] == 1
+    away = played[0]["id"]
+    set_status(conn, mid, away, "away")
+    ex = {e["id"]: e for e in board(conn, mid)["excluded"]}
+    assert ex[away]["state"] == "away" and ex[away]["reason"] == "휴식" and ex[away]["games"] >= 1

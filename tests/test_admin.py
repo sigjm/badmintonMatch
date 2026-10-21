@@ -504,3 +504,19 @@ def test_excluded_players_have_player_status_attribute(admin, seeded_meetup, con
     assert f'data-player-status="{ex_id}"' in html
 
 
+
+
+def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee
+    c = conn_of()
+    waiting = create_member(c, "대기자", gender="M", grade="C")
+    add_attendee(c, mid, waiting, "paste")
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert "경기 시간" in html
+    assert 'class="pcard is-queued"' in html and "대기 1" in html
+    assert "data-open-info" in html and 'name="status" value="away"' in html and 'value="gone"' in html
+    public = client.get("/board").get_data(as_text=True)
+    assert "경기 시간" in public and 'class="pcard is-queued"' in public
+    assert 'name="status"' not in public and ">정보</button>" not in public
