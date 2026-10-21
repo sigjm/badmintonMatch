@@ -2,86 +2,74 @@
 {% block title %}{{ m.name }}{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
-<h1>{{ m.date }} · {{ m.name }}</h1>
-<div class="row">
-  {% if m.eid %}
-  <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="ghost">다시 불러오기</button></form>
-  {% endif %}
-  <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="row">
-    <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" style="width:5rem"> 코트
-    <button>{{ '코트 수 변경' if m.started else '시작' }}</button>
+<p class="sub">{{ m.date }}</p>
+<h1>{{ m.name }}</h1>
+
+<div class="bar" style="margin-top:14px">
+  <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar">
+    <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" aria-label="코트 수" style="width:4.5rem">
+    <button class="btn">{{ '코트 수 변경' if m.started else '코트 시작' }}</button>
   </form>
-</div>
-
-<h2>코트</h2>
-{% for c in board.courts %}
-<div class="card court">
-  <div><strong>코트 {{ c.court }}</strong>
-    {% if c.teams %}<div class="vs">{{ c.teams[0]|join(' · ') }} <span class="muted">vs</span> {{ c.teams[1]|join(' · ') }}</div>
-    {% else %}<div class="muted">대기 인원 부족</div>{% endif %}
-  </div>
-  {% if c.game_id %}
-  <div class="row">
-    <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline"><button>경기 끝</button></form>
-    <form method="post" action="{{ url_for('admin.redraw_game', gid=c.game_id) }}" class="inline"><button class="ghost">다시 뽑기</button></form>
-  </div>
+  {% if m.eid %}
+  <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
   {% endif %}
 </div>
-{% else %}
-<p class="muted">코트 수를 입력하고 시작을 눌러 주세요.</p>
-{% endfor %}
 
-<h2>대기열</h2>
-<div class="card">{{ board.queue|join(' → ') if board.queue else '없음' }}</div>
-{% if board.excluded %}
-<h2>제외</h2>
-<div class="card">{% for e in board.excluded %}<span class="tag">{{ e.nickname }} · {{ e.reason }}</span> {% endfor %}</div>
-{% endif %}
+<section class="section">
+  <div class="head"><span>코트</span><span>{{ board.courts|length }}면</span></div>
+  {% with admin=true %}{% include "court_list.html" %}{% endwith %}
+  {% if not board.courts %}<p class="empty">코트 수를 입력하고 시작을 눌러 주세요.</p>{% endif %}
+</section>
 
-<h2>참석자 {{ rows|length }}명</h2>
-<table>
-  <tr><th>닉네임</th><th>성별·급수</th><th>상태</th><th>경기</th></tr>
-  {% for r in rows %}
-  <tr>
-    <td>{{ r.nickname }} {% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</td>
-    <td>
-      <form method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="row">
-        <input type="hidden" name="member_id" value="{{ r.id }}">
-        <select name="gender" onchange="this.form.submit()">
-          <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
-          <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
-          <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
-        </select>
-        <select name="grade" onchange="this.form.submit()">
-          <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
-          {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-      </form>
-    </td>
-    <td>
-      <form method="post" action="{{ url_for('admin.status', mid=m.id) }}">
-        <input type="hidden" name="member_id" value="{{ r.id }}">
-        <select name="status" onchange="this.form.submit()">
-          {% for code, label in STATUS_LABELS.items() %}<option value="{{ code }}" {% if r.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-      </form>
-    </td>
-    <td>{{ r.games }}</td>
-  </tr>
-  {% endfor %}
-</table>
+{% include "queue_list.html" %}
 
-<h2>게스트 추가</h2>
-<form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="card row">
-  <input name="nickname" placeholder="이름" style="width:8rem">
-  <select name="gender"><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
-  <select name="grade"><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
-  <button>추가</button>
-</form>
-{% if guests %}
-<form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="card row">
-  <select name="member_id">{% for g in guests %}<option value="{{ g.id }}">{{ g.nickname }} ({{ GRADE_LABELS.get(g.grade, '?') }})</option>{% endfor %}</select>
-  <button class="ghost">저장된 게스트 추가</button>
-</form>
-{% endif %}
+<section class="section">
+  <div class="head"><span>참석자</span><span>{{ rows|length }}명</span></div>
+  <ul class="rows">
+    {% for r in rows %}
+    <li>
+      <div class="row-top">
+        <span><span class="name">{{ r.nickname }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
+        <span class="meta">{{ r.games }}경기</span>
+      </div>
+      <div class="row-ctl">
+        <form method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="bar" style="gap:6px">
+          <input type="hidden" name="member_id" value="{{ r.id }}">
+          <select name="gender" onchange="this.form.submit()" aria-label="성별">
+            <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
+            <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
+            <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
+          </select>
+          <select name="grade" onchange="this.form.submit()" aria-label="급수">
+            <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
+            {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </form>
+        <form method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="inline">
+          <input type="hidden" name="member_id" value="{{ r.id }}">
+          <select name="status" onchange="this.form.submit()" aria-label="상태">
+            {% for code, label in STATUS_LABELS.items() %}<option value="{{ code }}" {% if r.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="section">
+  <div class="head"><span>게스트 추가</span></div>
+  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:10px">
+    <input name="nickname" placeholder="이름" style="flex:1;min-width:7rem">
+    <select name="gender" aria-label="성별"><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
+    <select name="grade" aria-label="급수"><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
+    <button class="btn">추가</button>
+  </form>
+  {% if guests %}
+  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:8px">
+    <select name="member_id" style="flex:1" aria-label="저장된 게스트">{% for g in guests %}<option value="{{ g.id }}">{{ g.nickname }} · {{ GRADE_LABELS.get(g.grade, '?') }}</option>{% endfor %}</select>
+    <button class="btn line">저장된 게스트 추가</button>
+  </form>
+  {% endif %}
+</section>
 {% endblock %}

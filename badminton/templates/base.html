@@ -3,39 +3,117 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 {% block head %}{% endblock %}
-<title>{% block title %}배드민턴 매칭{% endblock %}</title>
+<title>{% block title %}금요일 야간민턴{% endblock %}</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#6b7280; --line:#e3e6ea; --accent:#2563eb; --warn:#b45309; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --card:#1b2026; --fg:#e8eaed; --muted:#9aa3ad; --line:#2c333b; --accent:#5b8def; --warn:#f0a35b; }
+  :root {
+    --bg:#f4f3ef; --surface:#fbfaf7; --ink:#16181b; --ink-2:#464b52; --muted:#858a91;
+    --line:#d9d6ce; --line-2:#e7e4dd; --accent:#1c6a47; --accent-ink:#fff; --warn:#a2461a;
   }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
-  main { max-width:640px; margin:0 auto; padding:16px; }
-  h1 { font-size:1.3rem; margin:.2rem 0 1rem; } h2 { font-size:1.05rem; margin:1.4rem 0 .5rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin:8px 0; }
-  .muted { color:var(--muted); font-size:.9rem; }
-  .flash { background:var(--card); border-left:4px solid var(--accent); padding:10px 12px; margin:8px 0; border-radius:8px; }
-  .error { border-left-color:var(--warn); }
-  form.inline { display:inline; }
-  input, select, textarea, button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); max-width:100%; }
-  button { background:var(--accent); color:#fff; border:0; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  textarea { width:100%; min-height:8rem; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .court { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
-  .vs { font-weight:600; }
-  table { width:100%; border-collapse:collapse; font-size:.95rem; }
-  td, th { padding:6px 4px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
-  .tag { display:inline-block; white-space:nowrap; margin:2px 0; font-size:.75rem; padding:1px 6px; border-radius:6px; border:1px solid var(--line); color:var(--muted); }
-  nav a { margin-right:12px; color:var(--accent); text-decoration:none; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#111213; --surface:#18191b; --ink:#ebeae6; --ink-2:#c0bfba; --muted:#8a8e94;
+      --line:#2e3134; --line-2:#232528; --accent:#52b083; --accent-ink:#0b1711; --warn:#e2895a;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-feature-settings:"tnum"; letter-spacing:-.005em;
+  }
+  a { color:inherit; }
+  .wrap { max-width:680px; margin:0 auto; padding:0 16px; }
+
+  /* 상단 */
+  .top { border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:1; }
+  .top .wrap { display:flex; align-items:center; justify-content:space-between; gap:12px; height:52px; }
+  .brand { font-weight:700; text-decoration:none; letter-spacing:-.02em; white-space:nowrap; }
+  .nav { display:flex; align-items:center; gap:14px; font-size:14px; overflow-x:auto; }
+  .nav a { color:var(--ink-2); text-decoration:none; white-space:nowrap; }
+  .nav a:hover { color:var(--ink); }
+  .nav .linkish { background:none; border:0; padding:0; font:inherit; color:var(--muted); cursor:pointer; }
+
+  main { padding:20px 0 48px; }
+  h1 { font-size:22px; line-height:1.3; margin:4px 0 2px; letter-spacing:-.025em; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 4px; }
+  .section { margin-top:28px; }
+  .section > .head {
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.02em;
+    border-bottom:1px solid var(--ink); padding-bottom:6px; margin-bottom:2px;
+  }
+  .muted { color:var(--muted); }
+  .small { font-size:13px; }
+
+  /* 알림 */
+  .note { border-left:3px solid var(--accent); padding:8px 12px; margin:12px 0; background:var(--surface); font-size:14px; }
+  .note.err { border-left-color:var(--warn); }
+
+  /* 입력과 버튼 */
+  input, select, textarea, button { font:inherit; color:var(--ink); }
+  input, select, textarea {
+    background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:8px 10px; min-height:38px; max-width:100%;
+  }
+  select { padding-right:6px; }
+  textarea { width:100%; min-height:9rem; line-height:1.5; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:0 14px;
+    border:1px solid var(--ink); border-radius:4px; background:var(--ink); color:var(--bg);
+    font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; text-decoration:none;
+  }
+  .btn.go { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .btn.line { background:transparent; color:var(--ink); border-color:var(--line); }
+  .btn.sm { min-height:32px; padding:0 10px; font-size:13px; }
+  .inline { display:inline; margin:0; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  label.field { display:block; margin:14px 0; font-size:13px; color:var(--ink-2); }
+  label.field > input, label.field > select { display:block; width:100%; margin-top:4px; font-size:16px; }
+
+  /* 코트 */
+  .court { display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; padding:14px 0; border-bottom:1px solid var(--line-2); }
+  .court-no { font-size:30px; font-weight:700; line-height:1; letter-spacing:-.04em; }
+  .court-no small { display:block; font-size:10px; font-weight:600; color:var(--muted); letter-spacing:.04em; margin-top:4px; }
+  .team { font-weight:600; font-size:16px; }
+  .team + .team { border-top:1px dashed var(--line); margin-top:5px; padding-top:5px; }
+  .court-actions { display:flex; flex-direction:column; gap:6px; }
+  .empty { color:var(--muted); font-size:14px; }
+
+  /* 대기열 */
+  .queue { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:6px 14px; }
+  .queue li { white-space:nowrap; }
+  .queue b { display:inline-block; min-width:1.2em; color:var(--muted); font-weight:500; font-size:12px; margin-right:3px; }
+  .reasons { margin:10px 0 0; padding:0; list-style:none; font-size:14px; }
+  .reasons li { padding:3px 0; }
+  .reasons .r { color:var(--warn); font-weight:600; margin-right:6px; }
+
+  /* 목록 */
+  .rows { list-style:none; margin:0; padding:0; }
+  .rows > li { padding:10px 0; border-bottom:1px solid var(--line-2); }
+  .rows .name { font-weight:600; }
+  .rows .meta { color:var(--muted); font-size:13px; }
+  .row-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .row-ctl { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .row-ctl select { min-height:34px; padding:4px 6px; font-size:14px; }
+  .tag { font-size:11px; font-weight:600; color:var(--muted); border:1px solid var(--line); border-radius:3px; padding:0 4px; margin-left:4px; vertical-align:2px; }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:6px; vertical-align:1px; }
+  .log { font-size:13px; padding:6px 0; border-bottom:1px solid var(--line-2); color:var(--ink-2); }
+
+  .board-big .court { grid-template-columns:56px 1fr; padding:18px 0; }
+  .board-big .court-no { font-size:40px; }
+  .board-big .team { font-size:19px; }
 </style>
 </head>
 <body>
-<main>
+<header class="top"><div class="wrap">
+  <a class="brand" href="{{ url_for('public.board_view') }}">금요일 야간민턴</a>
   {% block nav %}{% endblock %}
-  {% for msg in get_flashed_messages() %}<div class="flash">{{ msg }}</div>{% endfor %}
+</div></header>
+<main class="wrap">
+  {% for msg in get_flashed_messages() %}<div class="note">{{ msg }}</div>{% endfor %}
   {% block content %}{% endblock %}
 </main>
 </body>

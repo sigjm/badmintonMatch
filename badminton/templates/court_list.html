@@ -1,0 +1,17 @@
+{# 코트 목록 — admin=True면 경기 끝/다시 뽑기 버튼을 보여 준다 #}
+{% for c in board.courts %}
+<div class="court" aria-label="코트 {{ c.court }}">
+  <div class="court-no">{{ c.court }}<small>코트</small></div>
+  {% if c.teams %}
+  <div><div class="team">{{ c.teams[0]|join(' · ') }}</div><div class="team">{{ c.teams[1]|join(' · ') }}</div></div>
+  {% else %}
+  <div class="empty">대기 인원 부족</div>
+  {% endif %}
+  {% if admin and c.game_id %}
+  <div class="court-actions">
+    <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline"><button class="btn go sm">경기 끝</button></form>
+    <form method="post" action="{{ url_for('admin.redraw_game', gid=c.game_id) }}" class="inline"><button class="btn line sm">다시 뽑기</button></form>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}

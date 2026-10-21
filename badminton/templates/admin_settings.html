@@ -2,13 +2,13 @@
 {% block title %}설정{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
-<h1>설정</h1>
-<form method="post" class="card">
-  <p><label>여자 보정값 (여자 점수 = 급수 점수 − 보정값)<br>
-    <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label></p>
-  <p><label>혼복 후보 범위 (대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지)<br>
-    <input type="number" name="mix_window" min="4" max="20" value="{{ mix_window }}" required></label></p>
-  <button>저장</button>
+<h1>매칭 설정</h1>
+<p class="sub">급수 점수 S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
+<form method="post" style="max-width:420px">
+  <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값
+    <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label>
+  <label class="field">혼복 후보 범위 — 대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지
+    <input type="number" name="mix_window" min="4" max="20" value="{{ mix_window }}" required></label>
+  <button class="btn">저장</button>
 </form>
-<p class="muted">급수 점수: S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
 {% endblock %}

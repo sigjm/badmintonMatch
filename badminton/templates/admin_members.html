@@ -1,41 +1,45 @@
 {% extends "base.html" %}
-{% block title %}회원 관리{% endblock %}
+{% block title %}회원{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
-<h1>회원 {{ members|length }}명</h1>
-<table>
-  <tr><th>닉네임</th><th>성별·급수</th><th>PIN</th></tr>
-  {% for r in members %}
-  <tr>
-    <td>{{ r.nickname }} {% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</td>
-    <td>
-      <form method="post" action="{{ url_for('admin.member_update', member_id=r.id) }}" class="row">
-        <select name="gender" onchange="this.form.submit()">
+<h1>회원</h1>
+<p class="sub">{{ members|length }}명 · 성별과 급수를 바꾸면 바로 저장됩니다.</p>
+
+<section class="section">
+  <div class="head"><span>목록</span><span>PIN</span></div>
+  <ul class="rows">
+    {% for r in members %}
+    <li>
+      <div class="row-top">
+        <span><span class="name">{{ r.nickname }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}</span>
+        {% if r.pin_hash %}
+        <form method="post" action="{{ url_for('admin.member_reset_pin', member_id=r.id) }}" class="inline"
+              onsubmit="return confirm('{{ r.nickname }}님의 PIN을 초기화할까요?')"><button class="btn line sm">PIN 초기화</button></form>
+        {% else %}<span class="meta">PIN 없음</span>{% endif %}
+      </div>
+      <form method="post" action="{{ url_for('admin.member_update', member_id=r.id) }}" class="row-ctl">
+        <select name="gender" onchange="this.form.submit()" aria-label="성별">
           <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
           <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
           <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
         </select>
-        <select name="grade" onchange="this.form.submit()">
+        <select name="grade" onchange="this.form.submit()" aria-label="급수">
           <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
           {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
         </select>
       </form>
-    </td>
-    <td>
-      {% if r.pin_hash %}
-      <form method="post" action="{{ url_for('admin.member_reset_pin', member_id=r.id) }}" class="inline"
-            onsubmit="return confirm('{{ r.nickname }}의 PIN을 초기화할까요?')"><button class="ghost">초기화</button></form>
-      {% else %}<span class="muted">없음</span>{% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-</table>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
 
-<h2>변경 기록</h2>
-{% for c in changes %}
-<div class="muted">{{ c.nickname }} · {{ '성별' if c.field == 'gender' else '급수' }}
-  {{ c.old or '없음' }} → {{ c.new or '없음' }} · {{ '본인' if c.by == 'self' else '운영진' }}</div>
-{% else %}
-<p class="muted">아직 변경 기록이 없습니다.</p>
-{% endfor %}
+<section class="section">
+  <div class="head"><span>변경 기록</span><span>최근 100건</span></div>
+  {% for c in changes %}
+  <div class="log"><b>{{ c.nickname }}</b> {{ '성별' if c.field == 'gender' else '급수' }}
+    {{ c.old or '없음' }} → {{ c.new or '없음' }} <span class="muted">· {{ '본인' if c.by == 'self' else '운영진' }}</span></div>
+  {% else %}
+  <p class="empty">아직 변경 기록이 없습니다.</p>
+  {% endfor %}
+</section>
 {% endblock %}

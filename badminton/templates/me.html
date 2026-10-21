@@ -1,23 +1,25 @@
 {% extends "base.html" %}
 {% block title %}내 정보{% endblock %}
-{% block nav %}<nav class="row"><a href="{{ url_for('public.board_view') }}">대진</a><a href="{{ url_for('public.me') }}">내 정보</a></nav>{% endblock %}
+{% block nav %}{% include "public_nav.html" %}{% endblock %}
 {% block content %}
-<h1>내 성별·급수 등록</h1>
-{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
-{% if message %}<div class="flash">{{ message }}</div>{% endif %}
-<form method="post" class="card">
-  <p><label>닉네임<br>
-    <select name="member_id" required>
-      <option value="">소모임 닉네임 고르기</option>
-      {% for id, label in choices %}<option value="{{ id }}" {% if selected == id %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select></label></p>
-  <p><label>PIN 4자리<br>
-    <input name="pin" inputmode="numeric" pattern="\d{4}" maxlength="4" autocomplete="off" required></label><br>
-    <span class="muted">처음이면 지금 입력한 숫자가 내 PIN이 됩니다.</span></p>
-  <div class="row">
-    <select name="gender"><option value="">성별 (그대로)</option><option value="M">남</option><option value="F">여</option></select>
-    <select name="grade"><option value="">급수 (그대로)</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
-  </div>
-  <p><button>저장</button></p>
-</form>
+<div style="max-width:420px">
+  <h1>내 성별·급수</h1>
+  <p class="sub">급수를 입력해야 대진에 들어갈 수 있어요.</p>
+  {% if error %}<div class="note err">{{ error }}</div>{% endif %}
+  {% if message %}<div class="note">{{ message }}</div>{% endif %}
+  <form method="post">
+    <label class="field">소모임 닉네임
+      <select name="member_id" required>
+        <option value="">닉네임 고르기</option>
+        {% for id, label in choices %}<option value="{{ id }}" {% if selected == id %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label class="field">PIN 4자리 <span class="muted">— 처음이면 지금 입력한 숫자가 PIN이 됩니다</span>
+      <input name="pin" inputmode="numeric" pattern="\d{4}" maxlength="4" autocomplete="off" required></label>
+    <div class="bar" style="margin:14px 0">
+      <select name="gender" aria-label="성별" style="flex:1"><option value="">성별 (변경 없음)</option><option value="M">남</option><option value="F">여</option></select>
+      <select name="grade" aria-label="급수" style="flex:1"><option value="">급수 (변경 없음)</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
+    </div>
+    <button class="btn" style="width:100%">저장</button>
+  </form>
+</div>
 {% endblock %}

@@ -1,0 +1,16 @@
+<section class="section">
+  <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명</span></div>
+  {% if board.queue %}
+  <ol class="queue">{% for n in board.queue %}<li><b>{{ loop.index }}</b>{{ n }}</li>{% endfor %}</ol>
+  {% else %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
+</section>
+{% if board.excluded %}
+<section class="section">
+  <div class="head"><span>대진 제외</span><span>{{ board.excluded|length }}명</span></div>
+  <ul class="reasons">
+    {% for reason, items in board.excluded|groupby('reason') %}
+    <li><span class="r">{{ reason }}</span>{{ items|map(attribute='nickname')|join(', ') }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
