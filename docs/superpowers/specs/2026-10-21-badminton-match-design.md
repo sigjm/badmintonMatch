@@ -154,3 +154,31 @@
 ## 추가 (2026-10-21): 모임 이름으로 찾기
 
 모임 관리 화면에서 이름을 검색하면 소모임 웹 검색(`/groups/search?keyword=`) 결과를 보여 준다. 운영진이 결과 중 하나를 골라 추가한다. 링크 붙여넣기도 계속 쓸 수 있다. 소모임 계정 로그인이 없어서 "내가 가입한 모임" 목록은 자동으로 가져올 수 없다.
+
+## 추가 (2026-10-21): 다음 순서 예약 (4명씩 미리 묶기)
+
+사용자 요청: "다음 순서에 자동매칭 시 예약으로 4명씩 묶어서 넣게."
+
+**동작**
+- 대기 중인 사람(참석, 급수·성별 있음, 경기 중 아님, 예약 안 됨)을 기존 `pick_four` + `split_teams` 규칙으로 4명씩 묶어 예약으로 저장한다.
+- 예약 수는 최대 코트 수. 4명이 안 되는 나머지는 예약 없이 대기한다.
+- 코트가 비면(시작, 경기 끝, 다시 뽑기, 코트 수 변경) 가장 앞 예약(seq 최소)을 그 코트의 경기로 옮기고 예약을 지운다. 예약이 없으면 지금처럼 바로 `pick_four` 한다.
+- 빈 코트를 채운 뒤 남는 예약 칸을 대기자로 다시 채운다(`refill_reservations`).
+- 예약은 다시 섞지 않는다. 한 번 만든 예약의 멤버와 순서는 유지된다.
+- 예약에 든 사람이 참석이 아닌 상태가 되거나(자리 비움·지각·귀가·취소), 급수·성별이 비거나, 수동 대진으로 다른 코트에 들어가면 그 예약만 지운다. 나머지 사람은 `queued_at`이 그대로라 원래 순서로 대기열에 돌아간다. 이어서 예약을 다시 채운다.
+- 운영진은 예약마다 "다시 뽑기"를 할 수 있다. 그 예약을 지우고 다시 채우는데, 직전 멤버 피하기 규칙 때문에 같은 조합이 바로 다시 나오지 않을 수 있다.
+
+**계약** (작업자 A·B가 공유)
+- DB:
+  `reservations(id INTEGER PRIMARY KEY, meetup_id INTEGER NOT NULL REFERENCES meetups, seq INTEGER NOT NULL, a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, created_at REAL NOT NULL)`
+  `CREATE TABLE IF NOT EXISTS`로 만들고, 기존 DB에도 자동으로 생긴다.
+- `meetups.reservations(conn, meetup_id) -> list[sqlite3.Row]`: seq 오름차순.
+- `meetups.refill_reservations(conn, meetup_id) -> None`
+- `meetups.redraw_reservation(conn, reservation_id) -> int | None`: 예약을 지우고 다시 채운 뒤 meetup_id를 돌려준다. 없으면 None.
+- `meetups.queue(...)`: 예약된 사람을 뺀다.
+- `board(conn, mid)`에 `"reservations": [{"id": int, "no": 1부터, "teams": [[닉, 닉], [닉, 닉]]}]`를 추가한다. `"queue"`는 예약되지 않은 대기자만 담는다.
+- 경로: `POST /admin/reservation/<int:rid>/redraw`. 다른 POST처럼 `data-save-without-reload`와 리다이렉트를 모두 지원한다.
+- 화면:
+  - "다음 순서" 맨 위에 `예약 1 · 닉(급수)·닉 vs 닉·닉`을 번호순으로 보여 준다.
+  - 운영진 화면에는 예약마다 "다시 뽑기" 버튼을 둔다.
+  - 공개 대진판에도 예약을 보여 준다. 3초 갱신 응답에 포함된다.
