@@ -2,6 +2,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from .announce import announcement_text
 from .db import get_setting, transaction
 from .matching import Player, pick_four, sort_queue, split_teams
 from .members import create_member, upsert_somoim
@@ -383,6 +384,7 @@ def board(conn, meetup_id: int) -> dict:
                            "started_at": g["started_at"] if g else None,
                            "elapsed_clock": _clock_label(now - g["started_at"]) if g else None,
                            "ready_in": None if g or rest_until.get(c, 0) <= now else int(rest_until[c] - now) + 1,
+                           "announce": announcement_text(c, [names.get(g[k], "") for k in ("a1", "a2", "b1", "b2")]) if g else None,
                            "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
                                      [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,
                            "team_players": [[member_by_id.get(g["a1"]), member_by_id.get(g["a2"])],

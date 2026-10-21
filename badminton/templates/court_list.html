@@ -1,7 +1,7 @@
 {% from "_macros.html" import player_name %}
 {# 코트 목록 — admin=True면 경기 끝/다시 뽑기 버튼을 보여 준다 #}
 {% for c in board.courts %}
-<div class="court" data-key="court-{{ c.court }}" aria-label="코트 {{ c.court }}">
+<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}">
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
   <div class="court-match">
@@ -26,6 +26,7 @@
   <div class="court-actions">
     <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline" data-save-without-reload><button class="btn go sm">게임 끝내기</button></form>
     <form method="post" action="{{ url_for('admin.redraw_game', gid=c.game_id) }}" class="inline" data-save-without-reload><button class="btn line sm">다시 뽑기</button></form>
+    <button type="button" class="btn line sm" data-announce-replay>호출</button>
   </div>
   {% endif %}
 </div>

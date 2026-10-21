@@ -1,6 +1,6 @@
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, url_for
 
-from . import get_conn
+from . import announce, get_conn
 from .groups import get_group, list_groups
 from .meetups import board, fill_courts, today
 
@@ -59,6 +59,30 @@ def board_updates():
     )
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+def _wav(text: str):
+    try:
+        audio = announce.speak(text)
+    except Exception:  # 모델이 없거나 합성 실패 → 화면이 기기 내장 음성으로 대신 읽는다
+        abort(503)
+    return Response(audio, mimetype="audio/wav", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@bp.get("/announce/<int:gid>.wav")
+def announce_game(gid):
+    conn = get_conn()
+    g = conn.execute("SELECT court, a1, a2, b1, b2 FROM games WHERE id = ?", (gid,)).fetchone()
+    if g is None:
+        abort(404)
+    ids = [g["a1"], g["a2"], g["b1"], g["b2"]]
+    names = {r["id"]: r["nickname"] for r in conn.execute("SELECT id, nickname FROM members WHERE id IN (?, ?, ?, ?)", ids)}
+    return _wav(announce.announcement_text(g["court"], [names.get(i, "") for i in ids]))
+
+
+@bp.get("/announce/hello.wav")
+def announce_hello():
+    return _wav("안내 방송을 시작합니다.")
 
 
 @bp.get("/me")
