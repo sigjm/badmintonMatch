@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}운영 로그{% endblock %}
+{% block nav %}{% include "admin_nav.html" %}{% endblock %}
+{% block content %}
+<h1>운영 로그</h1>
+<p class="sub">운영 변경과 기존 회원 정보 변경을 시간순으로 표시합니다. {{ total }}건</p>
+
+<form method="get" class="section bar">
+  <label class="small">시작일 <input type="date" name="date_from" value="{{ date_from }}"></label>
+  <label class="small">종료일 <input type="date" name="date_to" value="{{ date_to }}"></label>
+  <select name="action" aria-label="작업 종류">
+    <option value="">모든 작업</option>
+    {% for key, label in action_labels.items() %}<option value="{{ key }}" {% if action == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="meetup_id" aria-label="정모">
+    <option value="">모든 정모</option>
+    {% for m in meetups %}<option value="{{ m.id }}" {% if meetup_id == m.id %}selected{% endif %}>{{ m.date }} · {{ m.name }}{{ ' (보관)' if m.archived_at }}</option>{% endfor %}
+  </select>
+  <button class="btn">검색</button>
+</form>
+
+{% if error %}<div class="note err">{{ error }}</div>{% endif %}
+<section class="section">
+  <div class="head"><span>변경 기록</span><span>{{ total }}건</span></div>
+  {% for entry in entries %}
+  <article class="log">
+    <div class="row-top">
+      <span><span class="muted">{{ entry.when_kst }}</span> <span class="tag">{{ action_labels.get(entry.action, entry.action) }}</span></span>
+      <span class="small muted">{{ entry.actor }}</span>
+    </div>
+    <div>{{ entry.summary }}</div>
+    {% if entry.details %}<details class="audit-details"><summary>변경 내용</summary><pre>{{ entry.details|tojson(indent=2) }}</pre></details>{% endif %}
+  </article>
+  {% else %}<p class="empty">조건에 맞는 기록이 없습니다.</p>{% endfor %}
+</section>
+
+{% if pages > 1 %}
+<nav class="bar audit-pagination" aria-label="로그 페이지">
+  {% if page > 1 %}<a class="btn line sm" href="{{ url_for('admin.logs', page=page - 1, date_from=date_from or None, date_to=date_to or None, action=action or None, meetup_id=meetup_id) }}">이전</a>{% endif %}
+  <span class="muted">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn line sm" href="{{ url_for('admin.logs', page=page + 1, date_from=date_from or None, date_to=date_to or None, action=action or None, meetup_id=meetup_id) }}">다음</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

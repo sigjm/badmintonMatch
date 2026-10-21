@@ -16,6 +16,7 @@
     --primary:#1677ff; --primary-hover:#4096ff; --primary-active:#0958d9; --primary-bg:#e6f4ff; --primary-border:#91caff;
     --success:#389e0d; --success-dot:#52c41a; --success-bg:#f6ffed; --success-border:#b7eb8f;
     --error:#ff4d4f; --error-bg:#fff2f0; --error-border:#ffccc7; --magenta:#c41d7f;
+    --male-name:#0958d9; --player-male:#3e80b3; --player-female:#8b328f; --player-unknown:#aaa;
     --shadow-pop:0 6px 16px 0 rgba(0,0,0,.08), 0 3px 6px -4px rgba(0,0,0,.12), 0 9px 28px 8px rgba(0,0,0,.05);
     --ease:cubic-bezier(.645,.045,.355,1);
     --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23bfbfbf' stroke-width='1.5'/%3E%3C/svg%3E");
@@ -160,7 +161,13 @@
 
   /* 선수 이름 */
   .player-name { display:inline-block; }
+  .player-name.is-male { color:var(--male-name); }
   .player-name.is-female { color:var(--magenta); }
+  .player-chip { display:inline-flex; align-items:center; justify-content:center; padding:5px 8px; border-radius:4px; color:#fff; line-height:1.4; }
+  .player-chip.is-male { background:var(--player-male); }
+  .player-chip.is-female { background:var(--player-female); }
+  .player-chip.is-unknown { background:var(--player-unknown); }
+  .player-chip .player-name, .player-chip .player-name.is-male, .player-chip .player-name.is-female { color:#fff; }
   [data-player-status] { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
   .save-status { color:var(--success); font-size:12px; white-space:nowrap; }
   .save-status.is-error { color:var(--error); }
@@ -186,6 +193,7 @@
   .draft-slot.is-empty { justify-content:center; border-style:dashed; border-color:var(--border); background:var(--card); color:var(--text-4); cursor:default; }
   .draft-slot .grade-badge { min-width:22px; height:22px; padding:0 4px; font-size:11px; }
   .draft-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .draft-name.is-male { color:var(--male-name); }
   .draft-name.is-female { color:var(--magenta); }
   .draft-remove { color:var(--text-3); font-size:16px; line-height:1; }
   .manual-draft-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-top:4px; }
@@ -218,6 +226,14 @@
   .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
   .pcard.is-gone, .pcard.is-canceled { background:var(--fill); }
   .pcard.is-gone .pcard-name, .pcard.is-canceled .pcard-name { color:var(--text-3); }
+  .pcard.is-gender-male, .pcard.is-gender-male.is-gone, .pcard.is-gender-male.is-canceled { background:var(--player-male); border-color:var(--player-male); color:#fff; }
+  .pcard.is-gender-female, .pcard.is-gender-female.is-gone, .pcard.is-gender-female.is-canceled { background:var(--player-female); border-color:var(--player-female); color:#fff; }
+  .pcard.is-gender-unknown, .pcard.is-gender-unknown.is-gone, .pcard.is-gender-unknown.is-canceled { background:var(--player-unknown); border-color:var(--player-unknown); color:#fff; }
+  .pcard.is-gender-male .player-name, .pcard.is-gender-female .player-name, .pcard.is-gender-unknown .player-name { color:#fff; }
+  .pcard.is-gender-male .pcard-games, .pcard.is-gender-female .pcard-games, .pcard.is-gender-unknown .pcard-games,
+  .pcard.is-gender-male .pcard-games b, .pcard.is-gender-female .pcard-games b, .pcard.is-gender-unknown .pcard-games b,
+  .pcard.is-gender-male .pcard-line, .pcard.is-gender-female .pcard-line, .pcard.is-gender-unknown .pcard-line,
+  .pcard.is-gender-male .pcard-memo, .pcard.is-gender-female .pcard-memo, .pcard.is-gender-unknown .pcard-memo { color:#fff; }
   .pcard-top { display:flex; justify-content:space-between; align-items:flex-start; }
   .grade-badge { display:inline-grid; place-items:center; min-width:28px; height:28px; padding:0 5px; border-radius:14px; background:#141414; color:#a0d911; font-size:12px; font-weight:700; }
   .grade-badge.is-empty { background:var(--fill-2); color:var(--text-3); }
@@ -237,6 +253,11 @@
   .tag.gold { color:#d48806; background:#fffbe6; border-color:#ffe58f; }
   .tag.orange { color:#d46b08; background:#fff7e6; border-color:#ffd591; }
   .tag.red { color:#cf1322; background:#fff1f0; border-color:#ffa39e; }
+  .tag.manual-reservation { grid-column:2; justify-self:start; margin:0; }
+  .audit-details { margin-top:6px; color:var(--text-2); }
+  .audit-details summary { cursor:pointer; font-size:12px; }
+  .audit-details pre { max-width:100%; overflow:auto; padding:8px; background:var(--fill); border-radius:6px; font:12px/1.5 ui-monospace,monospace; }
+  .audit-pagination { justify-content:center; margin-top:16px; }
   .court-time { grid-column:2; display:flex; align-items:center; gap:6px; color:var(--text-3); font-size:12px; }
   .court-time::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--success-dot); }
   .read-only-card { max-width:520px; margin:32px auto; padding:48px 24px; text-align:center; }
@@ -371,7 +392,7 @@
           ? [...document.querySelectorAll(`${selector}[data-save-key]`)].find((candidate) => candidate.dataset.saveKey === saveKey) || form
           : form;
         if (form.dataset.resetOnSave && flashText.includes(form.dataset.resetOnSave)) form.reset();  // 성공했을 때만 입력칸 비우기
-        if (form.id === "manual-match-form" && flashText.includes("수동 대진을 배정했습니다")) {
+        if (form.id === "manual-match-form" && flashText.includes("수동 예약을 추가했습니다")) {
           document.dispatchEvent(new CustomEvent("badminton:manual-match-saved"));
         }
         activeForm.querySelectorAll("select").forEach((field) => {
@@ -385,8 +406,14 @@
           display.textContent = `${gradeLabel}/${display.dataset.playerName}`;
           display.dataset.gradeLabel = gradeLabel;
           if (gender) {
+            display.classList.toggle("is-male", gender.value === "M");
             display.classList.toggle("is-female", gender.value === "F");
             display.dataset.gender = gender.value;
+            const card = display.closest(".pcard");
+            if (card) {
+              card.classList.remove("is-gender-male", "is-gender-female", "is-gender-unknown");
+              card.classList.add(gender.value === "M" ? "is-gender-male" : gender.value === "F" ? "is-gender-female" : "is-gender-unknown");
+            }
           }
         }
         showStatus(activeForm, "저장됨");
@@ -402,8 +429,14 @@
           display.textContent = `${gradeLabel}/${display.dataset.playerName}`;
           display.dataset.gradeLabel = gradeLabel;
           if (gender) {
+            display.classList.toggle("is-male", gender.value === "M");
             display.classList.toggle("is-female", gender.value === "F");
             display.dataset.gender = gender.value;
+            const card = display.closest(".pcard");
+            if (card) {
+              card.classList.remove("is-gender-male", "is-gender-female", "is-gender-unknown");
+              card.classList.add(gender.value === "M" ? "is-gender-male" : gender.value === "F" ? "is-gender-female" : "is-gender-unknown");
+            }
           }
         }
         showStatus(form, "저장 실패", true);
@@ -455,7 +488,10 @@
         slot.classList.toggle("is-empty", !info);
         if (!info) { slot.textContent = slot.dataset.placeholder; return; }
         const badge = Object.assign(document.createElement("span"), { className: "grade-badge", textContent: info.grade || "?" });
-        const name = Object.assign(document.createElement("span"), { className: `draft-name${info.female ? " is-female" : ""}`, textContent: info.name });
+        const name = Object.assign(document.createElement("span"), {
+          className: `draft-name${info.gender === "M" ? " is-male" : info.gender === "F" ? " is-female" : ""}`,
+          textContent: info.name,
+        });
         const remove = Object.assign(document.createElement("span"), { className: "draft-remove", textContent: "×" });
         slot.replaceChildren(badge, name, remove);
       });
@@ -512,7 +548,7 @@
         selectedPlayers.push(id);
         const name = button.querySelector("[data-nickname]");
         selectedNames[id] = { grade: button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim(),
-                              name: name?.dataset.nickname || button.textContent.trim(), female: name?.dataset.gender === "F" };
+                              name: name?.dataset.nickname || button.textContent.trim(), gender: name?.dataset.gender || "" };
       }
       renderManualSelection();
     });
@@ -620,10 +656,18 @@
       renderManualSelection();
     });
     document.addEventListener("badminton:sections-updated", () => {
-      const available = new Set([...document.querySelectorAll("[data-manual-player]")].map((button) => button.dataset.manualPlayer));
+      const buttons = [...document.querySelectorAll("[data-manual-player]")];
+      const available = new Set(buttons.map((button) => button.dataset.manualPlayer));
       for (let index = selectedPlayers.length - 1; index >= 0; index -= 1) {
         if (!available.has(selectedPlayers[index])) selectedPlayers.splice(index, 1);
       }
+      buttons.forEach((button) => {
+        const id = button.dataset.manualPlayer;
+        if (!selectedPlayers.includes(id)) return;
+        const name = button.querySelector("[data-nickname]");
+        selectedNames[id] = { grade: button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim(),
+                              name: name?.dataset.nickname || button.textContent.trim(), gender: name?.dataset.gender || "" };
+      });
       renderManualSelection();
     });
 
@@ -688,7 +732,7 @@
     window.setInterval(updateWaitLabels, 60_000);
     window.setInterval(tickGameClocks, 1_000);
     refreshLiveSections();
-    window.setInterval(refreshLiveSections, 1_000);
+    window.setInterval(refreshLiveSections, 3_000);
   })();
 
   (() => {

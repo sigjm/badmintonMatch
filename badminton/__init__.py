@@ -35,7 +35,7 @@ def create_app(config: dict | None = None) -> Flask:
                 raise RuntimeError(f"{name} must be configured with a non-empty value")
 
     # gunicorn 스레드 4개로 받되 DB를 만지는 요청은 예전처럼 한 번에 하나씩 처리한다 (경기 끝 동시 클릭·코트 채우기 경쟁 방지).
-    # 안내 방송 음성 합성(2초 남짓)만 이 잠금 밖에서 돌아 대진판 1초 갱신을 막지 않는다.
+    # 안내 방송 음성 합성(2초 남짓)만 이 잠금 밖에서 돌아 대진판 3초 갱신을 막지 않는다.
     app.serial_lock = threading.Lock()
 
     @app.before_request

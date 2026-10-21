@@ -10,6 +10,13 @@
 </section>
 <p class="sub">정모 참석자와 대진은 운영진이 직접 관리합니다.</p>
 {% if error %}<div class="note err">{{ error }}</div>{% endif %}
+{% if archived_mid %}
+<form method="post" action="{{ url_for('admin.restore_meetup', mid=archived_mid) }}" class="section bar">
+  <span>보관된 정모가 있습니다.</span>
+  <button class="btn">정모 복구</button>
+  <a class="btn line" href="{{ url_for('admin.meetup', mid=archived_mid) }}">보관 정모 보기</a>
+</form>
+{% endif %}
 
 {% if choices %}
 <section class="section">
@@ -31,6 +38,12 @@
 <form method="post" action="{{ url_for('admin.import_date') }}" class="section bar">
   <input type="date" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
   <button class="btn">소모임에서 불러오기</button>
+</form>
+
+<form method="post" action="{{ url_for('admin.create_meetup') }}" class="section bar">
+  <input type="date" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
+  <input name="name" value="{{ name or '' }}" placeholder="정모 이름" required maxlength="120" style="flex:2;min-width:170px">
+  <button class="btn">정모 직접 추가</button>
 </form>
 
 {% if error %}
@@ -56,10 +69,28 @@
     <li class="row-top">
       <a href="{{ url_for('admin.meetup', mid=m.id) }}" class="name" style="text-decoration:none">{% if m.started %}<span class="dot" title="진행 중"></span>{% endif %}{{ m.name }}</a>
       <span class="meta">{{ m.date }}</span>
+      <form method="post" action="{{ url_for('admin.archive_meetup', mid=m.id) }}" class="inline"
+            onsubmit="return confirm('정모를 삭제(보관)할까요? 참석자와 경기 기록은 보존됩니다.')">
+        <button class="btn line sm danger">삭제</button>
+      </form>
     </li>
     {% else %}
     <li class="muted">아직 불러온 정모가 없습니다.</li>
     {% endfor %}
+  </ul>
+</section>
+
+<section class="section">
+  <div class="head"><span>보관된 정모</span></div>
+  <ul class="rows">
+    {% for m in archived_meetups %}
+    <li class="row-top">
+      <span><a href="{{ url_for('admin.meetup', mid=m.id) }}" class="name">{{ m.name }}</a> <span class="tag">보관</span><span class="meta">{{ m.date }}</span></span>
+      <form method="post" action="{{ url_for('admin.restore_meetup', mid=m.id) }}" class="inline">
+        <button class="btn line sm">복구</button>
+      </form>
+    </li>
+    {% else %}<li class="muted">보관된 정모가 없습니다.</li>{% endfor %}
   </ul>
 </section>
 {% endblock %}

@@ -6,12 +6,12 @@ from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
-from . import get_conn, meetups
-from .db import get_setting, set_setting
+from . import audit, get_conn, meetups
+from .db import get_setting, set_setting, transaction
 from .groups import add_group, get_group, list_groups, parse_gid
-from .meetups import (add_attendee, add_pasted, assign_manual, board, end_game, get_or_create_meetup,
-                      fill_courts, manual_candidates, on_info_changed, redraw, refill_upcoming, set_memo, set_status,
-                      start, sync_somoim, today)
+from .meetups import (ArchivedMeetupError, add_attendee, add_manual_reservation, add_pasted, board, end_game,
+                      get_or_create_meetup, fill_courts, manual_candidates, on_info_changed, redraw,
+                      refill_upcoming, set_memo, set_status, start, sync_somoim, today)
 from .members import changes, create_member, list_members, rename_member, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
@@ -19,6 +19,16 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 LOGIN_MAX_FAILURES = 5
 LOGIN_WINDOW_SECONDS = 15 * 60
 _login_failures: dict[str, tuple[float, int]] = {}
+AUDIT_ACTION_LABELS = {
+    "meetup_create": "정모 추가", "meetup_import": "정모 불러오기", "attendees_paste": "참석자 붙여넣기",
+    "meetup_archive": "정모 보관", "meetup_restore": "정모 복구", "attendee_status": "참석 상태 변경",
+    "attendee_memo": "참석자 메모 변경", "attendee_guest_add": "게스트 추가", "meetup_start": "코트 시작",
+    "courts_change": "코트 수 변경", "auto_match": "자동 매칭", "manual_reservation": "수동 예약",
+    "game_assigned": "경기 배정",
+    "game_end": "게임 종료", "game_redraw": "경기 다시 뽑기", "reservation_redraw": "예약 다시 뽑기",
+    "reservation_delete": "예약 삭제", "settings_change": "매칭 설정 변경", "pin_reset": "PIN 초기화",
+    "group_add": "모임 추가", "group_rename": "모임 이름 변경", "member_change": "회원 정보 변경",
+}
 
 
 def _login_client_key() -> str:
@@ -114,16 +124,75 @@ def inject_group():
 
 def _home(**ctx):
     group = _current_group()
-    meetups = get_conn().execute("SELECT * FROM meetups WHERE group_id = ? ORDER BY date DESC, id DESC LIMIT 10",
-                                 (group["id"],)).fetchall()
+    conn = get_conn()
+    active = conn.execute("SELECT * FROM meetups WHERE group_id = ? AND archived_at IS NULL "
+                          "ORDER BY date DESC, id DESC LIMIT 10", (group["id"],)).fetchall()
+    archived = conn.execute("SELECT * FROM meetups WHERE group_id = ? AND archived_at IS NOT NULL "
+                            "ORDER BY date DESC, id DESC LIMIT 10", (group["id"],)).fetchall()
     ctx.setdefault("date", today())
-    return render_template("admin_home.html", meetups=meetups, groups=list_groups(get_conn()), **ctx)
+    ctx.setdefault("meetups", active)
+    ctx.setdefault("archived_meetups", archived)
+    return render_template("admin_home.html", groups=list_groups(conn), **ctx)
 
 
 @bp.get("")
 @admin_required
 def home():
     return _home()
+
+
+@bp.post("/meetups")
+@admin_required
+def create_meetup():
+    conn = get_conn()
+    date, name = request.form.get("date", ""), request.form.get("name", "")
+    try:
+        with transaction(conn):
+            mid, created = meetups.create_manual_meetup(conn, date, name, _current_group()["id"])
+            if created:
+                audit.record(conn, action="meetup_create", summary=f"정모 추가: {name.strip()}",
+                             entity_type="meetup", entity_id=mid, meetup_id=mid,
+                             details={"date": date.strip(), "source": "manual"})
+    except ArchivedMeetupError as e:
+        return _home(date=date, name=name, archived_mid=e.meetup_id,
+                     error="같은 날짜와 이름의 정모가 보관되어 있습니다. 먼저 복구해 주세요.")
+    except ValueError as e:
+        return _home(date=date, name=name, error=str(e))
+    if created:
+        flash("정모를 추가했습니다")
+    else:
+        flash("이미 등록된 정모로 이동합니다")
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/archive")
+@admin_required
+def archive_meetup(mid):
+    conn = get_conn()
+    row = _meetup_row(mid)
+    if row["archived_at"] is None:
+        with transaction(conn):
+            meetups.archive_meetup(conn, mid)
+            audit.record(conn, action="meetup_archive", summary=f"정모 보관: {row['name']}",
+                         entity_type="meetup", entity_id=mid, meetup_id=mid,
+                         details={"date": row["date"]})
+        flash("정모를 보관했습니다")
+    return redirect(url_for("admin.home"))
+
+
+@bp.post("/m/<int:mid>/restore")
+@admin_required
+def restore_meetup(mid):
+    conn = get_conn()
+    row = _meetup_row(mid)
+    if row["archived_at"] is not None:
+        with transaction(conn):
+            meetups.restore_meetup(conn, mid)
+            audit.record(conn, action="meetup_restore", summary=f"정모 복구: {row['name']}",
+                         entity_type="meetup", entity_id=mid, meetup_id=mid,
+                         details={"date": row["date"]})
+        flash("정모를 복구했습니다")
+    return redirect(url_for("admin.meetup", mid=mid))
 
 
 def _import(group, date: str, eid: str | None = None, name: str = "", mid: int | None = None):
@@ -145,9 +214,17 @@ def _import(group, date: str, eid: str | None = None, name: str = "", mid: int |
         return _home(**{**fail, "name": name or ev.name},
                      error="소모임에서 참석자를 한 명도 찾지 못했습니다. 페이지가 바뀌었을 수 있어요. 붙여넣기로 등록해 주세요.")
     conn = get_conn()
-    mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid, group_id=group["id"])
-    r = sync_somoim(conn, mid, found)
-    refill_upcoming(conn)
+    try:
+        with transaction(conn):
+            mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid, group_id=group["id"])
+            r = sync_somoim(conn, mid, found)
+            refill_upcoming(conn)
+            audit.record(conn, action="meetup_import", summary=f"소모임 정모 불러오기: {ev.name}",
+                         entity_type="meetup", entity_id=mid, meetup_id=mid,
+                         details={"added": r["added"], "canceled": r["canceled"], "restored": r["restored"]})
+    except ArchivedMeetupError as e:
+        return _home(**fail, archived_mid=e.meetup_id,
+                     error="이미 보관된 정모입니다. 중복으로 만들지 않았습니다. 아래에서 정모를 복구해 주세요.")
     flash(f"불러오기 완료: 추가 {r['added']} · 취소 {r['canceled']} · 복귀 {r['restored']}")
     return redirect(url_for("admin.meetup", mid=mid))
 
@@ -165,10 +242,17 @@ def _meetup_row(mid: int):
     return row
 
 
+def _active_meetup_row(mid: int):
+    row = _meetup_row(mid)
+    if row["archived_at"] is not None:
+        abort(409, description="보관된 정모는 변경할 수 없습니다")
+    return row
+
+
 @bp.post("/m/<int:mid>/import")
 @admin_required
 def reimport(mid):
-    m = _meetup_row(mid)
+    m = _active_meetup_row(mid)
     if m["eid"] is None:
         flash("붙여넣기로 만든 정모는 소모임에서 다시 불러올 수 없습니다")
         return redirect(url_for("admin.meetup", mid=mid))
@@ -182,11 +266,34 @@ def paste():
     conn = get_conn()
     mid = request.form.get("mid", type=int)
     date = request.form.get("date") or today()
-    if mid is None or conn.execute("SELECT 1 FROM meetups WHERE id = ?", (mid,)).fetchone() is None:
-        mid = get_or_create_meetup(conn, date, request.form.get("name") or "정모", None,
-                                   group_id=_current_group()["id"])
-    r = add_pasted(conn, mid, request.form.get("text", ""))
-    refill_upcoming(conn)
+    created = False
+    try:
+        with transaction(conn):
+            if mid is not None and conn.execute("SELECT 1 FROM meetups WHERE id = ?", (mid,)).fetchone():
+                _active_meetup_row(mid)
+            else:
+                mid, created = meetups.create_manual_meetup(
+                    conn, date, request.form.get("name") or "정모", _current_group()["id"])
+            before_attendees = {row["nickname"]: row["status"] for row in conn.execute(
+                "SELECT m.nickname, a.status FROM attendees a JOIN members m ON m.id = a.member_id "
+                "WHERE a.meetup_id = ? AND m.is_guest = 0", (mid,))}
+            r = add_pasted(conn, mid, request.form.get("text", ""))
+            refill_upcoming(conn)
+            if created:
+                audit.record(conn, action="meetup_create", summary="붙여넣기 정모 추가",
+                             entity_type="meetup", entity_id=mid, meetup_id=mid,
+                             details={"date": date, "source": "paste"})
+            changed_attendees = [nickname for nickname in r["added"]
+                                 if before_attendees.get(nickname) != "present"] + r["created"]
+            if changed_attendees:
+                audit.record(conn, action="attendees_paste", summary="참석자 명단 붙여넣기",
+                             entity_type="meetup", entity_id=mid, meetup_id=mid,
+                             details={"changed": changed_attendees, "submitted": len(r["added"]) + len(r["created"])})
+    except ArchivedMeetupError as e:
+        return _home(date=date, name=request.form.get("name", ""), archived_mid=e.meetup_id,
+                     error="같은 날짜와 이름의 정모가 보관되어 있습니다. 먼저 복구해 주세요.")
+    except ValueError as e:
+        return _home(date=date, name=request.form.get("name", ""), error=str(e))
     msg = f"붙여넣기: 등록 {len(r['added'])} · 새 회원 {len(r['created'])}"
     if r["ambiguous"]:
         msg += f" · 같은 닉네임이 여럿이라 건너뜀: {', '.join(r['ambiguous'])}"
@@ -199,7 +306,7 @@ def paste():
 def meetup(mid):
     conn = get_conn()
     m = _meetup_row(mid)
-    if m["started"]:
+    if m["started"] and m["archived_at"] is None:
         fill_courts(conn, mid)  # 쉬는 시간(15초)이 지난 코트 채우기
     rows = conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, m.is_guest, a.status, a.games
                            FROM attendees a JOIN members m ON m.id = a.member_id
@@ -216,9 +323,9 @@ def meetup(mid):
 @admin_required
 def meetup_updates(mid):
     conn = get_conn()
-    m = _meetup_row(mid)
+    m = _active_meetup_row(mid)
     if m["started"]:
-        fill_courts(conn, mid)  # 1초 갱신이 쉬는 시간(15초)이 지난 코트를 채우는 시계 역할도 한다
+        fill_courts(conn, mid)  # 3초 갱신이 쉬는 시간(15초)이 지난 코트를 채우는 시계 역할도 한다
     current_board = board(conn, mid)
     candidates = manual_candidates(conn, mid)
     ids = {r["id"] for r in candidates}
@@ -241,11 +348,22 @@ def meetup_updates(mid):
 @admin_required
 def status(mid):
     conn = get_conn()
+    _active_meetup_row(mid)
     try:
-        set_status(conn, mid, int(request.form["member_id"]), request.form["status"])
+        member_id = int(request.form["member_id"])
+        target_status = request.form["status"]
+        with transaction(conn):
+            before = conn.execute("SELECT a.status, m.nickname FROM attendees a JOIN members m ON m.id = a.member_id "
+                                  "WHERE a.meetup_id = ? AND a.member_id = ?",
+                                  (mid, member_id)).fetchone()
+            set_status(conn, mid, member_id, target_status)
+            if before and before["status"] != target_status:
+                audit.record(conn, action="attendee_status", summary=f"참석 상태 변경: {before['nickname']}",
+                             entity_type="attendee", entity_id=member_id, meetup_id=mid,
+                             details={"from": before["status"], "to": target_status})
+                refill_upcoming(conn)
     except ValueError as e:
         flash(str(e))
-    refill_upcoming(conn)
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -253,7 +371,7 @@ def status(mid):
 @admin_required
 def info(mid):
     conn = get_conn()
-    _meetup_row(mid)
+    _active_meetup_row(mid)
     try:
         member_id = int(request.form["member_id"])
     except ValueError:
@@ -263,9 +381,11 @@ def info(mid):
         flash("해당 정모 참석자를 찾을 수 없습니다")
         return redirect(url_for("admin.meetup", mid=mid))
     try:
-        changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
-                           _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id, changed)
+        with transaction(conn):
+            changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
+                               _blank_none(request.form.get("grade")), by="admin")
+            if changed:
+                on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -275,9 +395,21 @@ def info(mid):
 @admin_required
 def memo(mid):
     conn = get_conn()
-    _meetup_row(mid)
+    _active_meetup_row(mid)
     try:
-        set_memo(conn, mid, int(request.form["member_id"]), request.form.get("memo", ""))
+        member_id = int(request.form["member_id"])
+        with transaction(conn):
+            before = conn.execute("SELECT a.memo, m.nickname FROM attendees a JOIN members m ON m.id = a.member_id "
+                                  "WHERE a.meetup_id = ? AND a.member_id = ?",
+                                  (mid, member_id)).fetchone()
+            set_memo(conn, mid, member_id, request.form.get("memo", ""))
+            after = conn.execute("SELECT a.memo FROM attendees a JOIN members m ON m.id = a.member_id "
+                                 "WHERE a.meetup_id = ? AND a.member_id = ?",
+                                 (mid, member_id)).fetchone()
+            if before and after and before["memo"] != after["memo"]:
+                audit.record(conn, action="attendee_memo", summary=f"참석자 메모 변경: {before['nickname']}",
+                             entity_type="attendee", entity_id=member_id, meetup_id=mid,
+                             details={"from": before["memo"], "to": after["memo"]})
     except (KeyError, ValueError) as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -287,37 +419,37 @@ def memo(mid):
 @admin_required
 def rename(mid):
     conn = get_conn()
-    _meetup_row(mid)
+    _active_meetup_row(mid)
     try:
         member_id = int(request.form["member_id"])
         nickname = request.form.get("nickname", "")
-        rename_member(conn, member_id, nickname, by="admin")
+        with transaction(conn):
+            rename_member(conn, member_id, nickname, by="admin")
     except (KeyError, ValueError) as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
 
 
-@bp.post("/m/<int:mid>/manual/<int:court>")
-@bp.post("/m/<int:mid>/manual", defaults={"court": None})
+@bp.post("/m/<int:mid>/manual")
 @admin_required
-def manual_match(mid, court=None):
-    m = _meetup_row(mid)
-    court = court or request.form.get("court", type=int)
-    if court is None:  # 수동 대진 카드의 '빈 코트에 넣기': 비어 있는 첫 코트 (쉬는 시간 무시)
-        busy = {r["court"] for r in get_conn().execute(
-            "SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,))}
-        court = next((c for c in range(1, m["courts"] + 1) if c not in busy), None)
-        if court is None:
-            flash("빈 코트가 없습니다. 경기가 끝나면 다시 눌러 주세요")
-            return redirect(url_for("admin.meetup", mid=mid))
+def manual_match(mid):
+    _active_meetup_row(mid)
     try:
         player_ids = [int(request.form.get(name, "")) for name in ("a1", "a2", "b1", "b2")]
     except (TypeError, ValueError):
         flash("선수 네 명을 모두 선택해 주세요")
     else:
         try:
-            assign_manual(get_conn(), mid, court, player_ids)
-            flash(f"코트 {court}에 수동 대진을 배정했습니다")
+            conn = get_conn()
+            with transaction(conn):
+                reservation_id = add_manual_reservation(conn, mid, player_ids)
+                names = {r["id"]: r["nickname"] for r in conn.execute(
+                    "SELECT id, nickname FROM members WHERE id IN (?, ?, ?, ?)", player_ids)}
+                audit.record(conn, action="manual_reservation",
+                             summary="수동 대진 예약 추가: " + ", ".join(names.get(pid, "?") for pid in player_ids),
+                             entity_type="reservation", entity_id=reservation_id, meetup_id=mid,
+                             details={"players": [names.get(pid, "?") for pid in player_ids]})
+            flash("수동 예약을 추가했습니다")
         except ValueError as e:
             flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -326,15 +458,19 @@ def manual_match(mid, court=None):
 @bp.post("/m/<int:mid>/auto-match")
 @admin_required
 def auto_match(mid):
-    m = _meetup_row(mid)
+    m = _active_meetup_row(mid)
     if not m["started"]:
         flash("먼저 코트를 시작해 주세요")
     else:
         conn = get_conn()
-        before = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
-        fill_courts(conn, mid, force=True)  # 운영진이 직접 누르면 쉬는 시간 없이 채운다
-        after = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
-        added = after - before
+        with transaction(conn):
+            before = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ?", (mid,)).fetchone()[0]
+            fill_courts(conn, mid, force=True)  # 운영진이 직접 누르면 쉬는 시간 없이 채운다
+            after = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ?", (mid,)).fetchone()[0]
+            added = after - before
+            if added:
+                audit.record(conn, action="auto_match", summary=f"자동 매칭: {added}경기",
+                             entity_type="meetup", entity_id=mid, meetup_id=mid, details={"games": added})
         flash(f"빈 코트 자동 매칭 완료: {added}경기" if added else "자동 매칭할 빈 코트가 없거나 대기 가능한 선수가 4명 미만입니다")
     return redirect(url_for("admin.meetup", mid=mid))
 
@@ -343,28 +479,34 @@ def auto_match(mid):
 @admin_required
 def guest(mid):
     conn = get_conn()
-    _meetup_row(mid)
-    if request.form.get("member_id"):
-        try:
-            member_id = int(request.form["member_id"])
-        except ValueError:
-            abort(400)
-        if conn.execute("SELECT 1 FROM members WHERE id = ? AND is_guest = 1", (member_id,)).fetchone() is None:
-            flash("등록된 게스트를 찾을 수 없습니다")
-            return redirect(url_for("admin.meetup", mid=mid))
-    else:
-        nickname = request.form.get("nickname", "").strip()
-        gender, grade = _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade"))
-        if not nickname or not gender or not grade:
-            flash("게스트는 이름, 성별, 급수를 모두 입력해 주세요")
-            return redirect(url_for("admin.meetup", mid=mid))
-        try:
-            member_id = create_member(conn, nickname, is_guest=True, gender=gender, grade=grade)
-        except ValueError as e:
-            flash(str(e))
-            return redirect(url_for("admin.meetup", mid=mid))
-    add_attendee(conn, mid, member_id, "guest")
-    refill_upcoming(conn)
+    _active_meetup_row(mid)
+    try:
+        with transaction(conn):
+            if request.form.get("member_id"):
+                try:
+                    member_id = int(request.form["member_id"])
+                except ValueError:
+                    abort(400)
+                if conn.execute("SELECT 1 FROM members WHERE id = ? AND is_guest = 1", (member_id,)).fetchone() is None:
+                    raise ValueError("등록된 게스트를 찾을 수 없습니다")
+                nickname = conn.execute("SELECT nickname FROM members WHERE id = ?", (member_id,)).fetchone()["nickname"]
+            else:
+                nickname = request.form.get("nickname", "").strip()
+                gender, grade = _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade"))
+                if not nickname or not gender or not grade:
+                    raise ValueError("게스트는 이름, 성별, 급수를 모두 입력해 주세요")
+                member_id = create_member(conn, nickname, is_guest=True, gender=gender, grade=grade)
+            before = conn.execute("SELECT status FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                                  (mid, member_id)).fetchone()
+            add_attendee(conn, mid, member_id, "guest")
+            if before is None or before["status"] != "present":
+                refill_upcoming(conn)
+                audit.record(conn, action="attendee_guest_add", summary=f"게스트 참석 추가: {nickname}",
+                             entity_type="attendee", entity_id=member_id, meetup_id=mid,
+                             details={"nickname": nickname})
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for("admin.meetup", mid=mid))
     name = conn.execute("SELECT nickname FROM members WHERE id = ?", (member_id,)).fetchone()["nickname"]
     flash(f"{name} 님을 게스트로 추가했습니다")  # 화면이 이 문구를 보고 입력칸을 비운다 (data-reset-on-save)
     return redirect(url_for("admin.meetup", mid=mid))
@@ -373,7 +515,7 @@ def guest(mid):
 @bp.post("/m/<int:mid>/start")
 @admin_required
 def start_meetup(mid):
-    _meetup_row(mid)
+    m = _active_meetup_row(mid)
     try:
         courts = int(request.form["courts"])
     except ValueError:
@@ -381,7 +523,15 @@ def start_meetup(mid):
     if not 1 <= courts <= 20:
         flash("코트 수는 1~20 사이로 입력해 주세요")
     else:
-        start(get_conn(), mid, courts)
+        conn = get_conn()
+        with transaction(conn):
+            changed = not m["started"] or int(m["courts"]) != courts
+            if changed:
+                start(conn, mid, courts)
+                audit.record(conn, action="meetup_start" if not m["started"] else "courts_change",
+                             summary=f"{'코트 시작' if not m['started'] else '코트 수 변경'}: {courts}면",
+                             entity_type="meetup", entity_id=mid, meetup_id=mid,
+                             details={"from_courts": m["courts"], "to_courts": courts})
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -396,7 +546,14 @@ def _game_meetup(gid: int) -> int:
 @admin_required
 def end(gid):
     mid = _game_meetup(gid)
-    end_game(get_conn(), gid)
+    _active_meetup_row(mid)
+    conn = get_conn()
+    with transaction(conn):
+        game = conn.execute("SELECT ended_at, court FROM games WHERE id = ?", (gid,)).fetchone()
+        if game and game["ended_at"] is None:
+            end_game(conn, gid)
+            audit.record(conn, action="game_end", summary=f"게임 종료: {game['court']}코트",
+                         entity_type="game", entity_id=gid, meetup_id=mid, details={"court": game["court"]})
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -404,7 +561,14 @@ def end(gid):
 @admin_required
 def redraw_game(gid):
     mid = _game_meetup(gid)
-    redraw(get_conn(), gid)
+    _active_meetup_row(mid)
+    conn = get_conn()
+    with transaction(conn):
+        game = conn.execute("SELECT ended_at, court FROM games WHERE id = ?", (gid,)).fetchone()
+        if game and game["ended_at"] is None:
+            redraw(conn, gid)
+            audit.record(conn, action="game_redraw", summary=f"경기 다시 뽑기: {game['court']}코트",
+                         entity_type="game", entity_id=gid, meetup_id=mid, details={"court": game["court"]})
     return redirect(url_for("admin.meetup", mid=mid))
 
 
@@ -412,7 +576,21 @@ def redraw_game(gid):
 @admin_required
 def redraw_reservation(rid):
     conn = get_conn()
-    mid = meetups.redraw_reservation(conn, rid)
+    before = conn.execute("SELECT meetup_id, seq, source FROM reservations WHERE id = ?", (rid,)).fetchone()
+    if before:
+        mid = before["meetup_id"]
+        _active_meetup_row(mid)
+        if before["source"] == "manual":
+            flash("수동 예약은 다시 뽑을 수 없습니다. 삭제 후 새로 예약해 주세요")
+            return redirect(url_for("admin.meetup", mid=mid))
+        with transaction(conn):
+            mid = meetups.redraw_reservation(conn, rid)
+            if mid is not None:
+                audit.record(conn, action="reservation_redraw", summary=f"예약 다시 뽑기: {before['seq']}번",
+                             entity_type="reservation", entity_id=rid, meetup_id=mid,
+                             details={"sequence": before["seq"]})
+    else:
+        mid = None
     if mid is None:
         mid = request.form.get("mid", type=int)
     if mid is None:
@@ -424,10 +602,19 @@ def redraw_reservation(rid):
 @admin_required
 def delete_reservation(rid):
     conn = get_conn()
-    row = conn.execute("SELECT seq FROM reservations WHERE id = ?", (rid,)).fetchone()
-    mid = meetups.delete_reservation(conn, rid) or request.form.get("mid", type=int)
+    row = conn.execute("SELECT meetup_id, seq FROM reservations WHERE id = ?", (rid,)).fetchone()
     if row:
+        mid = row["meetup_id"]
+        _active_meetup_row(mid)
+        with transaction(conn):
+            mid = meetups.delete_reservation(conn, rid)
+            if mid:
+                audit.record(conn, action="reservation_delete", summary=f"예약 삭제: {row['seq']}번",
+                             entity_type="reservation", entity_id=rid, meetup_id=mid,
+                             details={"sequence": row["seq"]})
         flash(f"예약 {row['seq']}을 삭제했습니다. 다음 경기가 코트에 들어갈 때까지 새 예약은 만들지 않습니다")
+    else:
+        mid = request.form.get("mid", type=int)
     return redirect(url_for("admin.meetup", mid=mid) if mid else url_for("admin.home"))
 
 
@@ -448,9 +635,11 @@ def member_update(member_id):
     if conn.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
         abort(404)
     try:
-        changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
-                           _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id, changed)
+        with transaction(conn):
+            changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
+                               _blank_none(request.form.get("grade")), by="admin")
+            if changed:
+                on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.members"))
@@ -459,7 +648,15 @@ def member_update(member_id):
 @bp.post("/members/<int:member_id>/reset-pin")
 @admin_required
 def member_reset_pin(member_id):
-    reset_pin(get_conn(), member_id)
+    conn = get_conn()
+    with transaction(conn):
+        row = conn.execute("SELECT pin_hash, nickname FROM members WHERE id = ?", (member_id,)).fetchone()
+        if row is None:
+            abort(404)
+        if row["pin_hash"] is not None:
+            reset_pin(conn, member_id)
+            audit.record(conn, action="pin_reset", summary=f"회원 PIN 초기화: {row['nickname']}",
+                         entity_type="member", entity_id=member_id)
     flash("PIN을 초기화했습니다")
     return redirect(url_for("admin.members"))
 
@@ -474,9 +671,17 @@ def settings():
         except ValueError:
             offset, window = -1, -1
         if 0 <= offset <= 5 and 4 <= window <= 20:
-            set_setting(conn, "female_offset", offset)
-            set_setting(conn, "mix_window", window)
-            refill_upcoming(conn)
+            old_offset, old_window = get_setting(conn, "female_offset"), int(get_setting(conn, "mix_window"))
+            with transaction(conn):
+                if old_offset != offset or old_window != window:
+                    set_setting(conn, "female_offset", offset)
+                    set_setting(conn, "mix_window", window)
+                    refill_upcoming(conn)
+                    audit.record(conn, action="settings_change", summary="매칭 설정 변경",
+                                 entity_type="settings", details={
+                                     "female_offset": {"from": old_offset, "to": offset},
+                                     "mix_window": {"from": old_window, "to": window},
+                                 })
             flash("설정을 저장했습니다")
         else:
             flash("여자 보정값은 0~5, 혼복 후보 범위는 4~20 사이로 입력해 주세요")
@@ -502,7 +707,17 @@ def groups():
             except SomoimError as e:
                 flash(f"모임 정보를 가져오지 못했습니다 ({e}). 모임 이름을 직접 입력해 주세요.")
                 return redirect(url_for("admin.groups"))
-        session["group_id"] = add_group(conn, gid, name or gid)
+        with transaction(conn):
+            existing = conn.execute("SELECT id, name FROM groups WHERE gid = ?", (gid,)).fetchone()
+            group_id = add_group(conn, gid, name or gid)
+            if existing is None:
+                audit.record(conn, action="group_add", summary=f"모임 추가: {name or gid}",
+                             entity_type="group", entity_id=group_id, details={"name": name or gid})
+            elif existing["name"] != (name or gid):
+                audit.record(conn, action="group_rename", summary=f"모임 이름 변경: {name or gid}",
+                             entity_type="group", entity_id=group_id,
+                             details={"from": existing["name"], "to": name or gid})
+        session["group_id"] = group_id
         flash(f"{name or gid} 모임을 추가했습니다")
         return redirect(url_for("admin.home"))
     q, results, search_error = request.args.get("q", "").strip(), [], None
@@ -523,3 +738,32 @@ def select_group():
     if g:
         session["group_id"] = g["id"]
     return redirect(url_for("admin.members") if request.form.get("back") == "members" else url_for("admin.home"))
+
+
+@bp.get("/logs")
+@admin_required
+def logs():
+    conn = get_conn()
+    date_from = request.args.get("date_from", "")
+    date_to = request.args.get("date_to", "")
+    action = request.args.get("action", "")
+    meetup_id = request.args.get("meetup_id", type=int)
+    page = max(1, request.args.get("page", 1, type=int) or 1)
+    error = None
+    try:
+        entries, total = audit.list_entries(conn, page=page, date_from=date_from or None,
+                                            date_to=date_to or None, action=action or None,
+                                            meetup_id=meetup_id)
+    except ValueError as e:
+        entries, total, error = [], 0, str(e)
+    pages = max(1, (total + 49) // 50)
+    if page > pages:
+        page = pages
+        if error is None:
+            entries, total = audit.list_entries(conn, page=page, date_from=date_from or None,
+                                                date_to=date_to or None, action=action or None,
+                                                meetup_id=meetup_id)
+    meetup_rows = conn.execute("SELECT id, date, name, archived_at FROM meetups ORDER BY date DESC, id DESC").fetchall()
+    return render_template("admin_logs.html", entries=entries, total=total, page=page, pages=pages,
+                           date_from=date_from, date_to=date_to, action=action, meetup_id=meetup_id,
+                           meetups=meetup_rows, action_labels=AUDIT_ACTION_LABELS, error=error)

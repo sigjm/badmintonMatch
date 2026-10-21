@@ -1,4 +1,7 @@
 {% macro player_name(nickname, gender, grade) -%}
 {% set grade_label = GRADE_LABELS.get(grade, grade or '미정') %}
-<span class="name player-name{% if gender == 'F' %} is-female{% endif %}" data-player-name="{{ nickname }}" data-nickname="{{ nickname }}" data-gender="{{ gender or '' }}" data-grade="{{ grade or '' }}" data-grade-label="{{ grade_label }}">{{ grade_label }}/{{ nickname }}</span>
+<span class="name player-name{% if gender == 'M' %} is-male{% elif gender == 'F' %} is-female{% endif %}" data-player-name="{{ nickname }}" data-nickname="{{ nickname }}" data-gender="{{ gender or '' }}" data-grade="{{ grade or '' }}" data-grade-label="{{ grade_label }}">{{ grade_label }}/{{ nickname }}</span>
+{%- endmacro %}
+{% macro player_chip(nickname, gender, grade) -%}
+<span class="player-chip{% if gender == 'M' %} is-male{% elif gender == 'F' %} is-female{% else %} is-unknown{% endif %}">{{ player_name(nickname, gender, grade) }}</span>
 {%- endmacro %}

@@ -4,6 +4,28 @@
 {% block body_class %}is-wide{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
+{% if m.archived_at %}
+<section class="event-banner">
+  <span class="eyebrow">보관된 정모 · 조회 전용</span>
+  <h1>{{ m.name }}</h1>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="tag">보관</span></div>
+</section>
+<section class="section bar">
+  <span>참석자와 경기 기록은 보존되어 있습니다.</span>
+  <form method="post" action="{{ url_for('admin.restore_meetup', mid=m.id) }}" class="inline">
+    <button class="btn">정모 복구</button>
+  </form>
+  <a class="btn line" href="{{ url_for('admin.home') }}">정모 목록</a>
+</section>
+<div class="board-layout">
+  <section class="tile" id="meetup-court-board">
+    {% set admin = false %}{% include "_court_board_content.html" %}
+  </section>
+  <div id="meetup-reservations">{% include "reservation_list.html" %}</div>
+</div>
+<div id="meetup-queue">{% include "queue_list.html" %}</div>
+<div id="meetup-excluded">{% include "excluded_list.html" %}</div>
+{% else %}
 <section class="section operation-controls">
   <div class="head"><span>정모 운영</span><span>운영진 전용</span></div>
   <div class="bar" style="margin-top:10px">
@@ -19,13 +41,17 @@
   {% if m.eid %}
   <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
   {% endif %}
+  <form method="post" action="{{ url_for('admin.archive_meetup', mid=m.id) }}" class="inline"
+        onsubmit="return confirm('정모를 삭제(보관)할까요? 참석자와 경기 기록은 보존됩니다.')">
+    <button class="btn line danger">정모 삭제</button>
+  </form>
   </div>
 </section>
 
 <section class="event-banner" data-live-updates-url="{{ url_for('admin.meetup_updates', mid=m.id) }}" data-meetup-id="{{ m.id }}">
   <span class="eyebrow">운영 콘솔</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 1초 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 3초 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
 </section>
 
 <div class="stat-grid" id="meetup-stats" aria-label="정모 현황">
@@ -53,7 +79,7 @@
       </div>
       {% endfor %}
       <div class="manual-draft-actions">
-        <button type="submit" class="btn" data-manual-fill disabled>빈 코트에 넣기</button>
+        <button type="submit" class="btn" data-manual-fill disabled>예약에 추가</button>
         <button type="button" class="btn line" data-manual-reset>초기화</button>
       </div>
     </div>
@@ -152,4 +178,5 @@
   <input type="hidden" name="member_id" data-status-member>
   <input type="hidden" name="status" data-status-value>
 </form>
+{% endif %}
 {% endblock %}

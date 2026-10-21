@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS groups(id INTEGER PRIMARY KEY, gid TEXT UNIQUE NOT NU
 CREATE TABLE IF NOT EXISTS meetups(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
   courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER REFERENCES groups,
-  resv_hold INTEGER NOT NULL DEFAULT 0);
+  resv_hold INTEGER NOT NULL DEFAULT 0, archived_at REAL);
 CREATE TABLE IF NOT EXISTS attendees(
   meetup_id INTEGER REFERENCES meetups, member_id INTEGER REFERENCES members, status TEXT NOT NULL,
   source TEXT NOT NULL CHECK(source IN ('somoim','guest','paste')), games INTEGER NOT NULL DEFAULT 0,
@@ -24,7 +24,14 @@ CREATE TABLE IF NOT EXISTS games(
   canceled INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS reservations(
   id INTEGER PRIMARY KEY, meetup_id INTEGER NOT NULL REFERENCES meetups, seq INTEGER NOT NULL,
-  a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, created_at REAL NOT NULL);
+  a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, created_at REAL NOT NULL,
+  source TEXT NOT NULL DEFAULT 'auto' CHECK(source IN ('auto','manual')));
+CREATE TABLE IF NOT EXISTS audit_logs(
+  id INTEGER PRIMARY KEY, at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
+  entity_type TEXT NOT NULL, entity_id INTEGER, meetup_id INTEGER REFERENCES meetups,
+  summary TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}');
+CREATE INDEX IF NOT EXISTS idx_audit_logs_at ON audit_logs(at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_meetup_at ON audit_logs(meetup_id, at DESC, id DESC);
 INSERT OR IGNORE INTO settings VALUES ('female_offset', 1.5), ('mix_window', 6);
 """
 
@@ -41,8 +48,22 @@ def connect(path: str) -> sqlite3.Connection:
         conn.execute("ALTER TABLE games ADD COLUMN canceled INTEGER NOT NULL DEFAULT 0")
     if "resv_hold" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
         conn.execute("ALTER TABLE meetups ADD COLUMN resv_hold INTEGER NOT NULL DEFAULT 0")
+    if "archived_at" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
+        conn.execute("ALTER TABLE meetups ADD COLUMN archived_at REAL")
     if "memo" not in [r[1] for r in conn.execute("PRAGMA table_info(attendees)")]:
         conn.execute("ALTER TABLE attendees ADD COLUMN memo TEXT")
+    if "source" not in [r[1] for r in conn.execute("PRAGMA table_info(reservations)")]:
+        conn.execute("ALTER TABLE reservations ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'")
+    conn.executescript("""
+        CREATE TRIGGER IF NOT EXISTS reservations_source_insert
+        BEFORE INSERT ON reservations WHEN NEW.source NOT IN ('auto','manual')
+        BEGIN SELECT RAISE(ABORT, 'invalid reservation source'); END;
+        CREATE TRIGGER IF NOT EXISTS reservations_source_update
+        BEFORE UPDATE OF source ON reservations WHEN NEW.source NOT IN ('auto','manual')
+        BEGIN SELECT RAISE(ABORT, 'invalid reservation source'); END;
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_at ON audit_logs(at DESC, id DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_meetup_at ON audit_logs(meetup_id, at DESC, id DESC)")
     return conn
 
 

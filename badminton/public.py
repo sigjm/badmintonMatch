@@ -15,9 +15,9 @@ def index():
 def _started(conn, group_id=None):
     """오늘(정모일 기준) 시작된 정모, 없으면 가장 최근에 시작된 정모."""
     where, args = ("AND group_id = ?", (group_id,)) if group_id else ("", ())
-    return (conn.execute(f"SELECT * FROM meetups WHERE started = 1 AND date = ? {where} ORDER BY id DESC",
+    return (conn.execute(f"SELECT * FROM meetups WHERE started = 1 AND archived_at IS NULL AND date = ? {where} ORDER BY id DESC",
                          (today(), *args)).fetchone()
-            or conn.execute(f"SELECT * FROM meetups WHERE started = 1 {where} ORDER BY date DESC, id DESC", args).fetchone())
+            or conn.execute(f"SELECT * FROM meetups WHERE started = 1 AND archived_at IS NULL {where} ORDER BY date DESC, id DESC", args).fetchone())
 
 
 @bp.get("/board")
