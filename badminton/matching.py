@@ -30,7 +30,7 @@ def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1
     """대기열 맨 앞 사람을 포함해 급수가 비슷한 4명을 고른다.
     기본 후보는 앞쪽 mix_window명과 최소 경기 수 그룹이며, 성비 조건을 만족하지 못할 때만 전체 대기열로 넓힌다.
     recent(사람 → 직전 경기에서 같이 친 사람들)가 주어지면 그 사람들끼리 다시 묶이는 쌍이 적은 조합을 먼저 고른다.
-    (급수 폭 + 직전 멤버 겹친 쌍 × 2) 최소 → 겹침 적은 쪽 → 남복/여복 → 혼복 → 대기 순서 앞쪽 순."""
+    (남복/여복 우선, 혼복 후순위) → (급수 폭 + 직전 멤버 겹친 쌍 × 2) 최소 → 겹침 적은 쪽 → 대기 순서 앞쪽 순."""
     recent = recent or {}
     if len(queue) < 4:
         return None
@@ -51,7 +51,7 @@ def pick_four(queue: list[Player], mix_window: int = 6, female_offset: float = 1
             repeat = sum(1 for x, y in combinations(four, 2) if y.id in recent.get(x.id, ()))
             spread = max(scores) - min(scores)
             kind = 1 if women == 2 else 0
-            key = (spread + 2 * repeat, repeat, kind, sum(combo))  # 직전 멤버 1쌍 = 급수 2단계 벌점
+            key = (kind, spread + 2 * repeat, repeat, sum(combo))  # 남복/여복(0) 우선, 혼복(1)은 그 다음
             if best is None or key < best[0]:
                 best = (key, four)
         return best
