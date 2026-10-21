@@ -1,9 +1,24 @@
-{% from "_macros.html" import player_name %}
 {% set manual_candidate_ids = manual_candidate_ids|default([]) %}
-<section class="section">
+{% set game_candidates = game_candidates|default([]) %}
+<section class="section queue-section">
   <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명</span></div>
   {% set cards = board.queue_cards|default([]) %}
-  {% if cards %}
-  <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}</div>
-  {% else %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
+  {% if admin|default(false) and m and m.started %}
+  <div class="tabs queue-state-tabs" role="tablist" aria-label="선수 상태">
+    <button type="button" class="on" data-queue-tab="waiting" role="tab" aria-selected="true">대기 ({{ cards|length }})</button>
+    <button type="button" data-queue-tab="playing" role="tab" aria-selected="false">게임 중 ({{ game_candidates|length }})</button>
+  </div>
+  {% endif %}
+  <div class="queue-state-panel" data-queue-panel="waiting"{% if admin|default(false) and m and m.started %} role="tabpanel"{% endif %}>
+    {% if cards %}
+    <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}</div>
+    {% else %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
+  </div>
+  {% if admin|default(false) and m and m.started %}
+  <div class="queue-state-panel" data-queue-panel="playing" role="tabpanel" hidden>
+    {% if game_candidates %}
+    <div class="player-grid">{% for p in game_candidates %}{% include "_player_card.html" %}{% endfor %}</div>
+    {% else %}<p class="empty">현재 게임 중인 참석자가 없습니다</p>{% endif %}
+  </div>
+  {% endif %}
 </section>

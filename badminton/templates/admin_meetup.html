@@ -67,9 +67,10 @@
 <div class="board-side">
 <section class="section manual-picker" id="manual-match-picker">
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
-  {% if m.started and manual_candidates|length >= 4 %}
-  <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
-    <p class="manual-match-help">다음 순서 카드에서 이름을 눌러 4명을 고르세요. 고른 선수를 누르면 빠집니다.</p>
+  {% if m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
+  <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" data-default-action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
+    <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 이름을 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
+    <p class="manual-match-editing" data-manual-editing hidden>예약을 수정 중입니다. 기존 선수 카드를 눌러 빼거나 다른 선수로 바꿀 수 있습니다.</p>
     <div class="manual-draft" data-manual-draft>
       {% for team, first in (('A팀', 0), ('B팀', 2)) %}
       {% if not loop.first %}<div class="draft-vs">VS</div>{% endif %}
@@ -81,6 +82,7 @@
       <div class="manual-draft-actions">
         <button type="submit" class="btn" data-manual-fill disabled>예약에 추가</button>
         <button type="button" class="btn line" data-manual-reset>초기화</button>
+        <button type="button" class="btn line" data-manual-cancel hidden>수정 취소</button>
       </div>
     </div>
     {% for field in ['a1', 'a2', 'b1', 'b2'] %}<input type="hidden" name="{{ field }}" data-manual-slot="{{ loop.index0 }}">{% endfor %}
@@ -88,13 +90,13 @@
   {% elif not m.started %}
   <p class="empty">코트를 시작하면 다음 순서 카드에서 이름을 눌러 수동 대진을 짤 수 있습니다.</p>
   {% else %}
-  <p class="empty">수동 대진에는 경기 중이 아닌 참석자 네 명이 필요합니다 (현재 {{ manual_candidates|length }}명).</p>
+  <p class="empty">새 예약에는 참석자 네 명이 필요합니다 (대기 {{ manual_candidates|length }}명 · 게임 중 {{ game_candidates|length }}명).</p>
   {% endif %}
 </section>
 <div id="meetup-reservations">{% with admin=true, m=m %}{% include "reservation_list.html" %}{% endwith %}</div>
 </div>
 </div>
-<div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
+<div id="meetup-queue" data-active-queue-tab="waiting">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids, game_candidates=game_candidates %}{% include "queue_list.html" %}{% endwith %}</div>
 <div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
 
 

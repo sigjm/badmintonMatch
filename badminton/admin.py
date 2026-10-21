@@ -10,8 +10,9 @@ from . import audit, get_conn, meetups
 from .db import get_setting, set_setting, transaction
 from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (ArchivedMeetupError, add_attendee, add_manual_reservation, add_pasted, board, end_game,
-                      get_or_create_meetup, fill_courts, manual_candidates, on_info_changed, redraw,
-                      refill_upcoming, set_memo, set_status, start, sync_somoim, today)
+                      get_or_create_meetup, fill_courts, manual_candidates, on_info_changed, playing_candidates,
+                      redraw, refill_upcoming, set_memo, set_status, start,
+                      start_reservation_now, sync_somoim, today, update_reservation)
 from .members import changes, create_member, list_members, rename_member, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
@@ -26,7 +27,9 @@ AUDIT_ACTION_LABELS = {
     "courts_change": "코트 수 변경", "auto_match": "자동 매칭", "manual_reservation": "수동 예약",
     "game_assigned": "경기 배정",
     "game_end": "게임 종료", "game_redraw": "경기 다시 뽑기", "reservation_redraw": "예약 다시 뽑기",
-    "reservation_delete": "예약 삭제", "settings_change": "매칭 설정 변경", "pin_reset": "PIN 초기화",
+    "reservation_edit": "예약 수정", "reservation_priority": "예약 우선 배정",
+    "reservation_start_now": "예약 바로 시작", "reservation_delete": "예약 삭제",
+    "settings_change": "매칭 설정 변경", "pin_reset": "PIN 초기화",
     "group_add": "모임 추가", "group_rename": "모임 이름 변경", "member_change": "회원 정보 변경",
 }
 
@@ -314,8 +317,11 @@ def meetup(mid):
     seated = {r["id"] for r in rows}
     guests = [g for g in list_members(conn, guests=True, group_id=m["group_id"]) if g["id"] not in seated]
     candidates = manual_candidates(conn, mid)
+    game_candidates = playing_candidates(conn, mid)
+    candidate_ids = {r["id"] for r in candidates + game_candidates}
     return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests,
-                           manual_candidates=candidates, manual_candidate_ids={r["id"] for r in candidates},
+                           manual_candidates=candidates, game_candidates=game_candidates,
+                           manual_candidate_ids=candidate_ids,
                            group=get_group(conn, m["group_id"]) or _current_group())
 
 
@@ -328,13 +334,15 @@ def meetup_updates(mid):
         fill_courts(conn, mid)  # 3초 갱신이 쉬는 시간(15초)이 지난 코트를 채우는 시계 역할도 한다
     current_board = board(conn, mid)
     candidates = manual_candidates(conn, mid)
-    ids = {r["id"] for r in candidates}
+    game_candidates = playing_candidates(conn, mid)
+    ids = {r["id"] for r in candidates + game_candidates}
     response = jsonify(
         meetup_id=mid,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=True,
                                     manual_candidates=candidates),
         reservation_list=render_template("reservation_list.html", board=current_board, admin=True, m=m),
-        queue=render_template("queue_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
+        queue=render_template("queue_list.html", board=current_board, admin=True, m=m,
+                              manual_candidate_ids=ids, game_candidates=game_candidates),
         excluded=render_template("excluded_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
         reservations=current_board.get("reservations", []) if current_board else [],
         active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]),
@@ -449,7 +457,10 @@ def manual_match(mid):
                              summary="수동 대진 예약 추가: " + ", ".join(names.get(pid, "?") for pid in player_ids),
                              entity_type="reservation", entity_id=reservation_id, meetup_id=mid,
                              details={"players": [names.get(pid, "?") for pid in player_ids]})
-            flash("수동 예약을 추가했습니다")
+            if meetups.reservation_waiting_for_game(conn, reservation_id):
+                flash("수동 예약을 추가했습니다. 게임 중인 멤버가 있습니다. 경기 종료 후 배정됩니다")
+            else:
+                flash("수동 예약을 추가했습니다")
         except ValueError as e:
             flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -572,30 +583,94 @@ def redraw_game(gid):
     return redirect(url_for("admin.meetup", mid=mid))
 
 
-@bp.post("/reservation/<int:rid>/redraw")
+@bp.post("/reservation/<int:rid>/edit")
 @admin_required
-def redraw_reservation(rid):
+def edit_reservation(rid):
     conn = get_conn()
-    before = conn.execute("SELECT meetup_id, seq, source FROM reservations WHERE id = ?", (rid,)).fetchone()
-    if before:
-        mid = before["meetup_id"]
-        _active_meetup_row(mid)
-        if before["source"] == "manual":
-            flash("수동 예약은 다시 뽑을 수 없습니다. 삭제 후 새로 예약해 주세요")
-            return redirect(url_for("admin.meetup", mid=mid))
-        with transaction(conn):
-            mid = meetups.redraw_reservation(conn, rid)
-            if mid is not None:
-                audit.record(conn, action="reservation_redraw", summary=f"예약 다시 뽑기: {before['seq']}번",
-                             entity_type="reservation", entity_id=rid, meetup_id=mid,
-                             details={"sequence": before["seq"]})
-    else:
-        mid = None
-    if mid is None:
-        mid = request.form.get("mid", type=int)
-    if mid is None:
+    before = conn.execute("SELECT meetup_id, seq, source, a1, a2, b1, b2 FROM reservations WHERE id = ?",
+                          (rid,)).fetchone()
+    if before is None:
+        flash("예약을 찾을 수 없습니다")
         return redirect(url_for("admin.home"))
+    mid = before["meetup_id"]
+    _active_meetup_row(mid)
+    try:
+        player_ids = [int(request.form.get(name, "")) for name in ("a1", "a2", "b1", "b2")]
+    except (TypeError, ValueError):
+        flash("선수 네 명을 모두 선택해 주세요")
+        return redirect(url_for("admin.meetup", mid=mid))
+    try:
+        with transaction(conn):
+            result = update_reservation(conn, rid, player_ids)
+            if result is None:
+                abort(404)
+            names = {r["id"]: r["nickname"] for r in conn.execute(
+                "SELECT id, nickname FROM members WHERE id IN (?, ?, ?, ?, ?, ?, ?, ?)",
+                (*[before[k] for k in ("a1", "a2", "b1", "b2")], *player_ids))}
+            audit.record(conn, action="reservation_edit",
+                         summary=f"예약 수정: {before['seq']}번 · " + ", ".join(names.get(pid, "?") for pid in player_ids),
+                         entity_type="reservation", entity_id=rid, meetup_id=mid,
+                         details={"sequence": before["seq"], "source_before": before["source"],
+                                  "players_before": [names.get(before[k], "?") for k in ("a1", "a2", "b1", "b2")],
+                                  "players_after": [names.get(pid, "?") for pid in player_ids]})
+            _, waiting_for_game = result
+        if waiting_for_game:
+            flash("예약을 수정했습니다. 게임 중인 멤버가 있습니다. 경기 종료 후 배정됩니다")
+        else:
+            flash("예약을 수정했습니다")
+    except ValueError as e:
+        flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/reservation/<int:rid>/priority")
+@admin_required
+def prioritize_reservation_route(rid):
+    conn = get_conn()
+    row = conn.execute("SELECT meetup_id, seq FROM reservations WHERE id = ?", (rid,)).fetchone()
+    if row is None:
+        flash("예약을 찾을 수 없습니다")
+        return redirect(url_for("admin.home"))
+    mid = row["meetup_id"]
+    _active_meetup_row(mid)
+    with transaction(conn):
+        meetups.prioritize_reservation(conn, rid)
+        audit.record(conn, action="reservation_priority", summary=f"예약 우선 배정: {row['seq']}번",
+                     entity_type="reservation", entity_id=rid, meetup_id=mid,
+                     details={"previous_sequence": row["seq"], "sequence": 1})
+    flash("예약을 다음 순서로 이동했습니다")
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/reservation/<int:rid>/start-now")
+@admin_required
+def start_reservation_now_route(rid):
+    conn = get_conn()
+    row = conn.execute("SELECT meetup_id, seq FROM reservations WHERE id = ?", (rid,)).fetchone()
+    if row is None:
+        flash("예약을 찾을 수 없습니다")
+        return redirect(url_for("admin.home"))
+    mid = row["meetup_id"]
+    _active_meetup_row(mid)
+    with transaction(conn):
+        result_mid, status, game_id, court = start_reservation_now(conn, rid)
+        if status == "started":
+            audit.record(conn, action="reservation_start_now", summary=f"예약 바로 시작: {court}코트",
+                         entity_type="game", entity_id=game_id, meetup_id=mid,
+                         details={"reservation_id": rid, "sequence": row["seq"], "court": court})
+    if status == "started":
+        flash(f"예약 경기를 {court}코트에서 바로 시작했습니다")
+    elif status == "playing":
+        flash("게임 중인 멤버가 있습니다. 경기 종료 후 자동 배정됩니다")
+    elif status == "no_court":
+        flash("빈 코트가 없어 예약 순서대로 대기합니다")
+    elif status == "invalid":
+        flash("참석 상태를 확인할 수 없어 예약을 시작하지 못했습니다. 예약을 수정해 주세요")
+    elif status == "inactive":
+        flash("코트를 시작한 뒤 바로 배정할 수 있습니다")
+    else:
+        flash("예약을 찾을 수 없습니다")
+    return redirect(url_for("admin.meetup", mid=result_mid or mid))
 
 
 @bp.post("/reservation/<int:rid>/delete")

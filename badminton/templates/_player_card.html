@@ -16,6 +16,7 @@
   <div class="pcard-tags">
     {% if p.gender == 'M' %}<span class="tag blue">남성</span>{% elif p.gender == 'F' %}<span class="tag magenta">여성</span>{% endif %}
     {% if state == 'queued' %}<span class="tag green">대기 {{ p.order }}</span>
+    {% elif state == 'playing' %}<span class="tag orange">게임 중</span>
     {% elif state == 'noinfo' %}<span class="tag red">{{ p.reason }}</span>
     {% elif state == 'away' %}<span class="tag gold">휴식</span>
     {% elif state == 'late' %}<span class="tag orange">지각</span>
@@ -23,6 +24,7 @@
   </div>
   <div class="pcard-line">
     {% if state == 'queued' %}<span data-queue-wait data-queued-at="{{ p.since }}">{{ '마지막 경기 종료 후' if p.played else '대기' }} <span data-wait-value>{{ p.since_label }}</span></span>
+    {% elif state == 'playing' %}현재 경기 종료 후 배정 가능
     {% elif state == 'noinfo' %}정보 입력 후 대기
     {% elif state == 'away' %}휴식 중
     {% elif state == 'late' %}도착 전
@@ -34,7 +36,7 @@
   <form method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="pcard-actions" data-save-without-reload>
     <input type="hidden" name="member_id" value="{{ p.id }}">
     <button type="button" class="btn line sm" data-open-info data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">정보</button>
-    {% if state in ('queued', 'noinfo') %}<button class="btn line sm" name="status" value="away">휴식</button>
+    {% if state in ('queued', 'noinfo', 'playing') %}<button class="btn line sm" name="status" value="away">휴식</button>
     {% else %}<button class="btn line sm" name="status" value="present">{% if state == 'late' %}도착{% else %}복귀{% endif %}</button>{% endif %}
     {% if state != 'gone' %}<button class="btn line sm" name="status" value="gone">퇴장</button>{% endif %}
   </form>

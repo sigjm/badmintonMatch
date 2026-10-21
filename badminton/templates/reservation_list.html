@@ -1,37 +1,57 @@
 {% from "_macros.html" import player_chip %}
-{% macro resv_player(p) -%}
+{% macro resv_player(p, res, slot_index, editable=false) -%}
   {%- if p is mapping and p.id -%}
-    <span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">{{ player_chip(p.nickname, p.gender, p.grade) }}</span>
+    {%- if editable -%}
+    <button type="button" class="court-player reservation-player-select" data-manual-player="{{ p.id }}"
+            data-reservation-player="true" data-reservation-id="{{ res.id }}" data-reservation-slot="{{ slot_index }}"
+            data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}"
+            data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}"
+            data-grade-label="{{ GRADE_LABELS.get(p.grade, '?') }}" data-memo="{{ p.memo or '' }}">
+      {{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small>
+    </button>
+    {%- else -%}
+    <span class="court-player" data-player-status="{{ p.id }}" data-member-id="{{ p.id }}"
+          data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}"
+          data-memo="{{ p.memo or '' }}">{{ player_chip(p.nickname, p.gender, p.grade) }}</span>
+    {%- endif -%}
   {%- elif p is mapping -%}
-    {{ player_chip(p.nickname, p.gender, p.grade) }}
+    <span class="court-player">{{ player_chip(p.nickname, p.gender, p.grade) }}</span>
   {%- else -%}
-    {{ p }}
+    <span class="court-player">{{ p }}</span>
   {%- endif -%}
 {%- endmacro %}
 {% set reservations = board.reservations|default([]) %}
-<section class="section">
+{% set editable = admin|default(false) and m is defined and m is not none %}
+<section class="section reservation-board{% if editable %} is-admin{% endif %}">
   <div class="head"><span>예약</span><span>{{ reservations|length }}개</span></div>
   {% if reservations %}
   <div class="reservations">
     {% for res in reservations|sort(attribute='no') %}
-    <div class="court resv" data-key="resv-{{ res.id }}" aria-label="예약 {{ res.no }}">
-      <div class="court-no">{{ res.no }}<small>예약</small></div>
+    <div class="court resv reservation-card" data-key="resv-{{ res.id }}" aria-label="예약 {{ res.no }}">
+      <div class="court-no">{{ res.no }}<small>{{ '수동 예약' if editable and res.source == 'manual' else '예약' }}</small></div>
       <div class="court-match">
         {% for team in res.team_players|default(res.teams) %}
+        {% set team_index = loop.index0 %}
         {% if not loop.first %}<span class="versus">VS</span>{% endif %}
-        <div class="team">{% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}{{ resv_player(player) }}{% endfor %}</div>
+        <div class="team">
+          {% for player in team %}
+            {{ resv_player(player, res, team_index * 2 + loop.index0, editable) }}
+          {% endfor %}
+        </div>
         {% endfor %}
       </div>
-      {% if admin|default(false) and m and res.source == 'manual' %}<span class="tag manual-reservation">수동</span>{% endif %}
-      {% if admin|default(false) and m %}
-      <div class="court-actions">
-        {% if res.source != 'manual' %}
-        <form method="post" action="{{ url_for('admin.redraw_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
-          <input type="hidden" name="mid" value="{{ m.id }}">
-          <button type="submit" class="btn line sm">다시 뽑기</button>
+      {% if res.waiting_for_game %}<p class="reservation-waiting">게임 중인 멤버가 있습니다 · 경기 종료 후 배정됩니다</p>{% endif %}
+      {% if editable %}
+      <div class="court-actions reservation-actions">
+        <button type="button" class="btn line sm" data-edit-reservation data-reservation-id="{{ res.id }}"
+                data-edit-url="{{ url_for('admin.edit_reservation', rid=res.id) }}">수정</button>
+        <form method="post" action="{{ url_for('admin.prioritize_reservation_route', rid=res.id) }}" data-save-without-reload>
+          <button type="submit" class="btn line sm">우선 넣기</button>
         </form>
-        {% endif %}
-        <form method="post" action="{{ url_for('admin.delete_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
+        <form method="post" action="{{ url_for('admin.start_reservation_now_route', rid=res.id) }}" data-save-without-reload>
+          <button type="submit" class="btn sm">바로 넣기</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.delete_reservation', rid=res.id) }}" data-save-without-reload>
           <input type="hidden" name="mid" value="{{ m.id }}">
           <button type="submit" class="btn line sm danger">삭제</button>
         </form>

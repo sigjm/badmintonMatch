@@ -1,5 +1,6 @@
 services:
   badminton:
+    image: badminton:current
     build: .
     container_name: badminton
     restart: unless-stopped
