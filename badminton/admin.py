@@ -1,4 +1,6 @@
 import hmac
+import ipaddress
+import time
 from functools import wraps
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
@@ -13,6 +15,36 @@ from .members import changes, create_member, list_members, rename_member, reset_
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+LOGIN_MAX_FAILURES = 5
+LOGIN_WINDOW_SECONDS = 15 * 60
+_login_failures: dict[str, tuple[float, int]] = {}
+
+
+def _login_client_key() -> str:
+    forwarded_ip = request.headers.get("CF-Connecting-IP", "").strip()
+    remote_ip = request.remote_addr or ""
+    for candidate in (forwarded_ip, remote_ip):
+        try:
+            return str(ipaddress.ip_address(candidate))
+        except ValueError:
+            continue
+    return "unknown"
+
+
+def _login_is_limited(client_key: str, now: float) -> bool:
+    for key, (started, _) in list(_login_failures.items()):
+        if now - started >= LOGIN_WINDOW_SECONDS:
+            del _login_failures[key]
+    attempt = _login_failures.get(client_key)
+    return bool(attempt and attempt[1] >= LOGIN_MAX_FAILURES)
+
+
+def _record_login_failure(client_key: str, now: float) -> None:
+    attempt = _login_failures.get(client_key)
+    if not attempt or now - attempt[0] >= LOGIN_WINDOW_SECONDS:
+        _login_failures[client_key] = (now, 1)
+    else:
+        _login_failures[client_key] = (attempt[0], attempt[1] + 1)
 
 
 def admin_required(view):
@@ -32,10 +64,16 @@ def _blank_none(value):
 def login():
     error = None
     if request.method == "POST":
+        client_key = _login_client_key()
+        now = time.monotonic()
+        if _login_is_limited(client_key, now):
+            return render_template("admin_login.html", error="로그인 시도가 많습니다. 15분 후 다시 시도해 주세요."), 429
         expected = current_app.config["ADMIN_PASSWORD"]
         if expected and hmac.compare_digest(request.form.get("password", ""), expected):
+            _login_failures.pop(client_key, None)
             session["admin"] = True
             return redirect(url_for("admin.home"))
+        _record_login_failure(client_key, now)
         error = "비밀번호가 맞지 않습니다"
     return render_template("admin_login.html", error=error)
 

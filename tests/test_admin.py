@@ -11,6 +11,18 @@ def test_wrong_password_rejected(client):
     assert client.get("/admin").status_code == 302
 
 
+def test_admin_login_limits_failed_attempts_by_client(client):
+    client_ip = "203.0.113.77"
+    for _ in range(5):
+        response = client.post("/admin/login", data={"password": "wrong"},
+                               environ_overrides={"REMOTE_ADDR": client_ip})
+        assert response.status_code == 200
+
+    blocked = client.post("/admin/login", data={"password": "pw"},
+                          environ_overrides={"REMOTE_ADDR": client_ip})
+    assert blocked.status_code == 429
+
+
 def test_import_creates_meetup_with_attendees(admin, monkeypatch, conn_of):
     monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)  # 참석 2명, 2026-10-23
     r = admin.post("/admin/import", data={"date": "2026-10-23"})
