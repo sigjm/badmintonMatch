@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 PUSH_RE = re.compile(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)')
 _decoder = json.JSONDecoder()
+MAX_RESPONSE_BYTES = 5 * 1024 * 1024  # 5MB
 
 
 class SomoimError(Exception):
@@ -72,7 +73,13 @@ def _slot_field(slot: int) -> str:
 
 
 def parse_group(html: str) -> Group:
-    text = "".join(json.loads(m.group(1)) for m in PUSH_RE.finditer(html))
+    chunks = []
+    for m in PUSH_RE.finditer(html):
+        try:
+            chunks.append(json.loads(m.group(1)))
+        except Exception as e:
+            raise SomoimError(f"소모임 스트리밍 데이터 파싱 실패: {e}") from e
+    text = "".join(chunks)
     events, seen_eids = [], set()
     for o in _objects(text, '{"jms":'):
         e = _event(o)
@@ -107,7 +114,10 @@ def fetch_group(group_id: str, timeout: float = 10) -> Group:
     req = urllib.request.Request(f"https://www.somoim.co.kr/{group_id}", headers={"User-Agent": "Mozilla/5.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return parse_group(resp.read().decode("utf-8"))
+            content = resp.read(MAX_RESPONSE_BYTES + 1)
+            if len(content) > MAX_RESPONSE_BYTES:
+                raise SomoimError("소모임 응답이 너무 큽니다 (5MB 초과)")
+            return parse_group(content.decode("utf-8", errors="replace"))
     except SomoimError:
         raise
     except Exception as e:  # 외부 페이지 경계: 어떤 실패든 붙여넣기 안내로 이어지게 한다
@@ -134,6 +144,11 @@ def search_groups(keyword: str, timeout: float = 10) -> list[tuple[str, str]]:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return parse_search(resp.read().decode("utf-8"))
+            content = resp.read(MAX_RESPONSE_BYTES + 1)
+            if len(content) > MAX_RESPONSE_BYTES:
+                raise SomoimError("소모임 검색 응답이 너무 큽니다 (5MB 초과)")
+            return parse_search(content.decode("utf-8", errors="replace"))
+    except SomoimError:
+        raise
     except Exception as e:  # 외부 페이지 경계
         raise SomoimError(f"소모임 검색 실패: {e}") from e

@@ -73,3 +73,46 @@ def test_parse_search_results():
             '<a href="/d49e0b02-b22a-413b-8295-53dc895bc4411"><h3>Team ONAM &amp; 친구</h3></a>')
     assert parse_search(html) == [("8119d5e4-f96f-11ef-a485-0a4564f15a111", "📢 Team RBT 민턴 회원모집"),
                                   ("d49e0b02-b22a-413b-8295-53dc895bc4411", "Team ONAM & 친구")]
+
+
+def test_parse_group_malformed_json_escape_raises_somoim_error():
+    # 이스케이프 문자열 오류 시 JSONDecodeError가 아닌 SomoimError 발생
+    bad_escape_html = r'<script>self.__next_f.push([1,"bad \u123"])</script>'
+    with pytest.raises(SomoimError):
+        parse_group(bad_escape_html)
+
+
+def test_fetch_group_rejects_oversized_response(monkeypatch):
+    import io
+    from badminton import somoim
+
+    class FakeResponse(io.BytesIO):
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    # 5MB 초과 가짜 응답
+    big_data = b"x" * (5 * 1024 * 1024 + 10)
+    monkeypatch.setattr(somoim.urllib.request, "urlopen", lambda *a, **k: FakeResponse(big_data))
+
+    with pytest.raises(SomoimError, match="너무 큽니다"):
+        somoim.fetch_group("dummy-gid")
+
+
+def test_search_groups_rejects_oversized_response(monkeypatch):
+    import io
+    from badminton import somoim
+
+    class FakeResponse(io.BytesIO):
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    big_data = b"x" * (5 * 1024 * 1024 + 10)
+    monkeypatch.setattr(somoim.urllib.request, "urlopen", lambda *a, **k: FakeResponse(big_data))
+
+    with pytest.raises(SomoimError, match="너무 큽니다"):
+        somoim.search_groups("keyword")
+
