@@ -230,7 +230,12 @@ def status(mid):
 @admin_required
 def info(mid):
     conn = get_conn()
+    _meetup_row(mid)
     member_id = int(request.form["member_id"])
+    if conn.execute("SELECT 1 FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                    (mid, member_id)).fetchone() is None:
+        flash("해당 정모 참석자를 찾을 수 없습니다")
+        return redirect(url_for("admin.meetup", mid=mid))
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")
