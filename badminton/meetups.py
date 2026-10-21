@@ -180,6 +180,7 @@ def refill_reservations(conn, meetup_id: int) -> None:
     if meetup is None or not meetup["started"]:
         return
     courts = meetup["courts"]
+    conn.execute("DELETE FROM reservations WHERE meetup_id = ? AND seq > ?", (meetup_id, courts))
     current_count = conn.execute("SELECT count(*) FROM reservations WHERE meetup_id = ?", (meetup_id,)).fetchone()[0]
     if current_count >= courts:
         return

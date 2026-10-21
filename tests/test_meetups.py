@@ -505,3 +505,30 @@ def test_info_cleared_drops_reservation(conn):
     # 2. target_member는 급수 미입력으로 대진 제외(excluded)에 들어가야 함
     b = board(conn, mid)
     assert any(x["nickname"] == "m0" or x.get("id") == target_member for x in b["excluded"])
+
+
+def test_reduce_courts_clears_excess_reservations(conn):
+    # 코트 3면에서 1면으로 축소 시, 코트 수를 초과하는 예약(seq > 1)은 삭제되고
+    # 해당 선수들은 대기열(queue)로 복귀해야 한다
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [create_member(conn, f"p{i}", gender="M", grade="A") for i in range(28)]
+    for p in players:
+        add_attendee(conn, mid, p, "paste")
+    start(conn, mid, 3)
+
+    assert len(reservations(conn, mid)) == 3
+    assert len(queue(conn, mid)) == 4
+
+    # 코트 수를 1면으로 축소
+    start(conn, mid, 1)
+
+    # 예약은 최대 코트 수인 1개만 남아야 함
+    resvs = reservations(conn, mid)
+    assert len(resvs) == 1
+    assert resvs[0]["seq"] == 1
+
+    # 삭제된 예약 2, 3의 8명이 대기열로 복귀하여 대기자가 12명이어야 함
+    assert len(queue(conn, mid)) == 12
+    b = board(conn, mid)
+    assert len(b["reservations"]) == 1
+    assert len(b["queue"]) == 12
