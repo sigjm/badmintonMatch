@@ -32,7 +32,7 @@
 </section>
 {% endif %}
 
-<form method="post" action="{{ url_for('admin.import_date') }}" class="bar" style="margin-top:16px">
+<form method="post" action="{{ url_for('admin.import_date') }}" class="section bar">
   <input type="date" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
   <button class="btn">소모임에서 불러오기</button>
 </form>

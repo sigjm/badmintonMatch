@@ -15,7 +15,7 @@
   {% endif %}
 </div>
 
-<section class="section">
+<section class="tile">
   <div class="head"><span>코트</span><span>{{ board.courts|length }}면</span></div>
   {% with admin=true %}{% include "court_list.html" %}{% endwith %}
   {% if not board.courts %}<p class="empty">코트 수를 입력하고 시작을 눌러 주세요.</p>{% endif %}

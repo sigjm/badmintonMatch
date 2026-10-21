@@ -4,7 +4,7 @@
 {% block content %}
 <h1>매칭 설정</h1>
 <p class="sub">급수 점수 S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
-<form method="post" style="max-width:420px">
+<form method="post" class="section" style="max-width:480px">
   <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값
     <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label>
   <label class="field">혼복 후보 범위 — 대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지

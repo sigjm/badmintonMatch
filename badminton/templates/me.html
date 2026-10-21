@@ -7,7 +7,7 @@
   <p class="sub">급수를 입력해야 대진에 들어갈 수 있어요.</p>
   {% if error %}<div class="note err">{{ error }}</div>{% endif %}
   {% if message %}<div class="note">{{ message }}</div>{% endif %}
-  <form method="post">
+  <form method="post" class="section">
     <label class="field">소모임 닉네임
       <select name="member_id" required>
         <option value="">닉네임 고르기</option>
