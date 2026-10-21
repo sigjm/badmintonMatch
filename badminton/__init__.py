@@ -7,6 +7,7 @@ from .matching import GRADE_LABELS
 from .meetups import STATUS_LABELS
 
 DEFAULT_GROUP_ID = "9b34753d-4105-4c55-9310-bb923ba2a8e61"  # 소모임 "금요일 야간민턴"
+DEFAULT_GROUP_NAME = "금요일 야간민턴"
 
 
 def get_conn():
@@ -34,6 +35,11 @@ def create_app(config: dict | None = None) -> Flask:
             conn.close()
 
     app.jinja_env.globals.update(GRADE_LABELS=GRADE_LABELS, STATUS_LABELS=STATUS_LABELS, GENDER_LABELS={"M": "남", "F": "여"})
+
+    from .groups import ensure_default_group
+    conn = db.connect(app.config["DATABASE"])
+    ensure_default_group(conn, app.config["SOMOIM_GROUP_ID"], DEFAULT_GROUP_NAME)
+    conn.close()
 
     from .admin import bp as admin_bp
     from .public import bp as public_bp

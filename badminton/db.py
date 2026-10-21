@@ -8,9 +8,10 @@ CREATE TABLE IF NOT EXISTS members(
 CREATE TABLE IF NOT EXISTS changes(
   id INTEGER PRIMARY KEY, member_id INTEGER REFERENCES members, by TEXT, field TEXT, old TEXT, new TEXT, at REAL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value REAL);
+CREATE TABLE IF NOT EXISTS groups(id INTEGER PRIMARY KEY, gid TEXT UNIQUE NOT NULL, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS meetups(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
-  courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0);
+  courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER REFERENCES groups);
 CREATE TABLE IF NOT EXISTS attendees(
   meetup_id INTEGER REFERENCES meetups, member_id INTEGER REFERENCES members, status TEXT NOT NULL,
   source TEXT NOT NULL CHECK(source IN ('somoim','guest','paste')), games INTEGER NOT NULL DEFAULT 0,
@@ -27,6 +28,9 @@ def connect(path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    # 모임 여러 개 지원 전에 만든 DB에는 meetups.group_id가 없다
+    if "group_id" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
+        conn.execute("ALTER TABLE meetups ADD COLUMN group_id INTEGER REFERENCES groups")
     return conn
 
 

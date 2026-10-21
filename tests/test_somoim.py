@@ -58,3 +58,8 @@ def test_fetch_group_wraps_unexpected_errors(monkeypatch):
     monkeypatch.setattr(somoim.urllib.request, "urlopen", reset)
     with pytest.raises(SomoimError):
         somoim.fetch_group("g1")
+
+
+def test_group_name_from_title():
+    html = "<title>노원구 배드민턴 모임 - 금요일 야간민턴</title>" + page([EV], [])
+    assert parse_group(html).name == "금요일 야간민턴"

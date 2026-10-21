@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}모임{% endblock %}
+{% block nav %}{% include "admin_nav.html" %}{% endblock %}
+{% block content %}
+<h1>모임</h1>
+<p class="sub">소모임 모임 링크를 추가하면 정모 화면에서 골라 쓸 수 있어요.</p>
+
+<section class="section">
+  <div class="head"><span>등록된 모임</span><span>{{ groups|length }}개</span></div>
+  <ul class="rows">
+    {% for g in groups %}
+    <li class="row-top">
+      <span><span class="name">{{ g.name }}</span>{% if g.id == group.id %}<span class="tag">선택됨</span>{% endif %}
+        <div class="gid">somoim.co.kr/{{ g.gid }}</div></span>
+      {% if g.id != group.id %}
+      <form method="post" action="{{ url_for('admin.select_group') }}" class="inline">
+        <input type="hidden" name="group_id" value="{{ g.id }}"><button class="btn line sm">선택</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="section">
+  <div class="head"><span>모임 추가</span></div>
+  <form method="post">
+    <label class="field">소모임 모임 링크
+      <input name="link" placeholder="https://www.somoim.co.kr/..." required inputmode="url"></label>
+    <label class="field">모임 이름 <span class="muted">— 비워 두면 소모임에서 가져와요</span>
+      <input name="name"></label>
+    <button class="btn">추가</button>
+  </form>
+  <p class="small muted">소모임 앱의 모임 화면에서 공유 → 링크 복사로 받을 수 있어요.</p>
+</section>
+{% endblock %}

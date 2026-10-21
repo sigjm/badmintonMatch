@@ -3,6 +3,11 @@
 {% block title %}대진{% endblock %}
 {% block nav %}{% include "public_nav.html" %}{% endblock %}
 {% block content %}
+{% if groups|length > 1 %}
+<nav class="tabs" aria-label="모임 선택">
+  {% for g in groups %}<a href="{{ url_for('public.board_view', g=g.id) }}" class="{{ 'on' if g.id == group.id }}">{{ g.name }}</a>{% endfor %}
+</nav>
+{% endif %}
 {% if not m %}
 <h1>대진</h1>
 <p class="empty" style="margin-top:24px">진행 중인 정모가 없습니다.</p>

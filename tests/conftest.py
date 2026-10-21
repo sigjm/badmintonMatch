@@ -50,8 +50,9 @@ def conn_of(app):
 
 @pytest.fixture
 def seeded_meetup(conn_of):
+    from badminton.groups import list_groups
     c = conn_of()
-    mid = get_or_create_meetup(c, today(), "t", None)
+    mid = get_or_create_meetup(c, today(), "t", None, group_id=list_groups(c)[0]["id"])
     for nick, g, grade in (("m1", "M", "B"), ("m2", "M", "C"), ("f1", "F", "B"), ("f2", "F", "C")):
         add_attendee(c, mid, create_member(c, nick, gender=g, grade=grade), "paste")
     start(c, mid, 1)

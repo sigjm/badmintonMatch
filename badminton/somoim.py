@@ -4,6 +4,7 @@
 (self.__next_f.push([1,"..."]))를 파싱한다. 소모임이 페이지 구조를 바꾸면 깨질 수 있고,
 그때는 SomoimError를 내서 호출 쪽이 붙여넣기로 대신하게 한다.
 """
+import html as htmllib
 import json
 import re
 import urllib.request
@@ -40,6 +41,7 @@ class SomoimMember:
 class Group:
     events: list[Event]
     members: list[SomoimMember]
+    name: str = ""
 
 
 def _objects(text: str, marker: str):
@@ -87,7 +89,9 @@ def parse_group(html: str) -> Group:
         members[o["mid"]] = SomoimMember(o["mid"], prev.nickname if prev else o["mn"], slots, o.get("ban") == "Y")
     if not events and not members:
         raise SomoimError("소모임 페이지에서 정모와 회원 정보를 찾지 못했습니다")
-    return Group(events, list(members.values()))
+    title = re.search(r"<title>(.*?)</title>", html, re.S)  # "남양주시 배드민턴 모임 - Team ONAM 오남배드민턴"
+    name = htmllib.unescape(title.group(1)).rsplit(" - ", 1)[-1].strip() if title else ""
+    return Group(events, list(members.values()), name)
 
 
 def attendees(group: Group, event: Event) -> list[SomoimMember]:

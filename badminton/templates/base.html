@@ -102,6 +102,17 @@
   .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:6px; vertical-align:1px; }
   .log { font-size:13px; padding:6px 0; border-bottom:1px solid var(--line-2); color:var(--ink-2); }
 
+  /* 모임 탭 */
+  .tabs { display:flex; gap:20px; overflow-x:auto; border-bottom:1px solid var(--line); margin:0 0 18px; scrollbar-width:none; }
+  .tabs a, .tabs button {
+    flex:none; padding:10px 0 9px; border:0; border-bottom:2px solid transparent; background:none; border-radius:0;
+    font:inherit; font-size:14px; font-weight:600; color:var(--muted); text-decoration:none; white-space:nowrap; cursor:pointer;
+  }
+  .tabs .on { color:var(--ink); border-bottom-color:var(--ink); }
+  .tabs .add { color:var(--accent); font-weight:500; }
+  .tabs form { display:contents; }
+  .gid { font-size:12px; color:var(--muted); word-break:break-all; }
+
   .board-big .court { grid-template-columns:56px 1fr; padding:18px 0; }
   .board-big .court-no { font-size:40px; }
   .board-big .team { font-size:19px; }
@@ -109,7 +120,7 @@
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <a class="brand" href="{{ url_for('public.board_view') }}">금요일 야간민턴</a>
+  <a class="brand" href="{{ url_for('public.board_view', g=group.id) if group else url_for('public.board_view') }}">{{ group.name if group else '배드민턴 매칭' }}</a>
   {% block nav %}{% endblock %}
 </div></header>
 <main class="wrap">

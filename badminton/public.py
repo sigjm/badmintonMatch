@@ -4,6 +4,7 @@ from collections import Counter
 from flask import Blueprint, redirect, render_template, request, url_for
 
 from . import get_conn
+from .groups import get_group, list_groups
 from .meetups import board, on_info_changed, today
 from .members import check_pin, list_members, set_info, set_pin
 
@@ -15,12 +16,25 @@ def index():
     return redirect(url_for("public.board_view"))
 
 
+def _started(conn, group_id=None):
+    """오늘(정모일 기준) 시작된 정모, 없으면 가장 최근에 시작된 정모."""
+    where, args = ("AND group_id = ?", (group_id,)) if group_id else ("", ())
+    return (conn.execute(f"SELECT * FROM meetups WHERE started = 1 AND date = ? {where} ORDER BY id DESC",
+                         (today(), *args)).fetchone()
+            or conn.execute(f"SELECT * FROM meetups WHERE started = 1 {where} ORDER BY date DESC, id DESC", args).fetchone())
+
+
 @bp.get("/board")
 def board_view():
     conn = get_conn()
-    m = (conn.execute("SELECT * FROM meetups WHERE started = 1 AND date = ? ORDER BY id DESC", (today(),)).fetchone()
-         or conn.execute("SELECT * FROM meetups WHERE started = 1 ORDER BY date DESC, id DESC").fetchone())
-    return render_template("board.html", m=m, board=board(conn, m["id"]) if m else None)
+    group = get_group(conn, request.args.get("g", type=int))
+    if group is None:  # 모임을 안 고르면 가장 최근에 진행한 정모의 모임
+        latest = _started(conn)
+        group = get_group(conn, latest["group_id"]) if latest else None
+        group = group or list_groups(conn)[0]
+    m = _started(conn, group["id"])
+    return render_template("board.html", m=m, board=board(conn, m["id"]) if m else None,
+                           group=group, groups=list_groups(conn))
 
 
 def _member_choices(conn):

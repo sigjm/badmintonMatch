@@ -44,3 +44,16 @@ def test_me_list_hides_guests_and_marks_duplicates(client, conn_of):
     create_member(c, "손님", is_guest=True)
     html = client.get("/me").get_data(as_text=True)
     assert f"철수 (#{a})" in html and f"철수 (#{b})" in html and "손님" not in html
+
+
+def test_board_switches_group_by_query(client, conn_of):
+    from badminton.groups import add_group, list_groups
+    from badminton.meetups import get_or_create_meetup, start, today
+    c = conn_of()
+    other = add_group(c, "d49e0b02-b22a-413b-8295-53dc895bc4411", "Team ONAM")
+    mid = get_or_create_meetup(c, today(), "오남 정모", None, group_id=other)
+    start(c, mid, 1)
+    html = client.get(f"/board?g={other}").get_data(as_text=True)
+    assert "오남 정모" in html and "금요일 야간민턴" in html  # 탭에 다른 모임도 보인다
+    first = list_groups(c)[0]["id"]
+    assert "진행 중인 정모가 없습니다" in client.get(f"/board?g={first}").get_data(as_text=True)

@@ -5,6 +5,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 
 from . import get_conn
 from .db import get_setting, set_setting
+from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (add_attendee, add_pasted, board, end_game, get_or_create_meetup, on_info_changed, redraw,
                       refill_today, set_status, start, sync_somoim, today)
 from .members import changes, create_member, list_members, reset_pin, set_info
@@ -44,10 +45,23 @@ def logout():
     return redirect(url_for("admin.login"))
 
 
+def _current_group():
+    """운영진이 고른 모임 (세션). 고른 적 없으면 첫 모임."""
+    conn = get_conn()
+    return get_group(conn, session.get("group_id")) or list_groups(conn)[0]
+
+
+@bp.context_processor
+def inject_group():
+    return {"group": _current_group()} if session.get("admin") else {}
+
+
 def _home(**ctx):
-    meetups = get_conn().execute("SELECT * FROM meetups ORDER BY date DESC, id DESC LIMIT 10").fetchall()
+    group = _current_group()
+    meetups = get_conn().execute("SELECT * FROM meetups WHERE group_id = ? ORDER BY date DESC, id DESC LIMIT 10",
+                                 (group["id"],)).fetchall()
     ctx.setdefault("date", today())
-    return render_template("admin_home.html", meetups=meetups, **ctx)
+    return render_template("admin_home.html", meetups=meetups, groups=list_groups(get_conn()), **ctx)
 
 
 @bp.get("")
@@ -56,26 +70,26 @@ def home():
     return _home()
 
 
-def _import(date: str, eid: str | None = None, name: str = "", mid: int | None = None):
+def _import(group, date: str, eid: str | None = None, name: str = "", mid: int | None = None):
     """소모임에서 그 날짜 정모 참석자를 가져와 동기화한다. 실패하면 DB를 건드리지 않고 붙여넣기를 안내한다.
     mid는 다시 불러오기 중인 정모 — 실패 시 붙여넣기가 새 정모가 아니라 그 정모에 들어가게 한다."""
     fail = dict(date=date, name=name, mid=mid)
     try:
-        group = fetch_group(current_app.config["SOMOIM_GROUP_ID"])
+        page = fetch_group(group["gid"])
     except SomoimError as e:
         return _home(**fail, error=f"소모임에서 명단을 가져오지 못했습니다 ({e}). 붙여넣기로 등록해 주세요.")
-    events = [e for e in events_on(group, date) if eid is None or e.eid == eid]
+    events = [e for e in events_on(page, date) if eid is None or e.eid == eid]
     if not events:
         return _home(**fail, error=f"{date}에 열리는 정모를 소모임에서 찾지 못했습니다. 붙여넣기로 등록해 주세요.")
     if len(events) > 1:
         return _home(date=date, choices=events)
     ev = events[0]
-    found = attendees(group, ev)
+    found = attendees(page, ev)
     if not found:  # 페이지 구조가 바뀌어 참석 표시를 못 읽은 경우: 동기화하면 전원이 취소되므로 멈춘다
         return _home(**{**fail, "name": name or ev.name},
                      error="소모임에서 참석자를 한 명도 찾지 못했습니다. 페이지가 바뀌었을 수 있어요. 붙여넣기로 등록해 주세요.")
     conn = get_conn()
-    mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid)
+    mid = get_or_create_meetup(conn, ev.date, ev.name, ev.eid, group_id=group["id"])
     r = sync_somoim(conn, mid, found)
     refill_today(conn)
     flash(f"불러오기 완료: 추가 {r['added']} · 취소 {r['canceled']} · 복귀 {r['restored']}")
@@ -85,7 +99,7 @@ def _import(date: str, eid: str | None = None, name: str = "", mid: int | None =
 @bp.post("/import")
 @admin_required
 def import_date():
-    return _import(request.form["date"], _blank_none(request.form.get("eid")))
+    return _import(_current_group(), request.form["date"], _blank_none(request.form.get("eid")))
 
 
 def _meetup_row(mid: int):
@@ -102,7 +116,8 @@ def reimport(mid):
     if m["eid"] is None:
         flash("붙여넣기로 만든 정모는 소모임에서 다시 불러올 수 없습니다")
         return redirect(url_for("admin.meetup", mid=mid))
-    return _import(m["date"], m["eid"], m["name"], mid)
+    session["group_id"] = m["group_id"]  # 실패 화면과 붙여넣기가 이 정모의 모임 기준이 되게
+    return _import(get_group(get_conn(), m["group_id"]) or _current_group(), m["date"], m["eid"], m["name"], mid)
 
 
 @bp.post("/paste")
@@ -111,7 +126,8 @@ def paste():
     conn = get_conn()
     mid = request.form.get("mid", type=int)
     if mid is None or conn.execute("SELECT 1 FROM meetups WHERE id = ?", (mid,)).fetchone() is None:
-        mid = get_or_create_meetup(conn, request.form["date"], request.form.get("name") or "정모", None)
+        mid = get_or_create_meetup(conn, request.form["date"], request.form.get("name") or "정모", None,
+                                   group_id=_current_group()["id"])
     r = add_pasted(conn, mid, request.form.get("text", ""))
     refill_today(conn)
     msg = f"붙여넣기: 등록 {len(r['added'])} · 새 회원 {len(r['created'])}"
@@ -131,7 +147,8 @@ def meetup(mid):
                            WHERE a.meetup_id = ? ORDER BY m.nickname""", (mid,)).fetchall()
     seated = {r["id"] for r in rows}
     guests = [g for g in list_members(conn, guests=True) if g["id"] not in seated]
-    return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests)
+    return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests,
+                           group=get_group(conn, m["group_id"]) or _current_group())
 
 
 @bp.post("/m/<int:mid>/status")
@@ -268,3 +285,35 @@ def settings():
         return redirect(url_for("admin.settings"))
     return render_template("admin_settings.html", female_offset=get_setting(conn, "female_offset"),
                            mix_window=int(get_setting(conn, "mix_window")))
+
+
+@bp.route("/groups", methods=["GET", "POST"])
+@admin_required
+def groups():
+    conn = get_conn()
+    if request.method == "POST":
+        try:
+            gid = parse_gid(request.form.get("link", ""))
+        except ValueError as e:
+            flash(str(e))
+            return redirect(url_for("admin.groups"))
+        name = request.form.get("name", "").strip()
+        if not name:
+            try:
+                name = fetch_group(gid).name
+            except SomoimError as e:
+                flash(f"모임 정보를 가져오지 못했습니다 ({e}). 모임 이름을 직접 입력해 주세요.")
+                return redirect(url_for("admin.groups"))
+        session["group_id"] = add_group(conn, gid, name or gid)
+        flash(f"{name or gid} 모임을 추가했습니다")
+        return redirect(url_for("admin.home"))
+    return render_template("admin_groups.html", groups=list_groups(conn))
+
+
+@bp.post("/groups/select")
+@admin_required
+def select_group():
+    g = get_group(get_conn(), request.form.get("group_id", type=int))
+    if g:
+        session["group_id"] = g["id"]
+    return redirect(url_for("admin.home"))

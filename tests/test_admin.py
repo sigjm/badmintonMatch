@@ -152,3 +152,29 @@ def test_session_cookie_flags(tmp_path):
     from badminton import create_app
     app = create_app({"DATABASE": str(tmp_path / "c.db")})
     assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax" and app.config["SESSION_COOKIE_SECURE"] is True
+
+
+def test_add_group_by_link_and_select_it(admin, monkeypatch, conn_of):
+    monkeypatch.setattr("badminton.admin.fetch_group",
+                        lambda gid: Group(events=[], members=[SomoimMember("a", "가", frozenset(), False)], name="Team ONAM"))
+    admin.post("/admin/groups", data={"link": "https://www.somoim.co.kr/d49e0b02-b22a-413b-8295-53dc895bc4411"})
+    row = conn_of().execute("SELECT id, name FROM groups WHERE gid = 'd49e0b02-b22a-413b-8295-53dc895bc4411'").fetchone()
+    assert row["name"] == "Team ONAM"
+    admin.post("/admin/groups/select", data={"group_id": row["id"]})
+    seen = []
+    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: seen.append(gid) or GROUP_ONE_EVENT)
+    admin.post("/admin/import", data={"date": "2026-10-23"})
+    assert seen == ["d49e0b02-b22a-413b-8295-53dc895bc4411"]
+    assert conn_of().execute("SELECT group_id FROM meetups").fetchone()[0] == row["id"]
+
+
+def test_admin_home_shows_group_tabs(admin, conn_of):
+    from badminton.groups import add_group
+    add_group(conn_of(), "d49e0b02-b22a-413b-8295-53dc895bc4411", "Team ONAM")
+    html = admin.get("/admin").get_data(as_text=True)
+    assert "금요일 야간민턴" in html and "Team ONAM" in html
+
+
+def test_bad_group_link_rejected(admin, conn_of):
+    html = admin.post("/admin/groups", data={"link": "https://example.com/x"}, follow_redirects=True).get_data(as_text=True)
+    assert "소모임 모임 링크" in html and conn_of().execute("SELECT count(*) FROM groups").fetchone()[0] == 1

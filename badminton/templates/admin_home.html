@@ -2,8 +2,17 @@
 {% block title %}정모{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
+<div class="tabs" role="tablist" aria-label="모임 선택">
+  {% for g in groups %}
+  <form method="post" action="{{ url_for('admin.select_group') }}">
+    <input type="hidden" name="group_id" value="{{ g.id }}">
+    <button class="{{ 'on' if g.id == group.id }}" role="tab" aria-selected="{{ 'true' if g.id == group.id else 'false' }}">{{ g.name }}</button>
+  </form>
+  {% endfor %}
+  <a class="add" href="{{ url_for('admin.groups') }}">+ 모임</a>
+</div>
 <h1>정모 불러오기</h1>
-<p class="sub">날짜를 고르면 소모임에서 그날 참석자를 가져옵니다.</p>
+<p class="sub">날짜를 고르면 소모임 <b>{{ group.name }}</b>에서 그날 참석자를 가져옵니다.</p>
 {% if error %}<div class="note err">{{ error }}</div>{% endif %}
 
 {% if choices %}

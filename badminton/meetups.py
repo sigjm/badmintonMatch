@@ -21,14 +21,16 @@ def today() -> str:
     return session_day(datetime.now(SEOUL))
 
 
-def get_or_create_meetup(conn, date: str, name: str, eid: str | None) -> int:
+def get_or_create_meetup(conn, date: str, name: str, eid: str | None, group_id: int | None = None) -> int:
     if eid:
         row = conn.execute("SELECT id FROM meetups WHERE eid = ?", (eid,)).fetchone()
     else:
-        row = conn.execute("SELECT id FROM meetups WHERE date = ? AND name = ? AND eid IS NULL", (date, name)).fetchone()
+        row = conn.execute("SELECT id FROM meetups WHERE date = ? AND name = ? AND eid IS NULL AND group_id IS ?",
+                           (date, name, group_id)).fetchone()
     if row:
         return row["id"]
-    return conn.execute("INSERT INTO meetups(date, name, eid) VALUES (?, ?, ?)", (date, name, eid)).lastrowid
+    return conn.execute("INSERT INTO meetups(date, name, eid, group_id) VALUES (?, ?, ?, ?)",
+                        (date, name, eid, group_id)).lastrowid
 
 
 def add_attendee(conn, meetup_id: int, member_id: int, source: str) -> None:
