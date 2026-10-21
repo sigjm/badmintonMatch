@@ -1,5 +1,8 @@
 import hmac
+import ipaddress
+import time
 from functools import wraps
+from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -13,6 +16,52 @@ from .members import changes, create_member, list_members, rename_member, reset_
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+LOGIN_MAX_FAILURES = 5
+LOGIN_WINDOW_SECONDS = 15 * 60
+_login_failures: dict[str, tuple[float, int]] = {}
+
+
+def _login_client_key() -> str:
+    forwarded_ip = request.headers.get("CF-Connecting-IP", "").strip()
+    remote_ip = request.remote_addr or ""
+    for candidate in (forwarded_ip, remote_ip):
+        try:
+            return str(ipaddress.ip_address(candidate))
+        except ValueError:
+            continue
+    return "unknown"
+
+
+def _login_is_limited(client_key: str, now: float) -> bool:
+    for key, (started, _) in list(_login_failures.items()):
+        if now - started >= LOGIN_WINDOW_SECONDS:
+            del _login_failures[key]
+    attempt = _login_failures.get(client_key)
+    return bool(attempt and attempt[1] >= LOGIN_MAX_FAILURES)
+
+
+def _record_login_failure(client_key: str, now: float) -> None:
+    attempt = _login_failures.get(client_key)
+    if not attempt or now - attempt[0] >= LOGIN_WINDOW_SECONDS:
+        _login_failures[client_key] = (now, 1)
+    else:
+        _login_failures[client_key] = (attempt[0], attempt[1] + 1)
+
+
+@bp.before_request
+def reject_cross_origin_mutations():
+    if request.method != "POST" or request.endpoint == "admin.login" or not session.get("admin"):
+        return
+    source = request.headers.get("Origin") or request.referrer
+    if not source:
+        abort(403)
+    try:
+        source_origin = urlsplit(source)
+    except ValueError:
+        abort(403)
+    expected_scheme = "https" if current_app.config["SESSION_COOKIE_SECURE"] else request.scheme
+    if source_origin.scheme != expected_scheme or source_origin.netloc.lower() != request.host.lower():
+        abort(403)
 
 
 def admin_required(view):
@@ -32,10 +81,16 @@ def _blank_none(value):
 def login():
     error = None
     if request.method == "POST":
+        client_key = _login_client_key()
+        now = time.monotonic()
+        if _login_is_limited(client_key, now):
+            return render_template("admin_login.html", error="로그인 시도가 많습니다. 15분 후 다시 시도해 주세요."), 429
         expected = current_app.config["ADMIN_PASSWORD"]
         if expected and hmac.compare_digest(request.form.get("password", ""), expected):
+            _login_failures.pop(client_key, None)
             session["admin"] = True
             return redirect(url_for("admin.home"))
+        _record_login_failure(client_key, now)
         error = "비밀번호가 맞지 않습니다"
     return render_template("admin_login.html", error=error)
 
@@ -192,11 +247,19 @@ def status(mid):
 @admin_required
 def info(mid):
     conn = get_conn()
-    member_id = int(request.form["member_id"])
+    _meetup_row(mid)
+    try:
+        member_id = int(request.form["member_id"])
+    except ValueError:
+        abort(400)
+    if conn.execute("SELECT 1 FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                    (mid, member_id)).fetchone() is None:
+        flash("해당 정모 참석자를 찾을 수 없습니다")
+        return redirect(url_for("admin.meetup", mid=mid))
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")
-        on_info_changed(conn, member_id, changed, meetup_id=mid)
+        on_info_changed(conn, member_id, changed)
     except ValueError as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
@@ -260,7 +323,13 @@ def guest(mid):
     conn = get_conn()
     _meetup_row(mid)
     if request.form.get("member_id"):
-        member_id = int(request.form["member_id"])
+        try:
+            member_id = int(request.form["member_id"])
+        except ValueError:
+            abort(400)
+        if conn.execute("SELECT 1 FROM members WHERE id = ? AND is_guest = 1", (member_id,)).fetchone() is None:
+            flash("등록된 게스트를 찾을 수 없습니다")
+            return redirect(url_for("admin.meetup", mid=mid))
     else:
         nickname = request.form.get("nickname", "").strip()
         gender, grade = _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade"))
@@ -338,6 +407,8 @@ def members():
 @admin_required
 def member_update(member_id):
     conn = get_conn()
+    if conn.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
+        abort(404)
     try:
         changed = set_info(conn, member_id, _blank_none(request.form.get("gender")),
                            _blank_none(request.form.get("grade")), by="admin")

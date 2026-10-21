@@ -27,6 +27,11 @@ def create_app(config: dict | None = None) -> Flask:
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") == "1",  # 로컬 http 개발 때만 0
     )
     app.config.update(config or {})
+    if not app.testing:
+        for name in ("ADMIN_PASSWORD", "SECRET_KEY"):
+            value = app.config.get(name)
+            if not isinstance(value, str) or not value.strip():
+                raise RuntimeError(f"{name} must be configured with a non-empty value")
 
     @app.teardown_appcontext
     def close_conn(_exc):

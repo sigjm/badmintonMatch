@@ -1,3 +1,5 @@
+import pytest
+
 from badminton.somoim import Group, SomoimError, SomoimMember
 from conftest import GROUP_ONE_EVENT
 
@@ -9,6 +11,128 @@ def test_admin_requires_login(client):
 def test_wrong_password_rejected(client):
     assert "비밀번호" in client.post("/admin/login", data={"password": "x"}).get_data(as_text=True)
     assert client.get("/admin").status_code == 302
+
+
+def test_admin_login_limits_failed_attempts_by_client(client):
+    client_ip = "203.0.113.77"
+    for _ in range(5):
+        response = client.post("/admin/login", data={"password": "wrong"},
+                               environ_overrides={"REMOTE_ADDR": client_ip})
+        assert response.status_code == 200
+
+    blocked = client.post("/admin/login", data={"password": "pw"},
+                          environ_overrides={"REMOTE_ADDR": client_ip})
+    assert blocked.status_code == 429
+
+
+def test_info_edit_rejects_member_from_another_meetup(admin, seeded_meetup, conn_of):
+    from badminton.members import create_member
+    from badminton.meetups import get_or_create_meetup, today
+
+    meetup_a, _ = seeded_meetup
+    conn = conn_of()
+    meetup_b = get_or_create_meetup(conn, today(), "다른 정모", None)
+    member_id = create_member(conn, "다른 정모 회원", gender="F", grade="B")
+    player_ids = [member_id] + [create_member(conn, f"다른-{i}", gender="M", grade="C") for i in range(3)]
+    for player_id in player_ids:
+        conn.execute("INSERT INTO attendees(meetup_id, member_id, status, source, queued_at) "
+                     "VALUES (?, ?, 'present', 'paste', 0)", (meetup_b, player_id))
+    conn.execute("UPDATE meetups SET courts = 1, started = 1 WHERE id = ?", (meetup_b,))
+    conn.execute("INSERT INTO reservations(meetup_id, seq, a1, a2, b1, b2, created_at) "
+                 "VALUES (?, 1, ?, ?, ?, ?, 0)", (meetup_b, *player_ids))
+
+    response = admin.post(f"/admin/m/{meetup_a}/info", data={"member_id": member_id, "gender": "", "grade": ""})
+
+    member = conn.execute("SELECT gender, grade FROM members WHERE id = ?", (member_id,)).fetchone()
+    reservation = conn.execute("SELECT a1 FROM reservations WHERE meetup_id = ?", (meetup_b,)).fetchone()
+    assert response.status_code == 302
+    assert tuple(member) == ("F", "B")
+    assert reservation["a1"] == member_id
+
+
+def test_info_edit_invalidates_shared_member_reservations_across_meetups(admin, seeded_meetup, conn_of):
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee, get_or_create_meetup, today
+
+    meetup_a, _ = seeded_meetup
+    conn = conn_of()
+    meetup_b = get_or_create_meetup(conn, today(), "다른 정모", None)
+    member_id = create_member(conn, "공통 회원", gender="F", grade="B")
+    player_ids = [member_id] + [create_member(conn, f"다른-{i}", gender="M", grade="C") for i in range(3)]
+    add_attendee(conn, meetup_a, member_id, "paste")
+    for player_id in player_ids:
+        conn.execute("INSERT INTO attendees(meetup_id, member_id, status, source, queued_at) "
+                     "VALUES (?, ?, 'present', 'paste', 0)", (meetup_b, player_id))
+    conn.execute("UPDATE meetups SET courts = 1, started = 1 WHERE id = ?", (meetup_b,))
+    conn.execute("INSERT INTO reservations(meetup_id, seq, a1, a2, b1, b2, created_at) "
+                 "VALUES (?, 1, ?, ?, ?, ?, 0)", (meetup_b, *player_ids))
+
+    admin.post(f"/admin/m/{meetup_a}/info", data={"member_id": member_id, "gender": "", "grade": ""})
+
+    assert conn.execute("SELECT 1 FROM reservations WHERE meetup_id = ?", (meetup_b,)).fetchone() is None
+    assert conn.execute("SELECT 1 FROM games WHERE meetup_id = ? AND ended_at IS NULL "
+                         "AND (a1 = ? OR a2 = ? OR b1 = ? OR b2 = ?)",
+                         (meetup_b, member_id, member_id, member_id, member_id)).fetchone() is None
+
+
+@pytest.mark.parametrize("origin", ["https://evil.jmllem.com", "https://localhost"])
+def test_admin_mutation_rejects_cross_origin_post(admin, conn_of, origin):
+    from badminton.db import get_setting
+
+    response = admin.post("/admin/settings", data={"female_offset": "3", "mix_window": "8"},
+                          environ_overrides={"HTTP_ORIGIN": origin})
+
+    assert response.status_code == 403
+    assert get_setting(conn_of(), "female_offset") == 1.5
+
+
+def test_admin_mutation_rejects_post_without_origin_or_referer(admin):
+    response = admin.post("/admin/logout", environ_overrides={"HTTP_ORIGIN": "", "HTTP_REFERER": ""})
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(("admin_password", "secret_key", "missing"), [
+    ("", "session-secret", "ADMIN_PASSWORD"),
+    ("   ", "session-secret", "ADMIN_PASSWORD"),
+    ("admin-secret", None, "SECRET_KEY"),
+    ("admin-secret", "  ", "SECRET_KEY"),
+])
+def test_app_rejects_missing_production_secrets(tmp_path, admin_password, secret_key, missing):
+    from badminton import create_app
+
+    with pytest.raises(RuntimeError, match=missing):
+        create_app({"DATABASE": str(tmp_path / "app.db"), "ADMIN_PASSWORD": admin_password,
+                    "SECRET_KEY": secret_key})
+
+
+@pytest.mark.parametrize(("path", "data"), [
+    ("/m/{mid}/info", {"member_id": "bad", "gender": "F", "grade": "B"}),
+    ("/m/{mid}/guest", {"member_id": "bad"}),
+    ("/m/{mid}/status", {"status": "present"}),
+    ("/m/{mid}/start", {}),
+    ("/settings", {}),
+])
+def test_malformed_admin_form_fields_do_not_raise_500(admin, seeded_meetup, path, data):
+    mid, _ = seeded_meetup
+    admin.application.config["PROPAGATE_EXCEPTIONS"] = False
+
+    response = admin.post("/admin" + path.format(mid=mid), data=data)
+
+    assert response.status_code < 500
+
+
+@pytest.mark.parametrize(("path", "data"), [
+    ("/m/{mid}/guest", {"member_id": "999999"}),
+    ("/members/999999", {"gender": "F", "grade": "B"}),
+])
+def test_stale_admin_member_ids_do_not_raise_500(admin, seeded_meetup, path, data):
+    mid, _ = seeded_meetup
+    admin.application.config["PROPAGATE_EXCEPTIONS"] = False
+
+    response = admin.post("/admin" + path.format(mid=mid), data=data)
+
+    assert response.status_code < 500
 
 
 def test_import_creates_meetup_with_attendees(admin, monkeypatch, conn_of):
@@ -150,7 +274,8 @@ def test_status_select_hides_canceled_unless_current(admin, seeded_meetup):
 
 def test_session_cookie_flags(tmp_path):
     from badminton import create_app
-    app = create_app({"DATABASE": str(tmp_path / "c.db")})
+    app = create_app({"DATABASE": str(tmp_path / "c.db"), "ADMIN_PASSWORD": "pw", "SECRET_KEY": "t",
+                      "TESTING": True})
     assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax" and app.config["SESSION_COOKIE_SECURE"] is True
 
 
