@@ -2,7 +2,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from .db import get_setting
+from .db import get_setting, transaction
 from .matching import Player, pick_four, sort_queue, split_teams
 from .members import create_member, upsert_somoim
 from .somoim import SomoimMember
@@ -315,9 +315,10 @@ def end_game(conn, game_id: int) -> None:
     if g is None or g["ended_at"] is not None:
         return
     now = time.time()
-    conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now, game_id))
-    conn.execute("UPDATE attendees SET games = games + 1, queued_at = ? WHERE meetup_id = ? AND member_id IN (?, ?, ?, ?)",
-                 (now, g["meetup_id"], g["a1"], g["a2"], g["b1"], g["b2"]))
+    with transaction(conn):
+        conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now, game_id))
+        conn.execute("UPDATE attendees SET games = games + 1, queued_at = ? WHERE meetup_id = ? AND member_id IN (?, ?, ?, ?)",
+                     (now, g["meetup_id"], g["a1"], g["a2"], g["b1"], g["b2"]))
     fill_courts(conn, g["meetup_id"])
 
 

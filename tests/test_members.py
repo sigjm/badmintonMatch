@@ -77,3 +77,14 @@ def test_get_setting_fallback_on_missing_or_none(conn):
     assert get_setting(conn, "female_offset") == 1.5
     assert get_setting(conn, "unknown_key", default=42.0) == 42.0
 
+
+def test_transaction_rolls_back_on_error(conn):
+    from badminton.db import transaction
+    try:
+        with transaction(conn):
+            conn.execute("INSERT INTO members(nickname) VALUES ('롤백테스트')")
+            raise RuntimeError("작업 중단")
+    except RuntimeError:
+        pass
+    assert conn.execute("SELECT count(*) FROM members WHERE nickname = '롤백테스트'").fetchone()[0] == 0
+
