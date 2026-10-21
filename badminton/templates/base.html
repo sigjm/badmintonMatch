@@ -106,6 +106,8 @@
   .btn.line:hover { border-color:var(--primary-hover); color:var(--primary-hover); }
   .btn.line:active { border-color:var(--primary-active); color:var(--primary-active); }
   .btn.sm { height:32px; font-size:14px; border-radius:6px; }
+  .btn.line.danger { color:var(--error); border-color:var(--error); }
+  .btn.line.danger:hover { color:#ff7875; border-color:#ff7875; }
   .btn.warn, .btn.warn:hover { background:#fff7e6; border-color:#ffd591; color:#d46b08; box-shadow:none; }
   .btn:disabled, .btn:disabled:hover { background:var(--fill-2); border-color:var(--border); color:var(--text-4); box-shadow:none; cursor:not-allowed; }
   .inline { display:inline; margin:0; }
@@ -173,10 +175,20 @@
   .manual-player-order { display:none; flex:none; color:var(--primary); font-size:10px; line-height:1; font-weight:600; }
   .is-selected .manual-player-order { display:inline; }
   .queue-player-select:disabled { opacity:.45; cursor:not-allowed; }
-  .manual-draft { margin:0; border-style:dashed; }
-  .manual-draft .court-no { background:var(--fill); color:var(--text-3); border:1px dashed var(--border); }
-  .draft-slot { cursor:pointer; }
-  .draft-slot.is-empty { color:var(--text-4); font-weight:400; cursor:default; }
+  .manual-draft { display:grid; gap:8px; padding:12px; background:var(--fill); border:1px dashed var(--border); border-radius:8px; }
+  .draft-team { display:grid; grid-template-columns:36px minmax(0,1fr) minmax(0,1fr); gap:6px; align-items:center; }
+  .draft-team-label { color:var(--text-3); font-size:12px; font-weight:600; }
+  .draft-vs { color:var(--text-3); font-size:11px; font-weight:600; text-align:center; }
+  .draft-slot {
+    display:flex; align-items:center; gap:6px; min-width:0; height:40px; padding:0 8px; border:1px solid var(--primary-border);
+    border-radius:8px; background:var(--primary-bg); color:var(--text); font:inherit; font-size:14px; text-align:left; cursor:pointer;
+  }
+  .draft-slot.is-empty { justify-content:center; border-style:dashed; border-color:var(--border); background:var(--card); color:var(--text-4); cursor:default; }
+  .draft-slot .grade-badge { min-width:22px; height:22px; padding:0 4px; font-size:11px; }
+  .draft-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .draft-name.is-female { color:var(--magenta); }
+  .draft-remove { color:var(--text-3); font-size:16px; line-height:1; }
+  .manual-draft-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-top:4px; }
 
   /* 길게 누르기 메뉴 (팝오버) */
   .quick-status-menu {
@@ -440,9 +452,12 @@
       });
       document.querySelectorAll("[data-draft-slot]").forEach((slot) => {
         const info = selectedNames[selectedPlayers[Number(slot.dataset.draftSlot)]];
-        slot.textContent = info ? info.text : slot.dataset.placeholder;
         slot.classList.toggle("is-empty", !info);
-        slot.classList.toggle("is-female", Boolean(info?.female));
+        if (!info) { slot.textContent = slot.dataset.placeholder; return; }
+        const badge = Object.assign(document.createElement("span"), { className: "grade-badge", textContent: info.grade || "?" });
+        const name = Object.assign(document.createElement("span"), { className: `draft-name${info.female ? " is-female" : ""}`, textContent: info.name });
+        const remove = Object.assign(document.createElement("span"), { className: "draft-remove", textContent: "×" });
+        slot.replaceChildren(badge, name, remove);
       });
       const count = document.querySelector("[data-manual-selection-summary]");
       const detail = document.querySelector("[data-manual-selection-detail]");
@@ -496,9 +511,8 @@
       else if (selectedPlayers.length < 4) {
         selectedPlayers.push(id);
         const name = button.querySelector("[data-nickname]");
-        const grade = button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim();
-        selectedNames[id] = { text: `${grade && grade !== "?" ? `${grade}/` : ""}${name?.dataset.nickname || button.textContent.trim()}`,
-                              female: name?.dataset.gender === "F" };
+        selectedNames[id] = { grade: button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim(),
+                              name: name?.dataset.nickname || button.textContent.trim(), female: name?.dataset.gender === "F" };
       }
       renderManualSelection();
     });

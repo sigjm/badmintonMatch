@@ -28,6 +28,10 @@
           <input type="hidden" name="mid" value="{{ m.id }}">
           <button type="submit" class="btn line sm">다시 뽑기</button>
         </form>
+        <form method="post" action="{{ url_for('admin.delete_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
+          <input type="hidden" name="mid" value="{{ m.id }}">
+          <button type="submit" class="btn line sm danger">삭제</button>
+        </form>
       </div>
       {% endif %}
     </div>

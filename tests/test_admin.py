@@ -609,3 +609,21 @@ def test_guest_and_court_count_forms_save_without_full_reload(admin, seeded_meet
     resp = admin.post(f"/admin/m/{mid}/guest", data={"nickname": "새게스트", "gender": "F", "grade": "C"}, follow_redirects=True)
     body = resp.get_data(as_text=True)
     assert "새게스트 님을 게스트로 추가했습니다" in body and 'data-nickname="새게스트"' in body
+
+
+def test_delete_reservation_route(app, admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee, refill_reservations, reservations
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    for i in range(9):
+        add_attendee(c, mid, create_member(c, f"d{i}", gender="M", grade="C"), "paste")
+    refill_reservations(c, mid)
+    (r,) = reservations(c, mid)
+    assert app.test_client().post(f"/admin/reservation/{r['id']}/delete").status_code == 302  # 로그인 안 하면 로그인 화면으로
+    assert len(reservations(c, mid)) == 1
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert f"/admin/reservation/{r['id']}/delete" in html
+    resp = admin.post(f"/admin/reservation/{r['id']}/delete", follow_redirects=True)
+    assert "예약 1을 삭제했습니다" in resp.get_data(as_text=True)
+    assert reservations(c, mid) == []

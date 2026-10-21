@@ -420,6 +420,17 @@ def redraw_reservation(rid):
     return redirect(url_for("admin.meetup", mid=mid))
 
 
+@bp.post("/reservation/<int:rid>/delete")
+@admin_required
+def delete_reservation(rid):
+    conn = get_conn()
+    row = conn.execute("SELECT seq FROM reservations WHERE id = ?", (rid,)).fetchone()
+    mid = meetups.delete_reservation(conn, rid) or request.form.get("mid", type=int)
+    if row:
+        flash(f"예약 {row['seq']}을 삭제했습니다. 다음 경기가 코트에 들어갈 때까지 새 예약은 만들지 않습니다")
+    return redirect(url_for("admin.meetup", mid=mid) if mid else url_for("admin.home"))
+
+
 @bp.get("/members")
 @admin_required
 def members():

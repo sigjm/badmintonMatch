@@ -195,11 +195,13 @@ def _recent_mates(conn, meetup_id: int) -> dict[int, set[int]]:
 
 
 def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = None) -> None:
-    meetup = conn.execute("SELECT courts, started FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    meetup = conn.execute("SELECT courts, started, resv_hold FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if meetup is None or not meetup["started"]:
         return
+    conn.execute("DELETE FROM reservations WHERE meetup_id = ? AND seq > ?", (meetup_id, meetup["courts"]))
+    if meetup["resv_hold"]:  # 운영진이 예약을 삭제했으면 다음 경기가 코트에 들어갈 때까지 새 예약을 만들지 않는다
+        return
     courts = meetup["courts"]
-    conn.execute("DELETE FROM reservations WHERE meetup_id = ? AND seq > ?", (meetup_id, courts))
     current_count = conn.execute("SELECT count(*) FROM reservations WHERE meetup_id = ?", (meetup_id,)).fetchone()[0]
     if current_count >= courts:
         return
@@ -230,6 +232,17 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
         )
 
 
+def delete_reservation(conn, reservation_id: int) -> int | None:
+    """예약을 지우고 그 4명을 대기열로 돌린다. 다음 경기가 코트에 들어갈 때까지 새 예약을 만들지 않는다."""
+    row = conn.execute("SELECT meetup_id FROM reservations WHERE id = ?", (reservation_id,)).fetchone()
+    if row is None:
+        return None
+    conn.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
+    conn.execute("UPDATE meetups SET resv_hold = 1 WHERE id = ?", (row["meetup_id"],))
+    _renumber_reservations(conn, row["meetup_id"])
+    return row["meetup_id"]
+
+
 def redraw_reservation(conn, reservation_id: int) -> int | None:
     row = conn.execute("SELECT meetup_id FROM reservations WHERE id = ?", (reservation_id,)).fetchone()
     if row is None:
@@ -252,6 +265,7 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
         busy |= {c for c, until in _rest_until(conn, meetup_id).items() if until > now}
     window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
     recent = _recent_mates(conn, meetup_id)
+    started_any = False
     for court in range(1, courts + 1):
         if court in busy:
             continue
@@ -276,6 +290,7 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
                          (meetup_id, court, resv["a1"], resv["a2"], resv["b1"], resv["b2"], time.time()))
             conn.execute("DELETE FROM reservations WHERE id = ?", (resv["id"],))
             _renumber_reservations(conn, meetup_id)
+            started_any = True
             continue
 
         # 2. 예약이 없으면 바로 pick_four
@@ -285,8 +300,11 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
         (a1, a2), (b1, b2) = split_teams(four, offset)
         conn.execute("INSERT INTO games(meetup_id, court, a1, a2, b1, b2, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                      (meetup_id, court, a1.id, a2.id, b1.id, b2.id, time.time()))
+        started_any = True
 
-    # 빈 코트를 채운 뒤 남는 예약 칸을 채운다
+    # 빈 코트를 채운 뒤 남는 예약 칸을 채운다. 경기가 새로 들어갔으면 예약 삭제로 멈춰 둔 자동 예약을 다시 켠다
+    if started_any:
+        conn.execute("UPDATE meetups SET resv_hold = 0 WHERE id = ?", (meetup_id,))
     refill_reservations(conn, meetup_id)
 
 

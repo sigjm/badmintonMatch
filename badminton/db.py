@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value REAL);
 CREATE TABLE IF NOT EXISTS groups(id INTEGER PRIMARY KEY, gid TEXT UNIQUE NOT NULL, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS meetups(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
-  courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER REFERENCES groups);
+  courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER REFERENCES groups,
+  resv_hold INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS attendees(
   meetup_id INTEGER REFERENCES meetups, member_id INTEGER REFERENCES members, status TEXT NOT NULL,
   source TEXT NOT NULL CHECK(source IN ('somoim','guest','paste')), games INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +39,8 @@ def connect(path: str) -> sqlite3.Connection:
         conn.execute("ALTER TABLE meetups ADD COLUMN group_id INTEGER REFERENCES groups")
     if "canceled" not in [r[1] for r in conn.execute("PRAGMA table_info(games)")]:
         conn.execute("ALTER TABLE games ADD COLUMN canceled INTEGER NOT NULL DEFAULT 0")
+    if "resv_hold" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
+        conn.execute("ALTER TABLE meetups ADD COLUMN resv_hold INTEGER NOT NULL DEFAULT 0")
     if "memo" not in [r[1] for r in conn.execute("PRAGMA table_info(attendees)")]:
         conn.execute("ALTER TABLE attendees ADD COLUMN memo TEXT")
     return conn

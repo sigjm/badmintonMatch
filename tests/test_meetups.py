@@ -665,3 +665,29 @@ def test_redraw_reservation_picks_different_four(conn):
     redraw_reservation(conn, old["id"])
     (new,) = reservations(conn, mid)
     assert _four(new) != _four(old)
+
+
+def test_delete_reservation_holds_slot_until_next_game_starts(conn):
+    from badminton.meetups import delete_reservation
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"m{i}", "M", "C") for i in range(13)])
+    start(conn, mid, 1)
+    (r,) = reservations(conn, mid)
+    assert delete_reservation(conn, r["id"]) == mid
+    assert reservations(conn, mid) == [] and len(queue(conn, mid)) == 9  # 4명이 대기열로 돌아온다
+    refill_reservations(conn, mid)  # 1초 갱신이 불러도 다시 만들지 않는다
+    assert reservations(conn, mid) == []
+    end_game(conn, current_game(conn, mid))  # 다음 경기가 코트에 들어가면 예약을 다시 채운다
+    assert len(reservations(conn, mid)) == 1
+    assert delete_reservation(conn, 99999) is None
+
+
+def test_delete_reservation_is_not_refilled_when_queue_limited_reservations(conn):
+    from badminton.meetups import delete_reservation
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"m{i}", "M", "C") for i in range(28)])
+    start(conn, mid, 4)  # 코트 4면 16명, 대기 12명 → 예약은 대기 인원 때문에 2개뿐
+    assert len(reservations(conn, mid)) == 2
+    delete_reservation(conn, reservations(conn, mid)[0]["id"])
+    refill_reservations(conn, mid)
+    assert len(reservations(conn, mid)) == 1  # 목표(4)보다 적어도 다음 경기 전까지는 새로 만들지 않는다
