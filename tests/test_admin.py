@@ -595,3 +595,17 @@ def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn
     assert g["court"] == 1 and [g["a1"], g["a2"], g["b1"], g["b2"]] == ids
     again = admin.post(f"/admin/m/{mid}/manual", data=dict(zip(("a1", "a2", "b1", "b2"), ids)), follow_redirects=True)
     assert "빈 코트가 없습니다" in again.get_data(as_text=True)
+
+
+def test_guest_and_court_count_forms_save_without_full_reload(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    guests = html[html.index('id="meetup-guests"'):]
+    guests = guests[:guests.index("</section>")]
+    assert guests.count("data-save-without-reload") == guests.count("<form") >= 1
+    assert 'data-reset-on-save="추가했습니다"' in guests
+    start_form = html[html.index(f'action="/admin/m/{mid}/start"') - 60:html.index(f'action="/admin/m/{mid}/start"') + 200]
+    assert "data-save-without-reload" in start_form  # 시작된 정모의 코트 수 변경
+    resp = admin.post(f"/admin/m/{mid}/guest", data={"nickname": "새게스트", "gender": "F", "grade": "C"}, follow_redirects=True)
+    body = resp.get_data(as_text=True)
+    assert "새게스트 님을 게스트로 추가했습니다" in body and 'data-nickname="새게스트"' in body

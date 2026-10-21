@@ -365,6 +365,8 @@ def guest(mid):
             return redirect(url_for("admin.meetup", mid=mid))
     add_attendee(conn, mid, member_id, "guest")
     refill_upcoming(conn)
+    name = conn.execute("SELECT nickname FROM members WHERE id = ?", (member_id,)).fetchone()["nickname"]
+    flash(f"{name} 님을 게스트로 추가했습니다")  # 화면이 이 문구를 보고 입력칸을 비운다 (data-reset-on-save)
     return redirect(url_for("admin.meetup", mid=mid))
 
 

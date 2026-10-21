@@ -7,7 +7,7 @@
 <section class="section operation-controls">
   <div class="head"><span>정모 운영</span><span>운영진 전용</span></div>
   <div class="bar" style="margin-top:10px">
-  <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar">
+  <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar"{{ ' data-save-without-reload' if m.started }}>
     <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" aria-label="코트 수" style="width:4.5rem">
     <button class="btn">{{ '코트 수 변경' if m.started else '코트 시작' }}</button>
   </form>
@@ -71,16 +71,16 @@
 <div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
 
 
-<section class="section">
+<section class="section" id="meetup-guests">
   <div class="head"><span>게스트 추가</span></div>
-  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:10px">
+  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:10px" data-save-without-reload data-reset-on-save="추가했습니다">
     <input name="nickname" placeholder="이름" style="flex:1;min-width:7rem">
     <select name="gender" aria-label="성별"><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
     <select name="grade" aria-label="급수"><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
     <button class="btn">추가</button>
   </form>
   {% if guests %}
-  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:8px">
+  <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:8px" data-save-without-reload data-reset-on-save="추가했습니다">
     <select name="member_id" style="flex:1" aria-label="저장된 게스트">{% for g in guests %}<option value="{{ g.id }}">{{ g.nickname }} · {{ GRADE_LABELS.get(g.grade, '?') }}</option>{% endfor %}</select>
     <button class="btn line">저장된 게스트 추가</button>
   </form>

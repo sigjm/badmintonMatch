@@ -344,7 +344,9 @@
           return;
         }
 
-        ["#flash-messages", "#meetup-stats", "#meetup-court-board", "#meetup-reservations", "#meetup-queue", "#meetup-excluded", "#member-change-log"]
+        // 화면 고치기가 받은 HTML의 요소를 화면으로 옮겨 가므로, 알림 글자는 그 전에 읽어 둔다
+        const flashText = updated.querySelector("#flash-messages")?.textContent || "";
+        ["#flash-messages", "#meetup-stats", "#meetup-court-board", "#meetup-reservations", "#meetup-queue", "#meetup-excluded", "#meetup-guests", "#member-change-log"]
           .forEach((id) => {
             const current = document.querySelector(id);
             const next = updated.querySelector(id);
@@ -355,7 +357,7 @@
         const activeForm = saveKey
           ? [...document.querySelectorAll(`${selector}[data-save-key]`)].find((candidate) => candidate.dataset.saveKey === saveKey) || form
           : form;
-        const flashText = updated.querySelector("#flash-messages")?.textContent || "";
+        if (form.dataset.resetOnSave && flashText.includes(form.dataset.resetOnSave)) form.reset();  // 성공했을 때만 입력칸 비우기
         if (form.id === "manual-match-form" && flashText.includes("수동 대진을 배정했습니다")) {
           document.dispatchEvent(new CustomEvent("badminton:manual-match-saved"));
         }
