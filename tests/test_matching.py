@@ -19,13 +19,20 @@ def test_pick_four_none_when_short():
     assert pick_four([P(i, "M", "A") for i in range(3)]) is None
 
 
-def test_pick_four_prefers_same_gender_when_levels_tie():
-    # 여S(6-1=5) 와 남A(5) 는 같은 수준 → 급수 폭이 같으면 남복(4:0)을 혼복(2:2)보다 먼저 고른다
-    q = [P(1, "M", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "F", "S"), P(5, "F", "S"), P(6, "M", "A")]
-    assert {p.id for p in pick_four(q, 6, female_offset=1)} == {1, 2, 3, 6}
+def test_pick_four_prefers_men_doubles_even_if_spread_wider():
+    # 후보 안에 남복이 가능하면 급수 폭이 더 넓어도 남복(kind=0)을 고른다
+    # 1:M(S, 6), 2:F(S, 4.5), 3:F(S, 4.5), 4:M(S, 6), 5:M(D, 2), 6:M(D, 2)
+    # 혼복 {1, 4, 2, 3}의 급수 폭 = 6 - 4.5 = 1.5
+    # 남복 {1, 4, 5, 6}의 급수 폭 = 6 - 2 = 4.0
+    # 남복이 급수 폭이 훨씬 넓어도 남복이 먼저 선택된다
+    q = [P(1, "M", "S"), P(2, "F", "S"), P(3, "F", "S"), P(4, "M", "S"), P(5, "M", "D"), P(6, "M", "D")]
+    picked = pick_four(q, 6, female_offset=1.5)
+    assert picked is not None
+    assert {p.id for p in picked} == {1, 4, 5, 6}
 
 
 def test_pick_four_makes_mixed_when_same_gender_impossible():
+    # 같은 성별 4명을 못 만들 때만 혼복:
     # 대기열에 남3 여2가 있어 남복(4명)이나 여복(4명)이 불가능하고 2:2 혼복만 가능할 때 혼복 생성
     q = [P(1, "M", "A"), P(2, "M", "A"), P(3, "M", "A"), P(4, "F", "A"), P(5, "F", "A")]
     picked = pick_four(q, 6)
@@ -105,8 +112,8 @@ def test_pick_four_grade_similarity_beats_mixed():
 
 
 def test_pick_four_uses_female_offset_for_similarity():
-    # 여A(5-1=4) 는 남B(4) 와 같은 수준으로 본다
-    q = [P(1, "M", "B"), P(2, "M", "S"), P(3, "F", "A"), P(4, "M", "B"), P(5, "F", "A"), P(6, "M", "S")]
+    # 같은 성별 4명이 안 되어 혼복이 만들어질 때: 여A(5-1=4) 는 남B(4) 와 같은 수준으로 본다
+    q = [P(1, "M", "B"), P(2, "F", "S"), P(3, "F", "A"), P(4, "M", "B"), P(5, "F", "A"), P(6, "F", "S")]
     assert {p.id for p in pick_four(q, 6, 1)} == {1, 3, 4, 5}
 
 
