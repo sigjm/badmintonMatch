@@ -313,3 +313,67 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     assert "다시 뽑기" in data["queue"]
     assert len(data.get("reservations", [])) == 2
 
+
+def test_rename_requires_login(client, seeded_meetup):
+    mid, _ = seeded_meetup
+    resp = client.post(f"/admin/m/{mid}/rename", data={"member_id": 1, "nickname": "새이름"})
+    assert resp.status_code == 302
+    assert "/admin/login" in resp.headers["Location"]
+
+
+def test_rename_route_success(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    c = conn_of()
+    m_id = create_member(c, "옛닉네임")
+    resp = admin.post(f"/admin/m/{mid}/rename", data={"member_id": m_id, "nickname": "  새닉네임  "})
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    row = c.execute("SELECT nickname FROM members WHERE id = ?", (m_id,)).fetchone()
+    assert row["nickname"] == "새닉네임"
+    change = c.execute("SELECT * FROM changes WHERE member_id = ? AND field = 'nickname'", (m_id,)).fetchone()
+    assert change is not None
+    assert change["old"] == "옛닉네임"
+    assert change["new"] == "새닉네임"
+    assert change["by"] == "admin"
+
+
+def test_rename_route_rejects_blank_nickname(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    c = conn_of()
+    m_id = create_member(c, "유지될이름")
+    resp = admin.post(f"/admin/m/{mid}/rename", data={"member_id": m_id, "nickname": "   "}, follow_redirects=True)
+    assert resp.status_code == 200
+    assert "이름을 입력해 주세요" in resp.get_data(as_text=True)
+    row = c.execute("SELECT nickname FROM members WHERE id = ?", (m_id,)).fetchone()
+    assert row["nickname"] == "유지될이름"
+
+
+def test_meetup_page_has_no_attendee_list_section(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    # 참석자 목록 섹션은 제거되었어야 함
+    assert 'id="meetup-attendee-list"' not in html
+    # 게스트 추가 섹션은 유지되어야 함
+    assert "게스트 추가" in html
+    # 꾹 누르기 메뉴 및 폼 요소들이 존재해야 함
+    assert 'id="quick-status-menu"' in html
+    assert 'id="quick-info-form"' in html
+    assert 'id="quick-rename-form"' in html
+
+
+def test_excluded_players_have_player_status_attribute(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee
+    c = conn_of()
+    # 급수 미입력 회원 등록 -> 대진 제외로 들어감
+    ex_id = create_member(c, "급수미입력자", gender="M", grade=None)
+    add_attendee(c, mid, ex_id, "paste")
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert "대진 제외" in html
+    assert f'data-player-status="{ex_id}"' in html
+
+

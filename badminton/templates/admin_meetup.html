@@ -57,42 +57,6 @@
 
 <div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
 
-<section class="section" id="meetup-attendee-list">
-  <div class="head"><span>참석자</span><span>{{ rows|length }}명</span></div>
-  <ul class="rows">
-    {% for r in rows %}
-    <li>
-      <div class="row-top">
-        <span data-player-status="{{ r.id }}">{{ player_name(r.nickname, r.gender, r.grade) }}</span>{% if r.is_guest %}<span class="tag">게스트</span>{% endif %}
-        <span class="meta">{{ r.games }}경기</span>
-      </div>
-      <div class="row-ctl">
-        <form method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="bar" data-save-without-reload data-save-key="meetup-{{ m.id }}-{{ r.id }}-info" style="gap:6px">
-          <input type="hidden" name="member_id" value="{{ r.id }}">
-          <select name="gender" onchange="this.form.requestSubmit()" aria-label="성별">
-            <option value="" {% if not r.gender %}selected{% endif %}>성별</option>
-            <option value="M" {% if r.gender == 'M' %}selected{% endif %}>남</option>
-            <option value="F" {% if r.gender == 'F' %}selected{% endif %}>여</option>
-          </select>
-          <select name="grade" onchange="this.form.requestSubmit()" aria-label="급수">
-            <option value="" {% if not r.grade %}selected{% endif %}>급수</option>
-            {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}" {% if r.grade == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select>
-          <span class="save-status" data-save-status aria-live="polite"></span>
-        </form>
-        <form method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="inline" data-save-without-reload data-save-key="meetup-{{ m.id }}-{{ r.id }}-status">
-          <input type="hidden" name="member_id" value="{{ r.id }}">
-          <select name="status" onchange="this.form.requestSubmit()" aria-label="상태">
-            {% for code, label in STATUS_LABELS.items() if code != 'canceled' or r.status == code %}<option value="{{ code }}" {% if r.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-          </select>
-          <span class="save-status" data-save-status aria-live="polite"></span>
-        </form>
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-</section>
-
 <section class="section">
   <div class="head"><span>게스트 추가</span></div>
   <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:10px">
@@ -109,12 +73,53 @@
   {% endif %}
 </section>
 
-<div id="quick-status-menu" class="quick-status-menu" hidden role="menu" aria-label="참석자 상태 변경">
-  <strong data-status-player-name>상태 변경</strong>
-  <button type="button" data-set-player-status="present">참석</button>
-  <button type="button" data-set-player-status="late">지각</button>
-  <button type="button" data-set-player-status="away">자리 비움</button>
-  <button type="button" data-set-player-status="gone">귀가</button>
+<div id="quick-status-menu" class="quick-status-menu" hidden role="menu" aria-label="참석자 정보 및 상태 변경">
+  <div class="quick-menu-header">
+    <strong data-status-player-name>선수 정보</strong>
+    <button type="button" class="quick-menu-close" data-close-quick-menu aria-label="닫기">✕</button>
+  </div>
+
+  <div class="quick-menu-section">
+    <small class="quick-menu-label">상태 변경</small>
+    <div class="quick-status-buttons">
+      <button type="button" data-set-player-status="present">참석</button>
+      <button type="button" data-set-player-status="late">지각</button>
+      <button type="button" data-set-player-status="away">자리 비움</button>
+      <button type="button" data-set-player-status="gone">귀가</button>
+    </div>
+  </div>
+
+  <div class="quick-menu-section">
+    <small class="quick-menu-label">성별 · 급수</small>
+    <form id="quick-info-form" method="post" action="{{ url_for('admin.info', mid=m.id) }}" class="quick-menu-form" data-save-without-reload>
+      <input type="hidden" name="member_id" data-info-member>
+      <div class="quick-menu-row">
+        <select name="gender" data-info-gender aria-label="성별" onchange="this.form.requestSubmit()">
+          <option value="">성별</option>
+          <option value="M">남</option>
+          <option value="F">여</option>
+        </select>
+        <select name="grade" data-info-grade aria-label="급수" onchange="this.form.requestSubmit()">
+          <option value="">급수</option>
+          {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn sm line">저장</button>
+      </div>
+      <span class="save-status" data-save-status aria-live="polite"></span>
+    </form>
+  </div>
+
+  <div class="quick-menu-section">
+    <small class="quick-menu-label">이름 변경</small>
+    <form id="quick-rename-form" method="post" action="{{ url_for('admin.rename', mid=m.id) }}" class="quick-menu-form" data-save-without-reload>
+      <input type="hidden" name="member_id" data-rename-member>
+      <div class="quick-menu-row">
+        <input type="text" name="nickname" data-rename-nickname placeholder="이름" required maxlength="40">
+        <button type="submit" class="btn sm">저장</button>
+      </div>
+      <span class="save-status" data-save-status aria-live="polite"></span>
+    </form>
+  </div>
 </div>
 <form id="quick-status-form" method="post" action="{{ url_for('admin.status', mid=m.id) }}" class="quick-status-form" data-save-without-reload>
   <input type="hidden" name="member_id" data-status-member>

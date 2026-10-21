@@ -32,6 +32,23 @@ def _check_codes(gender, grade):
         raise ValueError("성별 또는 급수 값이 올바르지 않습니다")
 
 
+def rename_member(conn, member_id: int, nickname: str, by: str) -> None:
+    nickname = (nickname or "").strip()
+    if not nickname:
+        raise ValueError("이름을 입력해 주세요")
+    if len(nickname) > 40:
+        raise ValueError("이름은 40자 이하여야 합니다")
+    row = conn.execute("SELECT nickname FROM members WHERE id = ?", (member_id,)).fetchone()
+    if not row:
+        raise ValueError("존재하지 않는 회원입니다")
+    old_nick = row["nickname"]
+    if old_nick != nickname:
+        now = time.time()
+        conn.execute("UPDATE members SET nickname = ? WHERE id = ?", (nickname, member_id))
+        conn.execute("INSERT INTO changes(member_id, by, field, old, new, at) VALUES (?, ?, 'nickname', ?, ?, ?)",
+                     (member_id, by, old_nick, nickname, now))
+
+
 def set_info(conn, member_id: int, gender: str | None, grade: str | None, by: str) -> list[tuple]:
     """바뀐 필드를 (필드, 이전 값, 새 값) 목록으로 돌려준다."""
     _check_codes(gender, grade)

@@ -1,7 +1,8 @@
 import pytest
 
 from badminton.db import get_setting
-from badminton.members import changes, check_pin, create_member, list_members, reset_pin, set_info, set_pin, upsert_somoim
+from badminton.members import (changes, check_pin, create_member, list_members, rename_member,
+                               reset_pin, set_info, set_pin, upsert_somoim)
 
 
 def test_upsert_somoim_updates_nickname(conn):
@@ -37,3 +38,35 @@ def test_pin_rules(conn):
 
 def test_settings_defaults(conn):
     assert get_setting(conn, "female_offset") == 1 and get_setting(conn, "mix_window") == 6
+
+
+def test_rename_member_success_and_logs_change(conn):
+    m = create_member(conn, "원래이름")
+    rename_member(conn, m, "  새이름  ", by="admin")
+    row = conn.execute("SELECT nickname FROM members WHERE id = ?", (m,)).fetchone()
+    assert row["nickname"] == "새이름"
+    c = changes(conn)[0]
+    assert c["member_id"] == m
+    assert c["field"] == "nickname"
+    assert c["old"] == "원래이름"
+    assert c["new"] == "새이름"
+    assert c["by"] == "admin"
+
+
+def test_rename_member_validations(conn):
+    m = create_member(conn, "테스트")
+    with pytest.raises(ValueError, match="이름을 입력해 주세요"):
+        rename_member(conn, m, "", by="admin")
+    with pytest.raises(ValueError, match="이름을 입력해 주세요"):
+        rename_member(conn, m, "   ", by="admin")
+    with pytest.raises(ValueError, match="이름은 40자 이하"):
+        rename_member(conn, m, "가" * 41, by="admin")
+    with pytest.raises(ValueError, match="존재하지 않는 회원"):
+        rename_member(conn, 99999, "이름", by="admin")
+
+
+def test_rename_member_noop_when_identical(conn):
+    m = create_member(conn, "동일이름")
+    rename_member(conn, m, "동일이름", by="admin")
+    assert len(changes(conn)) == 0
+

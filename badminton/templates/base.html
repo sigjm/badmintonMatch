@@ -90,11 +90,30 @@
   .queue-player-select:disabled, .excluded-player-select:disabled { opacity:.48; cursor:not-allowed; }
   .manual-selection-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .manual-assign-button:disabled { opacity:.45; cursor:not-allowed; }
-  .quick-status-menu { position:fixed; z-index:1000; display:flex; flex-direction:column; gap:3px; min-width:150px; padding:8px; border:1px solid var(--hair); border-radius:13px; background:#fff; box-shadow:0 12px 34px rgba(23,43,73,.22); }
+  .quick-status-menu {
+    position:fixed; z-index:1000; display:flex; flex-direction:column; gap:8px;
+    min-width:210px; max-width:280px; padding:12px; border:1px solid var(--hair);
+    border-radius:16px; background:#fff; box-shadow:0 14px 38px rgba(23,43,73,.22);
+  }
   .quick-status-menu[hidden] { display:none; }
-  .quick-status-menu strong { padding:5px 8px; font-size:12px; }
-  .quick-status-menu button { min-height:36px; padding:5px 9px; border:0; border-radius:8px; background:#fff; color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; }
-  .quick-status-menu button:hover { background:var(--pearl); }
+  .quick-menu-header { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--hair); padding-bottom:6px; }
+  .quick-menu-header strong { font-size:14px; font-weight:800; color:var(--ink); }
+  .quick-menu-close { background:transparent; border:0; font-size:16px; cursor:pointer; color:var(--muted); padding:0 4px; }
+  .quick-menu-section { display:flex; flex-direction:column; gap:4px; }
+  .quick-menu-label { font-size:11px; font-weight:700; color:var(--muted); }
+  .quick-status-buttons { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+  .quick-status-buttons button {
+    min-height:34px; padding:4px 8px; border:1px solid var(--hair); border-radius:8px;
+    background:var(--pearl); color:var(--ink); font:inherit; font-size:13px; font-weight:700;
+    text-align:center; cursor:pointer; transition:background .1s;
+  }
+  .quick-status-buttons button:hover { background:#e2e8f0; }
+  .quick-menu-row { display:flex; gap:6px; align-items:center; }
+  .quick-menu-row select, .quick-menu-row input {
+    flex:1; min-width:0; height:34px; padding:0 8px; border-radius:8px;
+    border:1px solid var(--hair); font-size:13px;
+  }
+  .quick-menu-row .btn.sm { height:34px; min-height:34px; padding:0 10px; font-size:12px; border-radius:8px; }
   .quick-status-form { display:none; }
   .board-big .court { grid-template-columns:56px minmax(0,1fr); padding:14px 0; }
   .board-big .court-no { width:54px; height:54px; font-size:27px; }
@@ -401,17 +420,52 @@
     };
     const openStatusMenu = (target, x, y) => {
       if (!statusMenu || !quickStatusForm) return;
-      const memberId = target.dataset.playerStatus;
-      const label = statusMenu.querySelector("[data-status-player-name]");
+      const memberId = target.dataset.playerStatus || target.dataset.memberId;
+      if (!memberId) return;
+
       const display = target.querySelector(".player-name") || target;
+      const nickname = target.dataset.nickname || display.dataset.nickname || display.dataset.playerName || target.dataset.playerName || display.textContent.trim().split("/").pop() || "";
+      const gender = target.dataset.gender || display.dataset.gender || "";
+      const grade = target.dataset.grade || display.dataset.grade || "";
+
+      const label = statusMenu.querySelector("[data-status-player-name]");
+      if (label) label.textContent = nickname || display.textContent.trim();
+
       quickStatusForm.dataset.memberId = memberId;
-      quickStatusForm.querySelector("[data-status-member]").value = memberId;
-      if (label) label.textContent = display.textContent.trim();
+      const statusInput = quickStatusForm.querySelector("[data-status-member]");
+      if (statusInput) statusInput.value = memberId;
+
+      const infoForm = document.querySelector("#quick-info-form");
+      if (infoForm) {
+        infoForm.dataset.memberId = memberId;
+        const infoMember = infoForm.querySelector("[data-info-member]");
+        if (infoMember) infoMember.value = memberId;
+        const genderSelect = infoForm.querySelector("[data-info-gender]");
+        if (genderSelect) genderSelect.value = gender;
+        const gradeSelect = infoForm.querySelector("[data-info-grade]");
+        if (gradeSelect) gradeSelect.value = grade;
+      }
+
+      const renameForm = document.querySelector("#quick-rename-form");
+      if (renameForm) {
+        renameForm.dataset.memberId = memberId;
+        const renameMember = renameForm.querySelector("[data-rename-member]");
+        if (renameMember) renameMember.value = memberId;
+        const nickInput = renameForm.querySelector("[data-rename-nickname]");
+        if (nickInput) nickInput.value = nickname;
+      }
+
       statusMenu.hidden = false;
       const rect = statusMenu.getBoundingClientRect();
       statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
       statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
     };
+    document.addEventListener("contextmenu", (event) => {
+      const target = event.target.closest("[data-player-status]");
+      if (!target) return;
+      event.preventDefault();
+      openStatusMenu(target, event.clientX, event.clientY);
+    });
     document.addEventListener("pointerdown", (event) => {
       if (!statusMenu || !event.isPrimary || event.button > 0) return;
       const target = event.target.closest("[data-player-status]");
@@ -427,6 +481,10 @@
       document.addEventListener(type, () => clearTimeout(statusHoldTimer));
     });
     document.addEventListener("click", (event) => {
+      if (event.target.closest("[data-close-quick-menu]")) {
+        closeStatusMenu();
+        return;
+      }
       if (!statusMenu || statusMenu.hidden || event.target.closest("#quick-status-menu")) return;
       if (!event.target.closest("[data-player-status]")) closeStatusMenu();
     });

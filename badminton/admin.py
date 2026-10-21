@@ -9,7 +9,7 @@ from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (add_attendee, add_pasted, assign_manual, board, end_game, get_or_create_meetup,
                       fill_courts, manual_candidates, on_info_changed, redraw, refill_upcoming, set_status, start,
                       sync_somoim, today)
-from .members import changes, create_member, list_members, reset_pin, set_info
+from .members import changes, create_member, list_members, rename_member, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -198,6 +198,20 @@ def info(mid):
                            _blank_none(request.form.get("grade")), by="admin")
         on_info_changed(conn, member_id, changed, meetup_id=mid)
     except ValueError as e:
+        flash(str(e))
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/rename")
+@admin_required
+def rename(mid):
+    conn = get_conn()
+    _meetup_row(mid)
+    try:
+        member_id = int(request.form["member_id"])
+        nickname = request.form.get("nickname", "")
+        rename_member(conn, member_id, nickname, by="admin")
+    except (KeyError, ValueError) as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
 

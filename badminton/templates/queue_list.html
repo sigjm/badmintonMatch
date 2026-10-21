@@ -15,8 +15,9 @@
   {% if reservations %}
   <ul class="reservations">
     {% for res in reservations|sort(attribute='no') %}
+    {% set teams = res.team_players|default(res.teams) %}
     <li class="reservation-item">
-      <span class="reservation-text">예약 {{ res.no }} · {% for team in res.teams %}{% if not loop.first %} vs {% endif %}{% for player in team %}{% if not loop.first %}·{% endif %}{{ format_player(player) }}{% endfor %}{% endfor %}</span>
+      <span class="reservation-text">예약 {{ res.no }} · {% for team in teams %}{% if not loop.first %} vs {% endif %}{% for player in team %}{% if not loop.first %}·{% endif %}{% if player is mapping and player.id %}<span data-player-status="{{ player.id }}" data-member-id="{{ player.id }}" data-nickname="{{ player.nickname }}" data-gender="{{ player.gender or '' }}" data-grade="{{ player.grade or '' }}">{{ format_player(player) }}</span>{% else %}{{ format_player(player) }}{% endif %}{% endfor %}{% endfor %}</span>
       {% if admin|default(false) and m %}
       <form method="post" action="{{ url_for('admin.redraw_reservation', rid=res.id) }}" class="inline" data-save-without-reload>
         <input type="hidden" name="mid" value="{{ m.id }}">
@@ -33,11 +34,11 @@
     <span class="queue-person">
       {% if admin|default(false) and m.started and p.id in manual_candidate_ids %}
       <button type="button" class="queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false">
-        <span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>
+        <span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>
         <small class="manual-player-order" data-player-order></small>
       </button>
       {% else %}
-      {{ player_name(p.nickname, p.gender, p.grade) }}
+      <span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>
       {% endif %}
       <small class="queue-meta" data-queue-wait data-queued-at="{{ p.queued_at }}"><span data-wait-value>{{ p.wait_label }}</span> 대기 · {{ p.games }}경기</small>
     </span>
@@ -52,9 +53,9 @@
     <li><span class="r">{{ reason }}</span>{% for p in items %}{% if not loop.first %}, {% endif %}
       {% if admin|default(false) and p.id in manual_candidate_ids %}
       <button type="button" class="excluded-player-select" data-manual-player="{{ p.id }}" aria-pressed="false">
-        <span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span><small class="manual-player-order" data-player-order></small>
+        <span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span><small class="manual-player-order" data-player-order></small>
       </button>
-      {% else %}<span data-player-status="{{ p.id }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>{% endif %}
+      {% else %}<span data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_name(p.nickname, p.gender, p.grade) }}</span>{% endif %}
     {% endfor %}</li>
     {% endfor %}
   </ul>

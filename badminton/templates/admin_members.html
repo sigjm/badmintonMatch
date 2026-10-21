@@ -38,9 +38,14 @@
 <section class="section" id="member-change-log">
   <div class="head"><span>변경 기록</span><span>최근 100건</span></div>
   {% for c in changes %}
+  {% if c.field == 'nickname' %}
+  <div class="log"><span class="muted">{{ c.when_kst }}</span> <b>{{ c.new }}</b> 이름
+    {{ c.old or '없음' }} → {{ c.new or '없음' }} <span class="muted">· {{ '본인' if c.by == 'self' else '운영진' }}</span></div>
+  {% else %}
   {% set lbl = GENDER_LABELS if c.field == 'gender' else GRADE_LABELS %}
   <div class="log"><span class="muted">{{ c.when_kst }}</span> <b>{{ c.nickname }}</b> {{ '성별' if c.field == 'gender' else '급수' }}
     {{ lbl.get(c.old, '없음') }} → {{ lbl.get(c.new, '없음') }} <span class="muted">· {{ '본인' if c.by == 'self' else '운영진' }}</span></div>
+  {% endif %}
   {% else %}
   <p class="empty">아직 변경 기록이 없습니다.</p>
   {% endfor %}

@@ -8,7 +8,7 @@
     {% for team in c.team_players %}
     {% if not loop.first %}<span class="versus">VS</span>{% endif %}
     <div class="team">
-      {% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}<span data-player-status="{{ player.id }}">{{ player_name(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
+      {% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}<span data-player-status="{{ player.id }}" data-member-id="{{ player.id }}" data-nickname="{{ player.nickname }}" data-gender="{{ player.gender or '' }}" data-grade="{{ player.grade or '' }}">{{ player_name(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
     </div>
     {% endfor %}
   </div>
