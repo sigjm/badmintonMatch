@@ -618,6 +618,7 @@ def board(conn, meetup_id: int) -> dict:
                            "started_at": g["started_at"] if g else None,
                            "elapsed_clock": _clock_label(now - g["started_at"]) if g else None,
                            "ready_in": None if g or rest_until.get(c, 0) <= now else int(rest_until[c] - now) + 1,
+                           "ready_until": None if g or rest_until.get(c, 0) <= now else rest_until[c],
                            "announce": announcement_text(c, [names.get(g[k], "") for k in ("a1", "a2", "b1", "b2")]) if g else None,
                            "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
                                      [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,

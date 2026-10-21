@@ -559,6 +559,9 @@ def test_updates_fill_court_after_rest_and_auto_match_forces(admin, client, seed
     admin.post(f"/admin/game/{gid}/end")
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert data["active_courts"] == 0 and "초 후" in data["court_board"]
+    assert 'data-court-rest' in data["court_board"] and 'data-ready-until=' in data["court_board"]
+    assert '<span class="versus">VS</span>' not in data["court_board"]
+    assert '<span class="versus">VS</span>' not in data["reservation_list"]
     c.execute("UPDATE games SET ended_at = ended_at - 16 WHERE id = ?", (gid,))
     assert client.get("/board/updates").get_json()["active_courts"] == 1  # 공개 갱신도 채운다
     nxt = c.execute("SELECT id FROM games WHERE ended_at IS NULL").fetchone()[0]

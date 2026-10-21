@@ -86,7 +86,7 @@
   .court-no { grid-row:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:var(--primary); color:#fff; font-size:20px; font-weight:600; line-height:1; }
   .court-no small { margin-top:3px; font-size:11px; font-weight:400; opacity:.85; }
   .resv .court-no { background:var(--primary-bg); color:var(--primary); border:1px solid var(--primary-border); }
-  .court-match { min-width:0; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:8px; }
+  .court-match { min-width:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:center; gap:8px; }
   .team { min-width:0; padding:8px; border:1px solid var(--split); border-radius:6px; background:var(--fill); text-align:center; font-size:15px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
@@ -100,6 +100,7 @@
   .court-actions form { margin:0; }
   .court-actions .btn { box-sizing:border-box; width:100%; }
   [data-long-press-actions] { position:relative; -webkit-user-select:none; user-select:none; }
+  #meetup-court-board [data-long-press-actions] { cursor:pointer; }
   [data-long-press-actions]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
   [data-long-press-actions].actions-open { z-index:1; border-color:var(--primary-border); box-shadow:0 0 0 2px rgba(22,119,255,.08); }
   .actions-popup-active { position:relative; z-index:80; }
@@ -908,10 +909,33 @@
       });
     };
 
+    const tickCourtRests = () => {
+      const now = Date.now() / 1000;
+      let shouldRefresh = false;
+      document.querySelectorAll("[data-court-rest]").forEach((rest) => {
+        const until = Number(rest.dataset.readyUntil);
+        if (!until) return;
+        const remaining = Math.max(0, Math.ceil(until - now));
+        const secSpan = rest.querySelector("[data-court-rest-sec]");
+        if (secSpan) secSpan.textContent = remaining;
+        if (remaining <= 0 && !rest.dataset.triggered) {
+          rest.dataset.triggered = "true";
+          shouldRefresh = true;
+        }
+      });
+      if (shouldRefresh) {
+        refreshLiveSections();
+      }
+    };
+
     updateWaitLabels();
     tickGameClocks();
+    tickCourtRests();
     window.setInterval(updateWaitLabels, 60_000);
-    window.setInterval(tickGameClocks, 1_000);
+    window.setInterval(() => {
+      tickGameClocks();
+      tickCourtRests();
+    }, 1_000);
     refreshLiveSections();
     window.setInterval(refreshLiveSections, 3_000);
   })();
@@ -998,9 +1022,14 @@
       holdPointerId = null;
       openedByHold = false;
     };
-    const isInteractive = (target) => target.closest(
-      "[data-player-status], button, a, input, select, textarea, form, [contenteditable='true']"
-    );
+    const isInteractive = (target) => {
+      if (target.closest("#meetup-court-board [data-long-press-actions]")) {
+        return Boolean(target.closest("[data-action-panel], button, a, input, select, textarea, form, [contenteditable='true']"));
+      }
+      return Boolean(target.closest(
+        "[data-player-status], button, a, input, select, textarea, form, [contenteditable='true']"
+      ));
+    };
 
     document.addEventListener("pointerdown", (event) => {
       cancelHold();
@@ -1025,17 +1054,23 @@
     });
     document.addEventListener("pointerup", (event) => {
       if (event.pointerId !== holdPointerId) return;
-      if (openedByHold) window.setTimeout(() => { swallowReleaseClick = false; }, 0);
+      if (openedByHold) window.setTimeout(() => { swallowReleaseClick = false; }, 400);
       cancelHold();
     });
     document.addEventListener("pointercancel", cancelHold);
     window.addEventListener("blur", cancelHold);
     document.addEventListener("click", (event) => {
-      if (swallowReleaseClick && event.detail > 0) {
+      if (swallowReleaseClick) {
         swallowReleaseClick = false;
         window.clearTimeout(swallowTimer);
         event.preventDefault();
         event.stopImmediatePropagation();
+        return;
+      }
+      const courtCard = event.target.closest("#meetup-court-board [data-long-press-actions]");
+      if (courtCard && !event.target.closest("[data-action-panel]")) {
+        event.preventDefault();
+        toggleActions(courtCard, event.clientX, event.clientY);
         return;
       }
       if (!openKey) return;

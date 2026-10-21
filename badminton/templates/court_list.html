@@ -1,12 +1,11 @@
 {% from "_macros.html" import player_chip %}
 {# 코트 목록 — 운영 메뉴는 관리자 화면에서 카드를 길게 눌러 팝업으로 표시한다 #}
 {% for c in board.courts %}
-<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin and c.game_id %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if admin and c.game_id %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
+<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin and c.game_id %}, 눌러서 관리 팝업 열기{% endif %}"{% if admin and c.game_id %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
   <div class="court-match">
     {% for team in c.team_players %}
-    {% if not loop.first %}<span class="versus">VS</span>{% endif %}
     <div class="team">
       {% for player in team %}<span class="court-player" data-player-status="{{ player.id }}" data-member-id="{{ player.id }}" data-nickname="{{ player.nickname }}" data-gender="{{ player.gender or '' }}" data-grade="{{ player.grade or '' }}" data-memo="{{ player.memo or '' }}">{{ player_chip(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
     </div>
@@ -14,7 +13,7 @@
   </div>
   <div class="court-time">경기 시간 <span data-game-clock data-started-at="{{ c.started_at }}">{{ c.elapsed_clock }}</span></div>
   {% else %}
-  {% if c.ready_in %}<div class="empty court-rest">다음 경기 {{ c.ready_in }}초 후 시작</div>
+  {% if c.ready_in %}<div class="empty court-rest" data-court-rest data-ready-until="{{ c.ready_until }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
   {% else %}<div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>{% endif %}
   {% endif %}
   {% if admin and c.game_id %}

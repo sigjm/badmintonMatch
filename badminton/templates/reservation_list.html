@@ -32,7 +32,6 @@
       <div class="court-match">
         {% for team in res.team_players|default(res.teams) %}
         {% set team_index = loop.index0 %}
-        {% if not loop.first %}<span class="versus">VS</span>{% endif %}
         <div class="team">
           {% for player in team %}
             {{ resv_player(player, res, team_index * 2 + loop.index0, editable) }}

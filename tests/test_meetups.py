@@ -634,7 +634,7 @@ def test_court_rest_keeps_court_empty_for_15_seconds(conn, monkeypatch):
     mid, gid = one_court_game(conn, extra=4)
     end_game(conn, gid)
     court = board(conn, mid)["courts"][0]
-    assert court["game_id"] is None and 0 < court["ready_in"] <= 15
+    assert court["game_id"] is None and 0 < court["ready_in"] <= 15 and court["ready_until"] is not None
     meetups.fill_courts(conn, mid)  # 15초 전에는 다시 불러도 비어 있다
     assert board(conn, mid)["courts"][0]["game_id"] is None
     conn.execute("UPDATE games SET ended_at = ended_at - 16 WHERE id = ?", (gid,))
