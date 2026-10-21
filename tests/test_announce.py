@@ -41,3 +41,14 @@ def test_announce_runs_outside_the_one_request_at_a_time_lock(app, client, seede
     with app.serial_lock:  # 다른 요청이 DB 작업 중이어도 음성은 기다리지 않는다
         assert client.get(f"/announce/{gid}.mp3").status_code == 200
     assert client.get("/board").status_code == 200  # 잠금이 풀리면 일반 요청도 정상
+
+
+def test_announce_reads_while_another_request_is_writing(client, seeded_meetup, conn_of, monkeypatch):
+    mid, gid = seeded_meetup
+    monkeypatch.setattr(announce, "speak", lambda text: b"ID3mp3")
+    writer = conn_of()
+    writer.execute("BEGIN IMMEDIATE")  # 잠금 안의 다른 요청이 쓰는 중. 안내 방송은 그 잠금 밖에서 돈다
+    try:
+        assert client.get(f"/announce/{gid}.mp3").status_code == 200
+    finally:
+        writer.execute("ROLLBACK")

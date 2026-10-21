@@ -51,6 +51,12 @@
         <form method="post" action="{{ url_for('admin.start_reservation_now_route', rid=res.id) }}" data-save-without-reload>
           <button type="submit" class="btn sm">바로 넣기</button>
         </form>
+        {% if res.source != 'manual' %}
+        <form method="post" action="{{ url_for('admin.redraw_reservation', rid=res.id) }}" data-save-without-reload>
+          <input type="hidden" name="mid" value="{{ m.id }}">
+          <button type="submit" class="btn line sm">다시 뽑기</button>
+        </form>
+        {% endif %}
         <form method="post" action="{{ url_for('admin.delete_reservation', rid=res.id) }}" data-save-without-reload>
           <input type="hidden" name="mid" value="{{ m.id }}">
           <button type="submit" class="btn line sm danger">삭제</button>

@@ -36,10 +36,14 @@ INSERT OR IGNORE INTO settings VALUES ('female_offset', 1.5), ('mix_window', 6);
 """
 
 
-def connect(path: str) -> sqlite3.Connection:
+def connect(path: str, migrate: bool = True) -> sqlite3.Connection:
+    """migrate=False는 앱 시작 때 스키마를 이미 맞춘 DB를 요청마다 열 때 쓴다.
+    매 요청 스키마 확인은 쓰기 잠금을 잡아, 잠금 밖에서 도는 안내 방송 요청과 부딪힌다."""
     conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    if not migrate:
+        return conn
     conn.executescript(SCHEMA)
     # 모임 여러 개 지원 전에 만든 DB에는 meetups.group_id가 없다
     if "group_id" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:

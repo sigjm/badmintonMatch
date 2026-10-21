@@ -283,7 +283,6 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
     courts = meetup["courts"]
     auto_count = conn.execute("SELECT count(*) FROM reservations WHERE meetup_id = ? AND source = 'auto'",
                               (meetup_id,)).fetchone()[0]
-    total_count = conn.execute("SELECT count(*) FROM reservations WHERE meetup_id = ?", (meetup_id,)).fetchone()[0]
     if auto_count >= courts:
         return
     window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
@@ -300,7 +299,7 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
         # 코트에서 다른 경기가 진행 중이고,
         # 뽑힌 4명이 직전 경기에서 함께 뛴 멤버와 완전히 동일하다면
         # 코트 경기가 끝나고 선수들이 복귀했을 때 섞일 수 있도록 예약을 보류한다.
-        if total_count == 0 and playing and recent:
+        if auto_count == 0 and playing and recent:  # 수동 예약은 운영진이 고른 것이라 따지지 않는다
             four_ids = {p.id for p in four}
             if all(four_ids - {p.id} <= recent.get(p.id, set()) for p in four):
                 break
@@ -313,7 +312,6 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
             (meetup_id, seq, a1.id, a2.id, b1.id, b2.id, time.time())
         )
         auto_count += 1
-        total_count += 1
 
 
 def add_manual_reservation(conn, meetup_id: int, player_ids: list[int]) -> int:
@@ -551,8 +549,9 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
             _record_game_assignment(conn, meetup_id, game_id, court, player_ids, "queue")
         started_any = True
 
-    # 빈 코트를 채운 뒤 남는 예약 칸을 채운다. 경기가 새로 들어갔으면 예약 삭제로 멈춰 둔 자동 예약을 다시 켠다
-    if started_any:
+    # 빈 코트를 채운 뒤 남는 예약 칸을 채운다. 경기가 새로 들어갔거나 운영진이 자동 매칭을 눌렀으면
+    # 예약 삭제로 멈춰 둔 자동 예약을 다시 켠다
+    if started_any or force:
         conn.execute("UPDATE meetups SET resv_hold = 0 WHERE id = ?", (meetup_id,))
     refill_reservations(conn, meetup_id)
 
@@ -561,7 +560,7 @@ def start(conn, meetup_id: int, courts: int) -> None:
     row = conn.execute("SELECT archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if row is None or row["archived_at"] is not None:
         raise ValueError("활성 정모를 찾을 수 없습니다")
-    conn.execute("UPDATE meetups SET courts = ?, started = 1 WHERE id = ?", (courts, meetup_id))
+    conn.execute("UPDATE meetups SET courts = ?, started = 1, resv_hold = 0 WHERE id = ?", (courts, meetup_id))
     fill_courts(conn, meetup_id)
 
 

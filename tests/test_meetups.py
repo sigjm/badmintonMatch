@@ -691,3 +691,32 @@ def test_delete_reservation_is_not_refilled_when_queue_limited_reservations(conn
     delete_reservation(conn, reservations(conn, mid)[0]["id"])
     refill_reservations(conn, mid)
     assert len(reservations(conn, mid)) == 1  # 목표(4)보다 적어도 다음 경기 전까지는 새로 만들지 않는다
+
+
+def test_reservation_hold_is_released_by_auto_match_and_court_change(conn):
+    from badminton.meetups import delete_reservation, fill_courts
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"m{i}", "M", "C") for i in range(13)])
+    start(conn, mid, 1)
+    delete_reservation(conn, reservations(conn, mid)[0]["id"])
+    fill_courts(conn, mid, force=True)  # 코트가 다 차 있어도 운영진이 자동 매칭을 누르면 예약을 다시 채운다
+    assert len(reservations(conn, mid)) == 1
+    delete_reservation(conn, reservations(conn, mid)[0]["id"])
+    start(conn, mid, 1)  # 코트 수 저장도 마찬가지
+    assert len(reservations(conn, mid)) == 1
+
+
+def test_repeat_four_is_not_reserved_even_with_a_manual_reservation(conn):
+    from badminton.db import set_setting
+    from badminton.meetups import add_manual_reservation
+    set_setting(conn, "mix_window", 4)  # 앞 4명만 후보 → 직전 경기 4명이 그대로 다시 뽑힌다
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"p{i}", "M", "C") for i in range(8)])
+    start(conn, mid, 1)
+    end_game(conn, current_game(conn, mid))  # 첫 4명이 끝나고 나머지 4명이 들어간다
+    late = [mk(conn, f"late{i}", "M", "C") for i in range(8)]
+    seat(conn, mid, *late)
+    conn.execute(f"UPDATE attendees SET games = 9 WHERE member_id IN ({','.join('?' * 8)})", late)  # 줄 맨 뒤로
+    conn.execute("DELETE FROM reservations")
+    add_manual_reservation(conn, mid, late[:4])
+    assert [r["source"] for r in reservations(conn, mid)] == ["manual"]

@@ -13,7 +13,7 @@ DEFAULT_GROUP_NAME = "금요일 야간민턴"
 
 def get_conn():
     if "conn" not in g:
-        g.conn = db.connect(current_app.config["DATABASE"])
+        g.conn = db.connect(current_app.config["DATABASE"], migrate=False)  # create_app이 시작할 때 맞춰 둔다
     return g.conn
 
 

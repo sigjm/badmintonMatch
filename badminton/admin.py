@@ -673,6 +673,26 @@ def start_reservation_now_route(rid):
     return redirect(url_for("admin.meetup", mid=result_mid or mid))
 
 
+@bp.post("/reservation/<int:rid>/redraw")
+@admin_required
+def redraw_reservation(rid):
+    conn = get_conn()
+    row = conn.execute("SELECT meetup_id, seq FROM reservations WHERE id = ?", (rid,)).fetchone()
+    if row is None:  # 다른 폰이 먼저 지웠거나 경기로 들어간 예약
+        mid = request.form.get("mid", type=int)
+        return redirect(url_for("admin.meetup", mid=mid) if mid else url_for("admin.home"))
+    mid = row["meetup_id"]
+    _active_meetup_row(mid)
+    try:
+        with transaction(conn):
+            meetups.redraw_reservation(conn, rid)
+            audit.record(conn, action="reservation_redraw", summary=f"예약 다시 뽑기: {row['seq']}번",
+                         entity_type="reservation", entity_id=rid, meetup_id=mid, details={"sequence": row["seq"]})
+    except ValueError as e:
+        flash(str(e))
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
 @bp.post("/reservation/<int:rid>/delete")
 @admin_required
 def delete_reservation(rid):
