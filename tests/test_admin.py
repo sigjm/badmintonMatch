@@ -520,3 +520,48 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     public = client.get("/board").get_data(as_text=True)
     assert "경기 시간" in public and 'class="pcard is-queued"' in public
     assert 'name="status"' not in public and ">정보</button>" not in public
+
+
+def test_updates_fill_court_after_rest_and_auto_match_forces(admin, client, seeded_meetup, conn_of, monkeypatch):
+    from badminton import meetups
+    from badminton.members import create_member
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = seeded_meetup
+    c = conn_of()
+    for i in range(4):
+        meetups.add_attendee(c, mid, create_member(c, f"w{i}", gender="M", grade="C"), "paste")
+    admin.post(f"/admin/game/{gid}/end")
+    data = admin.get(f"/admin/m/{mid}/updates").get_json()
+    assert data["active_courts"] == 0 and "초 후" in data["court_board"]
+    c.execute("UPDATE games SET ended_at = ended_at - 16 WHERE id = ?", (gid,))
+    assert client.get("/board/updates").get_json()["active_courts"] == 1  # 공개 갱신도 채운다
+    nxt = c.execute("SELECT id FROM games WHERE ended_at IS NULL").fetchone()[0]
+    admin.post(f"/admin/game/{nxt}/end")
+    admin.post(f"/admin/m/{mid}/auto-match")
+    assert admin.get(f"/admin/m/{mid}/updates").get_json()["active_courts"] == 1
+
+
+def test_memo_route_saves_and_card_shows_memo(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee
+    c = conn_of()
+    waiting = create_member(c, "메모대상", gender="M", grade="C")
+    add_attendee(c, mid, waiting, "paste")
+    admin.post(f"/admin/m/{mid}/memo", data={"member_id": waiting, "memo": "콕 가볼"})
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert "메모 · 콕 가볼" in html and 'data-memo="콕 가볼"' in html and 'id="quick-memo-form"' in html
+    resp = admin.post(f"/admin/m/{mid}/memo", data={"member_id": waiting, "memo": "가" * 101}, follow_redirects=True)
+    assert "100자" in resp.get_data(as_text=True)
+
+
+def test_excluded_section_is_separate_live_fragment(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee
+    c = conn_of()
+    add_attendee(c, mid, create_member(c, "급수없음", gender="M", grade=None), "paste")
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'id="meetup-excluded"' in html and 'class="board-layout"' in html
+    data = admin.get(f"/admin/m/{mid}/updates").get_json()
+    assert "급수없음" in data["excluded"] and "급수없음" not in data["queue"]

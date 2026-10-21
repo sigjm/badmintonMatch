@@ -10,8 +10,8 @@ from . import get_conn, meetups
 from .db import get_setting, set_setting
 from .groups import add_group, get_group, list_groups, parse_gid
 from .meetups import (add_attendee, add_pasted, assign_manual, board, end_game, get_or_create_meetup,
-                      fill_courts, manual_candidates, on_info_changed, redraw, refill_upcoming, set_status, start,
-                      sync_somoim, today)
+                      fill_courts, manual_candidates, on_info_changed, redraw, refill_upcoming, set_memo, set_status,
+                      start, sync_somoim, today)
 from .members import changes, create_member, list_members, rename_member, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
@@ -199,6 +199,8 @@ def paste():
 def meetup(mid):
     conn = get_conn()
     m = _meetup_row(mid)
+    if m["started"]:
+        fill_courts(conn, mid)  # 쉬는 시간(15초)이 지난 코트 채우기
     rows = conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, m.is_guest, a.status, a.games
                            FROM attendees a JOIN members m ON m.id = a.member_id
                            WHERE a.meetup_id = ? ORDER BY m.nickname""", (mid,)).fetchall()
@@ -215,14 +217,17 @@ def meetup(mid):
 def meetup_updates(mid):
     conn = get_conn()
     m = _meetup_row(mid)
+    if m["started"]:
+        fill_courts(conn, mid)  # 1초 갱신이 쉬는 시간(15초)이 지난 코트를 채우는 시계 역할도 한다
     current_board = board(conn, mid)
     candidates = manual_candidates(conn, mid)
+    ids = {r["id"] for r in candidates}
     response = jsonify(
         meetup_id=mid,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=True,
                                     manual_candidates=candidates),
-        queue=render_template("queue_list.html", board=current_board, admin=True, m=m,
-                              manual_candidate_ids={r["id"] for r in candidates}),
+        queue=render_template("queue_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
+        excluded=render_template("excluded_list.html", board=current_board, admin=True, m=m, manual_candidate_ids=ids),
         reservations=current_board.get("reservations", []) if current_board else [],
         active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]),
         queue_count=len(current_board["queue"]),
@@ -261,6 +266,18 @@ def info(mid):
                            _blank_none(request.form.get("grade")), by="admin")
         on_info_changed(conn, member_id, changed)
     except ValueError as e:
+        flash(str(e))
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/memo")
+@admin_required
+def memo(mid):
+    conn = get_conn()
+    _meetup_row(mid)
+    try:
+        set_memo(conn, mid, int(request.form["member_id"]), request.form.get("memo", ""))
+    except (KeyError, ValueError) as e:
         flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
 
@@ -310,7 +327,7 @@ def auto_match(mid):
     else:
         conn = get_conn()
         before = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
-        fill_courts(conn, mid)
+        fill_courts(conn, mid, force=True)  # 운영진이 직접 누르면 쉬는 시간 없이 채운다
         after = conn.execute("SELECT count(*) FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()[0]
         added = after - before
         flash(f"빈 코트 자동 매칭 완료: {added}경기" if added else "자동 매칭할 빈 코트가 없거나 대기 가능한 선수가 4명 미만입니다")

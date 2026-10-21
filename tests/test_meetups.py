@@ -592,7 +592,7 @@ def test_board_tolerates_missing_attendee_in_game(conn):
 def test_board_card_data_has_game_time_last_end_and_states(conn):
     mid, gid = one_court_game(conn, extra=1)  # x0 은 대기
     court = board(conn, mid)["courts"][0]
-    assert court["started_at"] and court["elapsed_label"] == "0분"
+    assert court["started_at"] and court["elapsed_clock"] == "0:00"
     end_game(conn, gid)
     b = board(conn, mid)
     played = [c for c in b["queue_cards"] if c["played"]]
@@ -601,3 +601,43 @@ def test_board_card_data_has_game_time_last_end_and_states(conn):
     set_status(conn, mid, away, "away")
     ex = {e["id"]: e for e in board(conn, mid)["excluded"]}
     assert ex[away]["state"] == "away" and ex[away]["reason"] == "휴식" and ex[away]["games"] >= 1
+
+
+def test_court_rest_keeps_court_empty_for_15_seconds(conn, monkeypatch):
+    from badminton import meetups
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = one_court_game(conn, extra=4)
+    end_game(conn, gid)
+    court = board(conn, mid)["courts"][0]
+    assert court["game_id"] is None and 0 < court["ready_in"] <= 15
+    meetups.fill_courts(conn, mid)  # 15초 전에는 다시 불러도 비어 있다
+    assert board(conn, mid)["courts"][0]["game_id"] is None
+    conn.execute("UPDATE games SET ended_at = ended_at - 16 WHERE id = ?", (gid,))
+    meetups.fill_courts(conn, mid)
+    assert board(conn, mid)["courts"][0]["game_id"] is not None
+
+
+def test_court_rest_skipped_for_redraw_and_force(conn, monkeypatch):
+    from badminton import meetups
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid, gid = one_court_game(conn, extra=4)
+    redraw(conn, gid)  # 다시 뽑기는 바로 채운다
+    assert board(conn, mid)["courts"][0]["game_id"] is not None
+    end_game(conn, current_game(conn, mid))
+    meetups.fill_courts(conn, mid, force=True)  # 운영진의 '빈 코트 자동 매칭'
+    assert board(conn, mid)["courts"][0]["game_id"] is not None
+
+
+def test_memo_is_trimmed_shown_and_cleared(conn):
+    from badminton.meetups import set_memo
+    mid, gid = one_court_game(conn, extra=1)
+    waiting = board(conn, mid)["queue_cards"][0]["id"]
+    set_memo(conn, mid, waiting, "  콕 가볼  ")
+    assert board(conn, mid)["queue_cards"][0]["memo"] == "콕 가볼"
+    playing = board(conn, mid)["courts"][0]["team_players"][0][0]["id"]
+    set_memo(conn, mid, playing, "라켓 수리")
+    assert board(conn, mid)["courts"][0]["team_players"][0][0]["memo"] == "라켓 수리"
+    with pytest.raises(ValueError):
+        set_memo(conn, mid, waiting, "가" * 101)
+    set_memo(conn, mid, waiting, "   ")
+    assert board(conn, mid)["queue_cards"][0]["memo"] is None

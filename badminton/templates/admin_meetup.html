@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% from "_macros.html" import player_name %}
 {% block title %}{{ m.name }}{% endblock %}
+{% block body_class %}is-wide{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
 <section class="event-banner" data-live-updates-url="{{ url_for('admin.meetup_updates', mid=m.id) }}" data-meetup-id="{{ m.id }}">
   <span class="eyebrow">운영 콘솔</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 3초 갱신</span></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 1초 갱신</span></div>
 </section>
 
 <div class="stat-grid" id="meetup-stats" aria-label="정모 현황">
@@ -51,11 +52,13 @@
   {% endif %}
 </section>
 
+<div class="board-layout">
 <section class="tile" id="meetup-court-board">
   {% set admin = true %}{% include "_court_board_content.html" %}
 </section>
-
 <div id="meetup-queue">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids %}{% include "queue_list.html" %}{% endwith %}</div>
+</div>
+<div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
 
 <section class="section">
   <div class="head"><span>게스트 추가</span></div>
@@ -104,6 +107,18 @@
           {% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
         </select>
         <button type="submit" class="btn sm line">저장</button>
+      </div>
+      <span class="save-status" data-save-status aria-live="polite"></span>
+    </form>
+  </div>
+
+  <div class="quick-menu-section">
+    <small class="quick-menu-label">메모</small>
+    <form id="quick-memo-form" method="post" action="{{ url_for('admin.memo', mid=m.id) }}" class="quick-menu-form" data-save-without-reload>
+      <input type="hidden" name="member_id" data-memo-member>
+      <div class="quick-menu-row">
+        <input type="text" name="memo" data-memo-text placeholder="예: 콕 가지러 감" maxlength="100">
+        <button type="submit" class="btn sm">저장</button>
       </div>
       <span class="save-status" data-save-status aria-live="polite"></span>
     </form>

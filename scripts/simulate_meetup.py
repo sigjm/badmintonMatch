@@ -25,7 +25,9 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from badminton import db  # noqa: E402
 from badminton.matching import GRADE_LABELS, GRADE_POINTS  # noqa: E402
+from badminton import meetups  # noqa: E402
 from badminton.meetups import end_game, start  # noqa: E402
+meetups.COURT_REST_SECONDS = 0  # 가상 시계로 돌리므로 실제 15초 코트 쉬는 시간은 끈다
 from badminton.members import set_info  # noqa: E402
 
 

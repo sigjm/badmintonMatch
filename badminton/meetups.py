@@ -11,6 +11,8 @@ STATUS_LABELS = {"present": "참석", "late": "지각", "away": "휴식", "gone"
 EXCLUDED_ORDER = {"noinfo": 0, "away": 1, "late": 2, "gone": 3, "canceled": 4}
 SEOUL = ZoneInfo("Asia/Seoul")
 ACTIVE = "SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL"
+COURT_REST_SECONDS = 15  # 경기를 끝낸 코트는 이만큼 비워 둔다 (선수 교대 시간)
+MEMO_MAX = 100
 
 
 def session_day(now: datetime) -> str:
@@ -107,6 +109,21 @@ def set_status(conn, meetup_id: int, member_id: int, status: str) -> None:
                      (status, meetup_id, member_id))
         if _drop_reservations_with(conn, meetup_id, [member_id]):
             refill_reservations(conn, meetup_id)
+
+
+def set_memo(conn, meetup_id: int, member_id: int, memo: str) -> None:
+    memo = (memo or "").strip()
+    if len(memo) > MEMO_MAX:
+        raise ValueError(f"메모는 {MEMO_MAX}자까지 쓸 수 있습니다")
+    conn.execute("UPDATE attendees SET memo = ? WHERE meetup_id = ? AND member_id = ?",
+                 (memo or None, meetup_id, member_id))
+
+
+def _rest_until(conn, meetup_id: int) -> dict[int, float]:
+    """코트별로 다음 경기를 넣어도 되는 시각 (다시 뽑기로 취소된 경기는 대기 없이 바로 채운다)."""
+    return {r["court"]: r["ended"] + COURT_REST_SECONDS for r in conn.execute(
+        "SELECT court, max(ended_at) AS ended FROM games WHERE meetup_id = ? AND ended_at IS NOT NULL "
+        "AND canceled = 0 GROUP BY court", (meetup_id,))}
 
 
 def _playing(conn, meetup_id: int) -> set[int]:
@@ -223,10 +240,14 @@ def redraw_reservation(conn, reservation_id: int) -> int | None:
     return meetup_id
 
 
-def fill_courts(conn, meetup_id: int) -> None:
+def fill_courts(conn, meetup_id: int, force: bool = False) -> None:
+    """빈 코트를 채운다. force가 아니면 방금 경기가 끝난 코트는 COURT_REST_SECONDS 동안 비워 둔다."""
     courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
     busy = {r["court"] for r in conn.execute("SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                              (meetup_id,))}
+    if not force:
+        now = time.time()
+        busy |= {c for c, until in _rest_until(conn, meetup_id).items() if until > now}
     window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
     recent = _recent_mates(conn, meetup_id)
     for court in range(1, courts + 1):
@@ -338,21 +359,29 @@ def _minutes_label(seconds: float) -> str:
     return f"{minutes // 60}시간 {minutes % 60}분" if minutes >= 60 else f"{minutes}분"
 
 
+def _clock_label(seconds: float) -> str:
+    s = max(0, int(seconds))
+    return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+
+
 def board(conn, meetup_id: int) -> dict:
     now = time.time()
-    member_by_id = {r["id"]: {"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"]} for r in conn.execute(
-        "SELECT m.id, m.nickname, m.gender, m.grade FROM members m JOIN attendees a ON a.member_id = m.id WHERE a.meetup_id = ?",
-        (meetup_id,))}
+    member_by_id = {r["id"]: {"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"],
+                              "memo": r["memo"]} for r in conn.execute(
+        "SELECT m.id, m.nickname, m.gender, m.grade, a.memo FROM members m JOIN attendees a ON a.member_id = m.id "
+        "WHERE a.meetup_id = ?", (meetup_id,))}
     names = {member_id: member["nickname"] for member_id, member in member_by_id.items()}
     courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}
+    rest_until = _rest_until(conn, meetup_id)
     court_list = []
     for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
         court_list.append({"court": c, "game_id": g["id"] if g else None,
                            "started_at": g["started_at"] if g else None,
-                           "elapsed_label": _minutes_label(now - g["started_at"]) if g else None,
+                           "elapsed_clock": _clock_label(now - g["started_at"]) if g else None,
+                           "ready_in": None if g or rest_until.get(c, 0) <= now else int(rest_until[c] - now) + 1,
                            "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
                                      [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,
                            "team_players": [[member_by_id.get(g["a1"]), member_by_id.get(g["a2"])],
@@ -364,7 +393,7 @@ def board(conn, meetup_id: int) -> dict:
         for pid in (g["a1"], g["a2"], g["b1"], g["b2"]):
             last_end[pid] = max(last_end.get(pid, 0), g["ended_at"])
     excluded = []
-    for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status, a.games FROM attendees a
+    for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status, a.games, a.memo FROM attendees a
                              JOIN members m ON m.id = a.member_id WHERE a.meetup_id = ?""", (meetup_id,)):
         if r["id"] in playing:
             continue
@@ -377,7 +406,7 @@ def board(conn, meetup_id: int) -> dict:
         else:
             continue
         excluded.append({"id": r["id"], "nickname": r["nickname"], "gender": r["gender"], "grade": r["grade"],
-                         "games": r["games"], "state": state, "reason": reason})
+                         "games": r["games"], "memo": r["memo"], "state": state, "reason": reason})
     excluded.sort(key=lambda e: (EXCLUDED_ORDER[e["state"]], e["nickname"]))
     queued = queue(conn, meetup_id)
     queue_cards = []

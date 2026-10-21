@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, redirect, render_template, request, url_fo
 
 from . import get_conn
 from .groups import get_group, list_groups
-from .meetups import board, today
+from .meetups import board, fill_courts, today
 
 bp = Blueprint("public", __name__)
 
@@ -29,6 +29,8 @@ def board_view():
         group = get_group(conn, latest["group_id"]) if latest else None
         group = group or list_groups(conn)[0]
     m = _started(conn, group["id"])
+    if m:
+        fill_courts(conn, m["id"])
     return render_template("board.html", m=m, board=board(conn, m["id"]) if m else None,
                            group=group, groups=list_groups(conn))
 
@@ -42,11 +44,14 @@ def board_updates():
         group = get_group(conn, latest["group_id"]) if latest else None
         group = group or list_groups(conn)[0]
     m = _started(conn, group["id"])
+    if m:
+        fill_courts(conn, m["id"])  # 쉬는 시간(15초)이 지난 코트 채우기
     current_board = board(conn, m["id"]) if m else None
     response = jsonify(
         meetup_id=m["id"] if m else None,
         court_board=render_template("_court_board_content.html", m=m, board=current_board, admin=False) if m else "",
         queue=render_template("queue_list.html", board=current_board) if m else "",
+        excluded=render_template("excluded_list.html", board=current_board) if m else "",
         reservations=current_board.get("reservations", []) if current_board else [],
         active_courts=sum(bool(c["game_id"]) for c in current_board["courts"]) if m else 0,
         queue_count=len(current_board["queue"]) if m else 0,

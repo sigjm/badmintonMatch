@@ -8,13 +8,14 @@
     {% for team in c.team_players %}
     {% if not loop.first %}<span class="versus">VS</span>{% endif %}
     <div class="team">
-      {% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}<span data-player-status="{{ player.id }}" data-member-id="{{ player.id }}" data-nickname="{{ player.nickname }}" data-gender="{{ player.gender or '' }}" data-grade="{{ player.grade or '' }}">{{ player_name(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
+      {% for player in team %}{% if not loop.first %}<span class="team-sep">·</span>{% endif %}<span data-player-status="{{ player.id }}" data-member-id="{{ player.id }}" data-nickname="{{ player.nickname }}" data-gender="{{ player.gender or '' }}" data-grade="{{ player.grade or '' }}" data-memo="{{ player.memo or '' }}">{{ player_name(player.nickname, player.gender, player.grade) }}</span>{% endfor %}
     </div>
     {% endfor %}
   </div>
-  <div class="court-time" data-queue-wait data-queued-at="{{ c.started_at }}">경기 시간 <span data-wait-value>{{ c.elapsed_label }}</span></div>
+  <div class="court-time">경기 시간 <span data-game-clock data-started-at="{{ c.started_at }}">{{ c.elapsed_clock }}</span></div>
   {% else %}
-  <div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>
+  {% if c.ready_in %}<div class="empty court-rest">다음 경기 {{ c.ready_in }}초 후 시작</div>
+  {% else %}<div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>{% endif %}
   {% if admin and manual_candidates|length >= 4 %}
   <div class="manual-match-panel">
     <button type="submit" form="manual-match-form" name="court" value="{{ c.court }}" class="btn line sm manual-assign-button" data-manual-court disabled>이 코트에 배정</button>

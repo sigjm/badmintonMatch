@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block head %}{% endblock %}
 {% block title %}대진{% endblock %}
+{% block body_class %}is-wide{% endblock %}
 {% block nav %}{% include "public_nav.html" %}{% endblock %}
 {% block content %}
 {% if groups|length > 1 %}
@@ -18,12 +19,15 @@
 <section class="event-banner">
   <span class="eyebrow">실시간 게임보드</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span>3초마다 갱신</span></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span>1초마다 갱신</span></div>
 </section>
+<div class="board-layout">
 <section class="tile board-big" id="meetup-court-board">
   {% set admin = false %}{% include "_court_board_content.html" %}
 </section>
 <div id="meetup-queue">{% include "queue_list.html" %}</div>
+</div>
+<div id="meetup-excluded">{% include "excluded_list.html" %}</div>
 {% endif %}
 </div>
 {% endblock %}
