@@ -48,6 +48,22 @@ def test_info_edit_rejects_member_from_another_meetup(admin, seeded_meetup, conn
     assert reservation["a1"] == member_id
 
 
+def test_admin_mutation_rejects_cross_origin_post(admin, conn_of):
+    from badminton.db import get_setting
+
+    response = admin.post("/admin/settings", data={"female_offset": "3", "mix_window": "8"},
+                          environ_overrides={"HTTP_ORIGIN": "https://evil.jmllem.com"})
+
+    assert response.status_code == 403
+    assert get_setting(conn_of(), "female_offset") == 1.5
+
+
+def test_admin_mutation_rejects_post_without_origin_or_referer(admin):
+    response = admin.post("/admin/logout", environ_overrides={"HTTP_ORIGIN": "", "HTTP_REFERER": ""})
+
+    assert response.status_code == 403
+
+
 def test_import_creates_meetup_with_attendees(admin, monkeypatch, conn_of):
     monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)  # 참석 2명, 2026-10-23
     r = admin.post("/admin/import", data={"date": "2026-10-23"})

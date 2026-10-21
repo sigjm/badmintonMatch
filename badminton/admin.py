@@ -2,6 +2,7 @@ import hmac
 import ipaddress
 import time
 from functools import wraps
+from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -45,6 +46,21 @@ def _record_login_failure(client_key: str, now: float) -> None:
         _login_failures[client_key] = (now, 1)
     else:
         _login_failures[client_key] = (attempt[0], attempt[1] + 1)
+
+
+@bp.before_request
+def reject_cross_origin_mutations():
+    if request.method != "POST" or request.endpoint == "admin.login" or not session.get("admin"):
+        return
+    source = request.headers.get("Origin") or request.referrer
+    if not source:
+        abort(403)
+    try:
+        source_host = urlsplit(source).netloc.lower()
+    except ValueError:
+        abort(403)
+    if source_host != request.host.lower():
+        abort(403)
 
 
 def admin_required(view):

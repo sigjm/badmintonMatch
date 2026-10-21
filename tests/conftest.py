@@ -31,6 +31,7 @@ def client(app):
 
 @pytest.fixture
 def admin(client):
+    client.environ_base["HTTP_ORIGIN"] = "http://localhost"
     client.post("/admin/login", data={"password": "pw"})
     return client
 
