@@ -188,7 +188,7 @@ def refill_reservations(conn, meetup_id: int) -> None:
     playing = _playing(conn, meetup_id)
     while current_count < courts:
         q = queue(conn, meetup_id)
-        if len(q) < 4:
+        if len(q) < 8:
             break
         four = pick_four(q, window, offset, recent)
         if four is None:
