@@ -10,11 +10,11 @@ def test_announcement_text_reads_court_and_names():
 def test_announce_route_returns_wav_for_game(client, seeded_meetup, monkeypatch):
     mid, gid = seeded_meetup
     said = []
-    monkeypatch.setattr(announce, "speak", lambda text: said.append(text) or b"RIFF....WAVE")
-    resp = client.get(f"/announce/{gid}.wav")
-    assert resp.status_code == 200 and resp.mimetype == "audio/wav" and resp.data == b"RIFF....WAVE"
+    monkeypatch.setattr(announce, "speak", lambda text: said.append(text) or b"ID3mp3")
+    resp = client.get(f"/announce/{gid}.mp3")
+    assert resp.status_code == 200 and resp.mimetype == "audio/mpeg" and resp.data == b"ID3mp3"
     assert said == [announcement_text(1, ["m1", "m2", "f1", "f2"])] or said[0].startswith("1코트, ")
-    assert client.get("/announce/99999.wav").status_code == 404
+    assert client.get("/announce/99999.mp3").status_code == 404
 
 
 def test_announce_route_503_when_tts_unavailable(client, seeded_meetup, monkeypatch):
@@ -22,8 +22,8 @@ def test_announce_route_503_when_tts_unavailable(client, seeded_meetup, monkeypa
     def broken(text):
         raise RuntimeError("model missing")
     monkeypatch.setattr(announce, "speak", broken)
-    assert client.get(f"/announce/{gid}.wav").status_code == 503
-    assert client.get("/announce/hello.wav").status_code == 503
+    assert client.get(f"/announce/{gid}.mp3").status_code == 503
+    assert client.get("/announce/hello.mp3").status_code == 503
 
 
 def test_court_cards_carry_game_and_announcement(admin, client, seeded_meetup):
@@ -33,3 +33,11 @@ def test_court_cards_carry_game_and_announcement(admin, client, seeded_meetup):
     assert "data-announce-toggle" in html and "data-announce-replay" in html
     public = client.get("/board").get_data(as_text=True)
     assert f'data-game-id="{gid}"' in public and "data-announce-toggle" in public
+
+
+def test_announce_runs_outside_the_one_request_at_a_time_lock(app, client, seeded_meetup, monkeypatch):
+    mid, gid = seeded_meetup
+    monkeypatch.setattr(announce, "speak", lambda text: b"ID3mp3")
+    with app.serial_lock:  # 다른 요청이 DB 작업 중이어도 음성은 기다리지 않는다
+        assert client.get(f"/announce/{gid}.mp3").status_code == 200
+    assert client.get("/board").status_code == 200  # 잠금이 풀리면 일반 요청도 정상

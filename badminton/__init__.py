@@ -1,6 +1,7 @@
 import os
+import threading
 
-from flask import Flask, current_app, g
+from flask import Flask, current_app, g, request
 
 from . import db
 from .matching import GRADE_LABELS
@@ -32,6 +33,21 @@ def create_app(config: dict | None = None) -> Flask:
             value = app.config.get(name)
             if not isinstance(value, str) or not value.strip():
                 raise RuntimeError(f"{name} must be configured with a non-empty value")
+
+    # gunicorn 스레드 4개로 받되 DB를 만지는 요청은 예전처럼 한 번에 하나씩 처리한다 (경기 끝 동시 클릭·코트 채우기 경쟁 방지).
+    # 안내 방송 음성 합성(2초 남짓)만 이 잠금 밖에서 돌아 대진판 1초 갱신을 막지 않는다.
+    app.serial_lock = threading.Lock()
+
+    @app.before_request
+    def one_request_at_a_time():
+        if not (request.endpoint or "").startswith("public.announce"):
+            app.serial_lock.acquire()
+            g.holds_serial_lock = True
+
+    @app.teardown_request
+    def release_serial_lock(_exc):
+        if g.pop("holds_serial_lock", False):
+            app.serial_lock.release()
 
     @app.teardown_appcontext
     def close_conn(_exc):

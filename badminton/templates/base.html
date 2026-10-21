@@ -708,13 +708,13 @@
       playNext();
     };
     const say = (url, text) => { pending.push({ url, text }); playNext(); };
-    const sayCourt = (court) => court?.dataset.gameId && say(`/announce/${court.dataset.gameId}.wav`, court.dataset.announce);
+    const sayCourt = (court) => court?.dataset.gameId && say(`/announce/${court.dataset.gameId}.mp3`, court.dataset.announce);
     toggle.addEventListener("click", () => {
       on = !on;
       toggle.setAttribute("aria-pressed", String(on));
       toggle.textContent = on ? "안내 방송 켜짐" : "안내 방송 켜기";
       toggle.classList.toggle("line", !on);
-      if (on) say("/announce/hello.wav", "안내 방송을 시작합니다.");  // 누른 순간 소리를 내야 이후 자동 재생이 허용된다
+      if (on) say("/announce/hello.mp3", "안내 방송을 시작합니다.");  // 누른 순간 소리를 내야 이후 자동 재생이 허용된다
     });
     document.addEventListener("click", (event) => {
       const replay = event.target.closest("[data-announce-replay]");
