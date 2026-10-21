@@ -48,6 +48,6 @@ while IFS= read -r image_id; do
       echo "경고: 이전 앱 이미지 $image_id 정리를 완료하지 못했습니다." >&2
     fi
   fi
-done < <(docker image ls --quiet | sort -u)
+done < <(docker image ls --quiet --no-trunc | sort -u)
 
 echo "배포 완료: $current_image (이전 버전: $previous_image)"
