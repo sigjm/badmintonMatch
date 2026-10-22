@@ -51,13 +51,13 @@
     <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
     <p class="manual-match-editing" data-manual-editing hidden>예약을 수정 중입니다. 기존 선수 카드를 눌러 빼거나 다른 선수로 바꿀 수 있습니다.</p>
     <div class="manual-draft" data-manual-draft>
-      {% for team, first in (('A팀', 0), ('B팀', 2)) %}
-      {% if not loop.first %}<div class="draft-vs">VS</div>{% endif %}
-      <div class="draft-team">
-        <span class="draft-team-label">{{ team }}</span>
-        {% for i in (first, first + 1) %}<button type="button" class="draft-slot is-empty" data-draft-slot="{{ i }}" data-placeholder="선수 {{ i + 1 }}">선수 {{ i + 1 }}</button>{% endfor %}
+      <div class="court-match">
+        {% for first in (0, 2) %}
+        <div class="team">
+          {% for i in (first, first + 1) %}<button type="button" class="court-player draft-slot is-empty" data-draft-slot="{{ i }}" data-placeholder="선수 {{ i + 1 }}">선수 {{ i + 1 }}</button>{% endfor %}
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
       <div class="manual-draft-actions">
         <button type="submit" class="btn" data-manual-fill disabled>예약에 추가</button>
         <button type="button" class="btn line" data-manual-reset>초기화</button>

@@ -5,7 +5,7 @@
 <div class="pcard is-{{ state }}" data-key="p-{{ p.id }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}" tabindex="0" role="button" aria-label="{{ p.nickname }}{% if p.grade %}, {{ GRADE_LABELS.get(p.grade, '') }}급{% endif %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"{% endif %}>
   <div class="pcard-name">
     {% if admin_card and m.started and p.id in manual_candidate_ids|default([]) %}
-    <button type="button" class="court-player queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-grade-label="{{ GRADE_LABELS.get(p.grade, '?') }}">{{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small></button>
+    <button type="button" class="court-player queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small></button>
     {% else %}<span class="court-player">{{ player_chip(p.nickname, p.gender, p.grade) }}</span>{% endif %}
   </div>
   <div class="pcard-top">

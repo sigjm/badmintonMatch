@@ -812,7 +812,7 @@ def test_queue_card_is_a_chip_with_a_select_button_for_candidates(admin, seeded_
 
     button = _tag(card, "data-manual-player=")
     assert button.startswith("<button") and 'class="court-player queue-player-select"' in button
-    assert f'data-manual-player="{waiting}"' in button and 'data-grade-label="C"' in button
+    assert f'data-manual-player="{waiting}"' in button
     assert 'data-nickname="대기자"' in button and 'data-gender="M"' in button
     assert "player-chip is-male" in card and "C/대기자" in card
     assert "grade-badge" not in card and "is-gender-" not in card  # 급수는 칩 안에, 카드 바탕은 흰색
@@ -825,7 +825,7 @@ def test_playing_tab_cards_are_selectable_chips(admin, seeded_meetup, conn_of):
 
     card = _pcard(admin.get(f"/admin/m/{mid}").get_data(as_text=True), member)
 
-    assert f'data-manual-player="{member}"' in card and 'data-grade-label="B"' in card
+    assert f'data-manual-player="{member}"' in card
     assert "player-chip is-male" in card and "B/m1" in card
 
 
@@ -907,3 +907,20 @@ def test_selection_bar_is_only_drawn_for_manual_match_form(admin, client, seeded
 
     assert 'id="manual-selection-bar"' not in admin.get(f"/admin/m/{idle}").get_data(as_text=True)  # 폼이 없는 시작 전 정모
     assert 'id="manual-selection-bar"' not in client.get("/board").get_data(as_text=True)  # 공개 대진판
+
+
+def test_manual_draft_slots_use_the_reservation_card_court_match_layout(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    start = html.index("data-manual-draft")
+    draft = html[start:html.index("manual-draft-actions", start)]
+    assert draft.count('class="court-match"') == 1 and draft.count('class="team"') == 2
+    team_a, team_b = draft.split('class="team"')[1:]
+    assert [f'data-draft-slot="{i}"' in team_a for i in range(4)] == [True, True, False, False]
+    assert [f'data-draft-slot="{i}"' in team_b for i in range(4)] == [False, False, True, True]
+    # 예약 카드 선수 칸과 같은 .court-player 모양, 빈 칸 글자는 JS가 되돌려 쓰는 data-placeholder
+    assert draft.count("court-player draft-slot is-empty") == 4
+    assert all(f'data-placeholder="선수 {i}"' in draft for i in range(1, 5))
+    # A팀/B팀 글자 열과 따로 있던 VS 줄은 없다 (VS는 .court-match .team + .team 규칙이 그린다)
+    assert "draft-team-label" not in html and "draft-vs" not in html and "draft-team" not in html

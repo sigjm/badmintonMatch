@@ -5,8 +5,7 @@
     <button type="button" class="court-player reservation-player-select" data-manual-player="{{ p.id }}"
             data-reservation-player="true" data-reservation-id="{{ res.id }}" data-reservation-slot="{{ slot_index }}"
             data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}"
-            data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}"
-            data-grade-label="{{ GRADE_LABELS.get(p.grade, '?') }}" data-memo="{{ p.memo or '' }}">
+            data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">
       {{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small>
     </button>
     {%- else -%}
