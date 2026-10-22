@@ -395,6 +395,12 @@
   .pcard-line { color:var(--text-3); font-size:12px; }
   .pcard-memo { color:#ad6800; font-size:12px; font-weight:600; overflow-wrap:anywhere; }
   .court-rest { color:#d46b08; font-weight:500; }
+  .court.is-lesson { background:#fff7e6; border-color:#ffd591; }
+  .court.is-lesson .court-no { background:#d46b08; }
+  .court.is-lesson .court-lesson { color:#d46b08; font-weight:700; }
+  .court.is-empty { background:var(--fill); border-color:var(--border); }
+  .court.is-empty .court-no { background:var(--text-3); }
+  .court.is-empty .court-empty { color:var(--text-2); font-weight:600; }
   .pcard-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:auto 0 0; padding-top:4px; }
   .pcard-actions .btn { width:100%; padding:0 4px; font-size:13px; }
   .tag.blue { color:#0958d9; background:#e6f4ff; border-color:#91caff; }

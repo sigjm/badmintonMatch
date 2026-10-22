@@ -893,3 +893,72 @@ def test_auto_fill_toggle_disables_and_refills(conn):
     assert conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone() is not None
 
 
+def test_db_connect_creates_court_states_on_legacy_db(tmp_path):
+    import sqlite3
+    from badminton.db import connect
+    db_file = str(tmp_path / "legacy.db")
+    raw = sqlite3.connect(db_file)
+    raw.execute("CREATE TABLE meetups(id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE, "
+                "courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0)")
+    raw.close()
+
+    migrated = connect(db_file)
+    cols = [r[1] for r in migrated.execute("PRAGMA table_info(court_states)")]
+    assert cols == ["meetup_id", "court", "state"]
+    migrated.close()
+
+
+def test_court_state_skips_fill_and_caps_auto_reservations(conn):
+    from badminton.meetups import fill_courts, set_court_state
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"p{i}", "M", "C") for i in range(4)])
+    start(conn, mid, 3)  # 1코트 경기 중, 2·3코트 빈 코트
+
+    set_court_state(conn, mid, 2, "empty")
+    set_court_state(conn, mid, 3, "lesson")
+    courts = board(conn, mid)["courts"]
+    assert [c["state"] for c in courts] == ["game", "empty", "lesson"]
+
+    # 대기 인원이 충분해도 empty/lesson 코트에는 경기가 배정되지 않고 자동 예약은 game 코트 수(1개)까지만 생성된다
+    seat(conn, mid, *[mk(conn, f"w{i}", "M", "C") for i in range(20)])
+    fill_courts(conn, mid, force=True)
+    courts = board(conn, mid)["courts"]
+    assert courts[0]["game_id"] is not None
+    assert courts[1]["game_id"] is None and courts[1]["state"] == "empty"
+    assert courts[2]["game_id"] is None and courts[2]["state"] == "lesson"
+    assert len(reservations(conn, mid)) == 1
+
+
+def test_court_state_return_to_game_fills_immediately_and_validation(conn, monkeypatch):
+    from badminton import meetups
+    from badminton.meetups import set_court_state
+    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    seat(conn, mid, *[mk(conn, f"p{i}", "M", "C") for i in range(20)])
+    start(conn, mid, 2)
+
+    # 경기 중인 코트는 상태 변경 불가
+    with pytest.raises(ValueError, match="경기 중"):
+        set_court_state(conn, mid, 1, "lesson")
+    # 범위 밖 코트·잘못된 상태값 거절
+    with pytest.raises(ValueError):
+        set_court_state(conn, mid, 0, "lesson")
+    with pytest.raises(ValueError):
+        set_court_state(conn, mid, 3, "lesson")
+    with pytest.raises(ValueError):
+        set_court_state(conn, mid, 1, "invalid")
+
+    # 2코트 경기를 끝내고(휴식 상태) 레슨으로 바꾸면 자동 예약이 2개 -> 1개로 줄어든다
+    assert len(reservations(conn, mid)) == 2
+    g2 = next(c["game_id"] for c in board(conn, mid)["courts"] if c["court"] == 2)
+    end_game(conn, g2)
+    set_court_state(conn, mid, 2, "lesson")
+    assert board(conn, mid)["courts"][1]["state"] == "lesson"
+    assert board(conn, mid)["courts"][1]["ready_in"] is None
+    assert len(reservations(conn, mid)) == 1
+
+    # 다시 game으로 되돌리면 쉬는 시간과 무관하게 즉시 채워지고 예약도 2개로 복구된다
+    set_court_state(conn, mid, 2, "game")
+    courts = board(conn, mid)["courts"]
+    assert courts[1]["state"] == "game" and courts[1]["game_id"] is not None
+    assert len(reservations(conn, mid)) == 2

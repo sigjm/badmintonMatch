@@ -1,7 +1,8 @@
 {% from "_macros.html" import player_chip %}
 {# 코트 목록 — 운영 메뉴는 관리자 화면에서 카드를 길게 눌러 팝업으로 표시한다 #}
 {% for c in board.courts %}
-<div class="court" data-key="court-{{ c.court }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin and c.game_id %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if admin and c.game_id %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
+{% set court_state = c.state or 'game' %}
+<div class="court{% if not c.teams and court_state != 'game' %} is-{{ court_state }}{% endif %}" data-key="court-{{ c.court }}" data-court-state="{{ court_state }}" data-game-id="{{ c.game_id or '' }}" data-announce="{{ c.announce or '' }}" aria-label="코트 {{ c.court }}{% if admin %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if admin %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="court-actions-{{ c.court }}"{% endif %}>
   <div class="court-no">{{ c.court }}<small>코트</small></div>
   {% if c.teams %}
   <div class="court-match">
@@ -12,15 +13,25 @@
     {% endfor %}
   </div>
   <div class="court-time">경기 시간 <span data-game-clock data-started-at="{{ c.started_at }}">{{ c.elapsed_clock }}</span></div>
+  {% elif court_state == 'lesson' %}
+  <div class="empty court-lesson">레슨 중</div>
+  {% elif court_state == 'empty' %}
+  <div class="empty court-empty">비워 둠</div>
+  {% elif c.ready_in and (not admin or board.auto_fill|default(true)) %}
+  <div class="empty court-rest" data-court-rest data-ready-in="{{ c.ready_in }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
   {% else %}
-  {% set auto_fill = board.auto_fill|default(true) %}
-  {% if c.ready_in and (not admin or auto_fill) %}<div class="empty court-rest" data-court-rest data-ready-in="{{ c.ready_in }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
-  {% else %}<div class="empty">{{ ('빈 코트 · 자동 배정 꺼짐' if not auto_fill else '빈 코트') if admin else '대기 인원 부족' }}</div>{% endif %}
+  <div class="empty">{{ ('빈 코트' if board.auto_fill|default(true) else '빈 코트 · 자동 배정 꺼짐') if admin else '대기 인원 부족' }}</div>
   {% endif %}
-  {% if admin and c.game_id %}
+  {% if admin %}
   <div class="court-actions" id="court-actions-{{ c.court }}" data-action-panel role="group" aria-label="코트 {{ c.court }} 관리" hidden>
+    {% if c.game_id %}
     <form method="post" action="{{ url_for('admin.end', gid=c.game_id) }}" class="inline" data-save-without-reload><button class="btn go sm">게임 끝내기</button></form>
     <button type="button" class="btn line sm" data-announce-replay>호출</button>
+    {% else %}
+    {% for state_val, state_label in [('game', '게임'), ('empty', '빈코트'), ('lesson', '레슨')] %}
+    <form method="post" action="{{ url_for('admin.court_state', mid=m.id, court=c.court) }}" class="inline" data-save-without-reload><input type="hidden" name="state" value="{{ state_val }}"><button type="submit" class="btn {{ 'sm' if court_state == state_val else 'line sm' }}" aria-pressed="{{ 'true' if court_state == state_val else 'false' }}">{{ state_label }}</button></form>
+    {% endfor %}
+    {% endif %}
   </div>
   {% endif %}
 </div>

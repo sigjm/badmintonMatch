@@ -24,7 +24,9 @@ AUDIT_ACTION_LABELS = {
     "meetup_create": "정모 추가", "meetup_import": "정모 불러오기", "attendees_paste": "참석자 붙여넣기",
     "meetup_archive": "정모 보관", "meetup_restore": "정모 복구", "attendee_status": "참석 상태 변경",
     "attendee_memo": "참석자 메모 변경", "attendee_guest_add": "게스트 추가", "meetup_start": "코트 시작",
-    "courts_change": "코트 수 변경", "auto_match": "자동 매칭", "manual_reservation": "수동 예약",
+    "courts_change": "코트 수 변경", "court_state": "코트 상태 변경", "auto_match": "자동 매칭",
+    "auto_reserve": "자동 예약 설정", "auto_fill": "자동 배정 설정",
+    "manual_reservation": "수동 예약",
     "game_assigned": "경기 배정",
     "game_end": "게임 종료", "game_redraw": "경기 다시 뽑기", "reservation_redraw": "예약 다시 뽑기",
     "reservation_edit": "예약 수정", "reservation_priority": "예약 우선 배정",
@@ -547,6 +549,25 @@ def start_meetup(mid):
                              summary=f"{'코트 시작' if not m['started'] else '코트 수 변경'}: {courts}면",
                              entity_type="meetup", entity_id=mid, meetup_id=mid,
                              details={"from_courts": m["courts"], "to_courts": courts})
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/court/<int(signed=True):court>/state")
+@admin_required
+def court_state(mid, court):
+    conn = get_conn()
+    _active_meetup_row(mid)
+    target_state = request.form.get("state", "").strip()
+    try:
+        with transaction(conn):
+            before = meetups.get_court_state(conn, mid, court)
+            meetups.set_court_state(conn, mid, court, target_state)
+            audit.record(conn, action="court_state",
+                         summary=f"{court}코트 → {meetups.COURT_STATE_LABELS[target_state]}",
+                         entity_type="court", entity_id=court, meetup_id=mid,
+                         details={"court": court, "from": before, "to": target_state})
+    except ValueError as e:
+        flash(str(e))
     return redirect(url_for("admin.meetup", mid=mid))
 
 

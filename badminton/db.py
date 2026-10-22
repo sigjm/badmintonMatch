@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS reservations(
   id INTEGER PRIMARY KEY, meetup_id INTEGER NOT NULL REFERENCES meetups, seq INTEGER NOT NULL,
   a1 INTEGER, a2 INTEGER, b1 INTEGER, b2 INTEGER, created_at REAL NOT NULL,
   source TEXT NOT NULL DEFAULT 'auto' CHECK(source IN ('auto','manual')));
+CREATE TABLE IF NOT EXISTS court_states(
+  meetup_id INTEGER NOT NULL REFERENCES meetups, court INTEGER NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('empty','lesson')), PRIMARY KEY(meetup_id, court));
 CREATE TABLE IF NOT EXISTS audit_logs(
   id INTEGER PRIMARY KEY, at REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
   entity_type TEXT NOT NULL, entity_id INTEGER, meetup_id INTEGER REFERENCES meetups,

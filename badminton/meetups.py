@@ -10,6 +10,7 @@ from .members import create_member, upsert_somoim
 from .somoim import SomoimMember
 
 STATUS_LABELS = {"present": "참석", "late": "지각", "away": "휴식", "gone": "퇴장", "canceled": "취소"}
+COURT_STATE_LABELS = {"game": "게임", "empty": "빈코트", "lesson": "레슨"}
 EXCLUDED_ORDER = {"noinfo": 0, "away": 1, "late": 2, "gone": 3, "canceled": 4}
 SEOUL = ZoneInfo("Asia/Seoul")
 ACTIVE = "SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL"
@@ -187,6 +188,17 @@ def _rest_until(conn, meetup_id: int) -> dict[int, float]:
         "AND canceled = 0 GROUP BY court", (meetup_id,))}
 
 
+def _court_states(conn, meetup_id: int) -> dict[int, str]:
+    return {r["court"]: r["state"] for r in conn.execute(
+        "SELECT court, state FROM court_states WHERE meetup_id = ?", (meetup_id,))}
+
+
+def get_court_state(conn, meetup_id: int, court: int) -> str:
+    row = conn.execute("SELECT state FROM court_states WHERE meetup_id = ? AND court = ?",
+                       (meetup_id, court)).fetchone()
+    return row["state"] if row else "game"
+
+
 def _playing(conn, meetup_id: int) -> set[int]:
     return {pid for row in conn.execute(ACTIVE, (meetup_id,)) for pid in row}
 
@@ -280,15 +292,17 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
             _renumber_reservations(conn, meetup_id)
         return
 
+    courts = max(0, meetup["courts"] - conn.execute(
+        "SELECT count(*) FROM court_states WHERE meetup_id = ? AND court BETWEEN 1 AND ?",
+        (meetup_id, meetup["courts"])).fetchone()[0])
     auto_rows = conn.execute("SELECT id FROM reservations WHERE meetup_id = ? AND source = 'auto' "
                              "ORDER BY seq, id", (meetup_id,)).fetchall()
-    for row in auto_rows[max(0, meetup["courts"]):]:
+    for row in auto_rows[courts:]:
         conn.execute("DELETE FROM reservations WHERE id = ?", (row["id"],))
-    if len(auto_rows) > meetup["courts"]:
+    if len(auto_rows) > courts:
         _renumber_reservations(conn, meetup_id)
     if meetup["resv_hold"]:  # 운영진이 예약을 삭제했으면 다음 경기가 코트에 들어갈 때까지 새 예약을 만들지 않는다
         return
-    courts = meetup["courts"]
     auto_count = conn.execute("SELECT count(*) FROM reservations WHERE meetup_id = ? AND source = 'auto'",
                               (meetup_id,)).fetchone()[0]
     if auto_count >= courts:
@@ -480,7 +494,8 @@ def start_reservation_now(conn, reservation_id: int) -> tuple[int | None, str, i
 
     active_courts = {row["court"] for row in conn.execute(
         "SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL", (meetup_id,))}
-    court = next((number for number in range(1, meetup["courts"] + 1) if number not in active_courts), None)
+    blocked_courts = active_courts | set(_court_states(conn, meetup_id))
+    court = next((number for number in range(1, meetup["courts"] + 1) if number not in blocked_courts), None)
     if court is None:
         return meetup_id, "no_court", None, None
 
@@ -498,7 +513,8 @@ def start_reservation_now(conn, reservation_id: int) -> tuple[int | None, str, i
     return meetup_id, "started", game_id, court
 
 
-def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int] | None = None) -> None:
+def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int] | None = None,
+                ready_courts: set[int] | None = None) -> None:
     """빈 코트를 채운다. force가 아니면 방금 경기가 끝난 코트는 COURT_REST_SECONDS 동안 비워 둔다."""
     meetup = conn.execute("SELECT courts, archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if meetup is None or meetup["archived_at"] is not None:
@@ -509,9 +525,11 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
     courts = meetup["courts"]
     busy = {r["court"] for r in conn.execute("SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                              (meetup_id,))}
+    busy |= set(_court_states(conn, meetup_id))
     if not force:
         now = time.time()
-        busy |= {c for c, until in _rest_until(conn, meetup_id).items() if until > now}
+        busy |= {c for c, until in _rest_until(conn, meetup_id).items()
+                 if until > now and (not ready_courts or c not in ready_courts)}
     window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
     recent = _recent_mates(conn, meetup_id)
     started_any = False
@@ -572,7 +590,31 @@ def start(conn, meetup_id: int, courts: int) -> None:
     if row is None or row["archived_at"] is not None:
         raise ValueError("활성 정모를 찾을 수 없습니다")
     conn.execute("UPDATE meetups SET courts = ?, started = 1, resv_hold = 0 WHERE id = ?", (courts, meetup_id))
+    conn.execute("DELETE FROM court_states WHERE meetup_id = ? AND court > ?", (meetup_id, courts))
     fill_courts(conn, meetup_id)
+
+
+def set_court_state(conn, meetup_id: int, court: int, state: str) -> None:
+    if state not in COURT_STATE_LABELS:
+        raise ValueError("코트 상태를 확인해 주세요")
+    meetup = conn.execute("SELECT courts, archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    if meetup is None or meetup["archived_at"] is not None:
+        raise ValueError("활성 정모를 찾을 수 없습니다")
+    if isinstance(court, bool) or not isinstance(court, int) or not (1 <= court <= meetup["courts"]):
+        raise ValueError("유효하지 않은 코트 번호입니다")
+    playing = conn.execute("SELECT 1 FROM games WHERE meetup_id = ? AND court = ? AND ended_at IS NULL",
+                           (meetup_id, court)).fetchone()
+    if playing is not None:
+        raise ValueError("경기 중인 코트는 상태를 바꿀 수 없습니다")
+    if state == "game":
+        conn.execute("DELETE FROM court_states WHERE meetup_id = ? AND court = ?", (meetup_id, court))
+        fill_courts(conn, meetup_id, ready_courts={court})
+    else:
+        conn.execute(
+            "INSERT INTO court_states(meetup_id, court, state) VALUES (?, ?, ?) "
+            "ON CONFLICT(meetup_id, court) DO UPDATE SET state = excluded.state",
+            (meetup_id, court, state))
+        refill_reservations(conn, meetup_id)
 
 
 def _game(conn, game_id: int):
@@ -622,13 +664,15 @@ def board(conn, meetup_id: int) -> dict:
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}
     rest_until = _rest_until(conn, meetup_id)
+    court_states = _court_states(conn, meetup_id)
     court_list = []
     for c in sorted(set(range(1, courts + 1)) | set(active)):  # 코트 수를 줄여도 진행 중인 경기는 보여 준다
         g = active.get(c)
-        court_list.append({"court": c, "game_id": g["id"] if g else None,
+        state = "game" if g else court_states.get(c, "game")
+        court_list.append({"court": c, "state": state, "game_id": g["id"] if g else None,
                            "started_at": g["started_at"] if g else None,
                            "elapsed_clock": _clock_label(now - g["started_at"]) if g else None,
-                           "ready_in": None if g or rest_until.get(c, 0) <= now else math.ceil(rest_until[c] - now),
+                           "ready_in": None if g or state != "game" or rest_until.get(c, 0) <= now else math.ceil(rest_until[c] - now),
                            "announce": announcement_text(c, [names.get(g[k], "") for k in ("a1", "a2", "b1", "b2")]) if g else None,
                            "teams": [[names.get(g["a1"], "?"), names.get(g["a2"], "?")],
                                      [names.get(g["b1"], "?"), names.get(g["b2"], "?")]] if g else None,

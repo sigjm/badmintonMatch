@@ -1132,3 +1132,43 @@ def test_auto_fill_toggle_route_and_ui(admin, client, conn_of, seeded_meetup):
     assert "빈 코트 · 자동 배정 꺼짐" not in html_on
 
 
+def test_court_state_route_and_popups_on_admin_and_public_board(admin, client, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    admin.post(f"/admin/m/{mid}/start", data={"courts": "3"})
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    # 빈 코트(2·3코트)도 길게 누르기 관리 팝업과 상태 변경 버튼 3개(게임·빈코트·레슨)를 가진다
+    assert 'aria-label="코트 3, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"' in html
+    assert f'action="/admin/m/{mid}/court/3/state"' in html
+    assert '<button type="submit" class="btn sm" aria-pressed="true">게임</button>' in html
+    assert '<button type="submit" class="btn line sm" aria-pressed="false">빈코트</button>' in html
+    assert '<button type="submit" class="btn line sm" aria-pressed="false">레슨</button>' in html
+
+    # 3코트 -> 레슨, 2코트 -> 빈코트 변경 및 운영 로그 기록
+    res = admin.post(f"/admin/m/{mid}/court/3/state", data={"state": "lesson"}, follow_redirects=True).get_data(as_text=True)
+    assert "레슨 중" in res and "is-lesson" in res
+    res = admin.post(f"/admin/m/{mid}/court/2/state", data={"state": "empty"}, follow_redirects=True).get_data(as_text=True)
+    assert "비워 둠" in res and "is-empty" in res
+
+    logs = conn_of().execute("SELECT action, summary FROM audit_logs WHERE meetup_id = ? AND action = 'court_state' ORDER BY id",
+                             (mid,)).fetchall()
+    assert [(r["action"], r["summary"]) for r in logs] == [
+        ("court_state", "3코트 → 레슨"),
+        ("court_state", "2코트 → 빈코트"),
+    ]
+
+    # 공개 대진판에도 "레슨 중"과 "비워 둠"이 보이며 관리 팝업은 없다
+    pub = client.get("/board").get_data(as_text=True)
+    pub_main = pub[pub.index("<main"):pub.index("</main>")]
+    assert "레슨 중" in pub_main and "비워 둠" in pub_main
+    assert "data-action-panel" not in pub_main and "data-long-press-actions" not in pub_main
+
+    # 경기 중인 1코트·범위 밖 코트·잘못된 상태값은 거절하고 안내 메시지를 띄운다
+    err1 = admin.post(f"/admin/m/{mid}/court/1/state", data={"state": "lesson"}, follow_redirects=True).get_data(as_text=True)
+    assert "경기 중인 코트는 상태를 바꿀 수 없습니다" in err1
+    err2 = admin.post(f"/admin/m/{mid}/court/99/state", data={"state": "lesson"}, follow_redirects=True).get_data(as_text=True)
+    assert "유효하지 않은 코트 번호입니다" in err2
+    err3 = admin.post(f"/admin/m/{mid}/court/-1/state", data={"state": "lesson"}, follow_redirects=True).get_data(as_text=True)
+    assert "유효하지 않은 코트 번호입니다" in err3
+    err4 = admin.post(f"/admin/m/{mid}/court/3/state", data={"state": "wrong"}, follow_redirects=True).get_data(as_text=True)
+    assert "코트 상태를 확인해 주세요" in err4

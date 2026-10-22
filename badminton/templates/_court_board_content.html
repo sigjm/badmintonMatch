@@ -10,7 +10,7 @@
         {{ '자동 배정 켜짐' if auto_fill else '자동 배정 꺼짐' }}
       </button>
     </form>
-    <span>{{ board.courts|length }}면{% if board.courts|selectattr('game_id')|list %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span>
+    <span>{{ board.courts|length }}면{% if board.courts %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span>
   </div>
   {% else %}
   <span>{{ board.courts|length }}면</span>
