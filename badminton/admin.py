@@ -125,11 +125,15 @@ def inject_group():
     return {"group": _current_group()} if session.get("admin") else {}
 
 
+def _active_meetups(conn, group):
+    return conn.execute("SELECT * FROM meetups WHERE group_id = ? AND archived_at IS NULL "
+                        "ORDER BY date DESC, id DESC LIMIT 10", (group["id"],)).fetchall()
+
+
 def _home(**ctx):
     group = _current_group()
     conn = get_conn()
-    active = conn.execute("SELECT * FROM meetups WHERE group_id = ? AND archived_at IS NULL "
-                          "ORDER BY date DESC, id DESC LIMIT 10", (group["id"],)).fetchall()
+    active = _active_meetups(conn, group)
     archived = conn.execute("SELECT * FROM meetups WHERE group_id = ? AND archived_at IS NOT NULL "
                             "ORDER BY date DESC, id DESC LIMIT 10", (group["id"],)).fetchall()
     ctx.setdefault("date", today())
@@ -782,7 +786,8 @@ def settings():
             flash("여자 보정값은 0~5, 혼복 후보 범위는 4~20 사이로 입력해 주세요")
         return redirect(url_for("admin.settings"))
     return render_template("admin_settings.html", female_offset=get_setting(conn, "female_offset"),
-                           mix_window=int(get_setting(conn, "mix_window")))
+                           mix_window=int(get_setting(conn, "mix_window")),
+                           meetups=_active_meetups(conn, _current_group()))
 
 
 @bp.route("/groups", methods=["GET", "POST"])

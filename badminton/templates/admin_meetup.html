@@ -26,32 +26,10 @@
 <div id="meetup-queue">{% include "queue_list.html" %}</div>
 <div id="meetup-excluded">{% include "excluded_list.html" %}</div>
 {% else %}
-<section class="section operation-controls">
-  <div class="head"><span>정모 운영</span><span>운영진 전용</span></div>
-  <div class="bar" style="margin-top:10px">
-  <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar"{{ ' data-save-without-reload' if m.started }}>
-    <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" aria-label="코트 수" style="width:4.5rem">
-    <button class="btn">{{ '코트 수 변경' if m.started else '코트 시작' }}</button>
-  </form>
-  {% if m.started %}
-  <form method="post" action="{{ url_for('admin.auto_match', mid=m.id) }}" class="inline" data-save-without-reload>
-    <button class="btn line">빈 코트 자동 매칭</button>
-  </form>
-  {% endif %}
-  {% if m.eid %}
-  <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
-  {% endif %}
-  <form method="post" action="{{ url_for('admin.archive_meetup', mid=m.id) }}" class="inline"
-        onsubmit="return confirm('정모를 삭제(보관)할까요? 참석자와 경기 기록은 보존됩니다.')">
-    <button class="btn line danger">정모 삭제</button>
-  </form>
-  </div>
-</section>
-
 <section class="event-banner" data-live-updates-url="{{ url_for('admin.meetup_updates', mid=m.id) }}" data-meetup-id="{{ m.id }}">
   <span class="eyebrow">운영 콘솔</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 3초 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else '시작 전' }}</span><span>코트·대기열 3초 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button><a class="btn line sm" href="{{ url_for('admin.settings') }}#meetup-{{ m.id }}">코트·정모 설정</a></div>
 </section>
 
 <div class="stat-grid" id="meetup-stats" aria-label="정모 현황">

@@ -611,7 +611,8 @@ def test_excluded_section_is_separate_live_fragment(admin, seeded_meetup, conn_o
 def test_admin_meetup_section_order(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    order = [html.index(x) for x in ("<span>정모 운영</span>", "운영 콘솔", 'id="meetup-court-board"',
+    assert "<span>정모 운영</span>" not in html and f'action="/admin/m/{mid}/start"' not in html
+    order = [html.index(x) for x in ("운영 콘솔", 'id="meetup-court-board"',
                                      'id="manual-match-picker"', 'id="meetup-reservations"', 'id="meetup-queue"',
                                      'id="meetup-excluded"', "<span>게스트 추가</span>")]
     assert order == sorted(order)
@@ -648,11 +649,59 @@ def test_guest_and_court_count_forms_save_without_full_reload(admin, seeded_meet
     guests = guests[:guests.index("</section>")]
     assert guests.count("data-save-without-reload") == guests.count("<form") >= 1
     assert 'data-reset-on-save="추가했습니다"' in guests
-    start_form = html[html.index(f'action="/admin/m/{mid}/start"') - 60:html.index(f'action="/admin/m/{mid}/start"') + 200]
-    assert "data-save-without-reload" in start_form  # 시작된 정모의 코트 수 변경
     resp = admin.post(f"/admin/m/{mid}/guest", data={"nickname": "새게스트", "gender": "F", "grade": "C"}, follow_redirects=True)
     body = resp.get_data(as_text=True)
     assert "새게스트 님을 게스트로 추가했습니다" in body and 'data-nickname="새게스트"' in body
+
+
+def test_settings_lists_operation_controls_for_active_meetups_of_current_group(admin, seeded_meetup, conn_of):
+    from badminton.groups import add_group, list_groups
+    from badminton.meetups import archive_meetup, get_or_create_meetup, today
+    started, _ = seeded_meetup  # eid 없음, 시작함
+    c = conn_of()
+    group_id = list_groups(c)[0]["id"]
+    idle = get_or_create_meetup(c, today(), "시작 전 정모", "e-idle", group_id=group_id)  # eid 있음, 시작 전
+    archived = get_or_create_meetup(c, today(), "보관된 정모", None, group_id=group_id)
+    archive_meetup(c, archived)
+    other = get_or_create_meetup(c, today(), "다른 모임 정모", None, group_id=add_group(c, "other-gid", "다른 모임"))
+
+    html = admin.get("/admin/settings").get_data(as_text=True)
+
+    assert "<span>정모 운영</span>" in html
+    assert f'id="meetup-{started}"' in html and f'id="meetup-{idle}"' in html
+    assert f'id="meetup-{archived}"' not in html and f'id="meetup-{other}"' not in html
+    for mid in (started, idle):
+        assert f'href="/admin/m/{mid}"' in html
+        for route in ("start", "archive"):
+            assert f'action="/admin/m/{mid}/{route}"' in html
+    assert f'action="/admin/m/{started}/auto-match"' in html and f'action="/admin/m/{idle}/auto-match"' not in html
+    assert "코트 수 변경" in html and "빈 코트 자동 매칭" in html and "코트 시작" in html  # 시작한 정모와 시작 전 정모
+    assert f'action="/admin/m/{idle}/import"' in html and f'action="/admin/m/{started}/import"' not in html
+    operation = html[html.index("<span>정모 운영</span>"):html.index("<span>매칭 설정</span>")]
+    assert "data-save-without-reload" not in operation  # 눌러서 정모 화면으로 이동하는 게 의도
+    assert "매칭 설정" in html and 'name="female_offset"' in html
+
+
+def test_settings_shows_empty_state_without_active_meetups(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    admin.post(f"/admin/m/{mid}/archive")
+
+    html = admin.get("/admin/settings").get_data(as_text=True)
+
+    assert "운영 중인 정모가 없습니다" in html and f'id="meetup-{mid}"' not in html
+
+
+def test_meetup_page_links_to_its_block_in_settings(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert f'href="/admin/settings#meetup-{mid}"' in html and "코트·정모 설정" in html
+
+
+def test_start_from_settings_redirects_to_meetup_and_changes_courts(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    resp = admin.post(f"/admin/m/{mid}/start", data={"courts": "3"})
+    assert resp.status_code == 302 and resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    assert conn_of().execute("SELECT courts FROM meetups WHERE id = ?", (mid,)).fetchone()[0] == 3
 
 
 def test_delete_reservation_route(app, admin, seeded_meetup, conn_of):

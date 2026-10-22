@@ -2,13 +2,52 @@
 {% block title %}설정{% endblock %}
 {% block nav %}{% include "admin_nav.html" %}{% endblock %}
 {% block content %}
-<h1>매칭 설정</h1>
-<p class="sub">급수 점수 S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
-<form method="post" class="section" style="max-width:480px">
-  <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값
-    <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label>
-  <label class="field">혼복 후보 범위 — 대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지
-    <input type="number" name="mix_window" min="4" max="20" value="{{ mix_window }}" required></label>
-  <button class="btn">저장</button>
-</form>
+<h1>설정</h1>
+<section class="section operation-controls">
+  <div class="head"><span>정모 운영</span><span>{{ group.name }}</span></div>
+  {% if meetups %}
+  <ul class="rows">
+    {% for m in meetups %}
+    <li id="meetup-{{ m.id }}">
+      <div class="row-top">
+        <span><a class="name" href="{{ url_for('admin.meetup', mid=m.id) }}">{{ m.name }}</a> <span class="meta">{{ m.date }}</span></span>
+        <span class="live-badge{{ ' on' if m.started }}" style="flex:none;white-space:nowrap">{{ '경기 진행 중' if m.started else '시작 전' }}</span>
+      </div>
+      <div class="bar" style="margin-top:10px">
+        <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar">
+          <input type="number" name="courts" min="1" max="20" value="{{ m.courts or 2 }}" aria-label="코트 수" style="width:4.5rem">
+          <button class="btn">{{ '코트 수 변경' if m.started else '코트 시작' }}</button>
+        </form>
+        {% if m.started %}
+        <form method="post" action="{{ url_for('admin.auto_match', mid=m.id) }}" class="inline">
+          <button class="btn line">빈 코트 자동 매칭</button>
+        </form>
+        {% endif %}
+        {% if m.eid %}
+        <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
+        {% endif %}
+        <form method="post" action="{{ url_for('admin.archive_meetup', mid=m.id) }}" class="inline"
+              onsubmit="return confirm('정모를 삭제(보관)할까요? 참석자와 경기 기록은 보존됩니다.')">
+          <button class="btn line danger">정모 삭제</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="meta">운영 중인 정모가 없습니다. <a href="{{ url_for('admin.home') }}">정모 탭</a>에서 정모를 추가해 주세요.</p>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="head"><span>매칭 설정</span></div>
+  <p class="sub">급수 점수 S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
+  <form method="post" style="max-width:480px">
+    <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값
+      <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label>
+    <label class="field">혼복 후보 범위 — 대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지
+      <input type="number" name="mix_window" min="4" max="20" value="{{ mix_window }}" required></label>
+    <button class="btn">저장</button>
+  </form>
+</section>
 {% endblock %}
