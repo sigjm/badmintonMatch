@@ -43,9 +43,10 @@
   {% set admin = true %}{% include "_court_board_content.html" %}
 </section>
 <div class="board-side">
+{% set show_manual_form = m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
 <section class="section manual-picker" id="manual-match-picker">
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
-  {% if m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
+  {% if show_manual_form %}
   <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" data-default-action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
     <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
     <p class="manual-match-editing" data-manual-editing hidden>예약을 수정 중입니다. 기존 선수 카드를 눌러 빼거나 다른 선수로 바꿀 수 있습니다.</p>
@@ -93,6 +94,22 @@
   </form>
   {% endif %}
 </section>
+
+{% if show_manual_form %}
+{# 고른 선수와 예약 버튼을 화면 아래에 고정한다. 3초마다 갈아 끼우는 #meetup-* 구역 밖에 둔다. 버튼은 폼 안 버튼과 같은 훅(data-manual-fill·reset)을 쓴다 #}
+<div id="manual-selection-bar" class="selection-bar" role="region" aria-label="수동 대진 선택" hidden>
+  <div class="wrap selection-bar-inner">
+    <div class="selection-bar-picks">
+      <b class="selection-bar-count" data-selection-bar-count aria-live="polite">0/4명</b>
+      <div class="selection-bar-names" data-selection-bar-names></div>
+    </div>
+    <div class="selection-bar-actions">
+      <button type="submit" form="manual-match-form" class="btn" data-manual-fill disabled>예약에 추가</button>
+      <button type="button" class="btn line" data-manual-reset>초기화</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div id="quick-status-menu" class="quick-status-menu" hidden role="dialog" aria-label="참석자 정보 및 상태 변경">
   <div class="quick-menu-header">

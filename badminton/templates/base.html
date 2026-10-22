@@ -138,9 +138,9 @@
   .reservation-board .team { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; border-radius:8px; }
   .reservation-board .court-player, .pcard .court-player { display:block; min-width:0; width:100%; }
   .reservation-board .court-player .player-chip, .pcard .court-player .player-chip { box-sizing:border-box; width:100%; min-height:46px; padding:10px 8px; border-radius:7px; font-size:16px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
-  .reservation-board .court-player .player-chip.is-male, .pcard .court-player .player-chip.is-male { background:#2c6f9f; }
-  .reservation-board .court-player .player-chip.is-female, .pcard .court-player .player-chip.is-female { background:#78347d; }
-  .reservation-board .court-player .player-chip.is-unknown, .pcard .court-player .player-chip.is-unknown { background:#737373; }
+  .reservation-board .court-player .player-chip.is-male, .pcard .court-player .player-chip.is-male, .selection-bar .player-chip.is-male { background:#2c6f9f; }
+  .reservation-board .court-player .player-chip.is-female, .pcard .court-player .player-chip.is-female, .selection-bar .player-chip.is-female { background:#78347d; }
+  .reservation-board .court-player .player-chip.is-unknown, .pcard .court-player .player-chip.is-unknown, .selection-bar .player-chip.is-unknown { background:#737373; }
   .reservation-board .court-player .player-chip .player-name, .pcard .court-player .player-chip .player-name { color:#fff; font-weight:700; }
   .reservation-player-select, .queue-player-select { position:relative; padding:0; border:0; background:transparent; font:inherit; text-align:inherit; cursor:pointer; }
   .reservation-player-select[aria-disabled="true"] { cursor:default; }
@@ -252,6 +252,17 @@
   .draft-remove { color:var(--text-3); font-size:16px; line-height:1; }
   .manual-draft-actions { display:grid; grid-template-columns:minmax(0,1fr) repeat(2,auto); gap:8px; margin-top:4px; }
   .manual-draft-actions .btn[hidden] { display:none; }
+  /* 선택 바: 고른 선수와 예약 버튼을 화면 아래에 고정 (팝업 z-index 80·1000보다 아래) */
+  .selection-bar { position:fixed; left:0; right:0; bottom:0; z-index:50; padding-bottom:env(safe-area-inset-bottom); background:var(--card); border-top:1px solid var(--split); box-shadow:0 -4px 12px rgba(0,0,0,.08); }
+  .selection-bar[hidden] { display:none; }
+  .selection-bar-inner { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:10px; padding-bottom:10px; }
+  .selection-bar-picks { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+  .selection-bar-count { flex:none; font-size:15px; }
+  .selection-bar-names { display:flex; align-items:center; gap:4px; flex:1; min-width:0; }
+  .selection-bar .player-chip { display:block; flex:0 1 auto; min-width:0; padding:3px 6px; font-size:12px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .selection-bar-vs { flex:none; align-self:stretch; width:1px; margin:2px 2px; background:var(--border); }
+  .selection-bar-actions { display:flex; flex:none; gap:8px; }
+  body:has(.selection-bar:not([hidden])) { padding-bottom:72px; }
   .manual-match-editing { margin:0; padding:8px 10px; border-radius:6px; background:var(--primary-bg); color:var(--primary-active); font-weight:600; }
   .queue-state-tabs { gap:18px; margin:0 0 12px; }
   .queue-state-tabs button { padding:8px 0; font-weight:600; }
@@ -341,6 +352,10 @@
     .live-courts .versus { font-size:10px; }
   }
   @media (max-width:560px) {
+    .selection-bar-inner { flex-direction:column; align-items:stretch; padding-top:8px; padding-bottom:8px; }
+    .selection-bar-actions .btn { flex:1; }
+    .selection-bar-actions [data-manual-fill] { flex:2; }
+    body:has(.selection-bar:not([hidden])) { padding-bottom:100px; }
     .pcard { padding:10px; }
     .gnav .wrap { height:52px; gap:8px; }
     .brand { max-width:42%; font-size:15px; }
@@ -577,6 +592,9 @@
         form.dataset.editing === "true" || Boolean(form.dataset.reservationId));
 
     const manualForm = document.querySelector("#manual-match-form");
+    const selectionBar = document.querySelector("#manual-selection-bar");
+    // 폼 안 버튼과 화면 아래 선택 바의 버튼이 같은 글자를 쓰도록 [data-manual-fill]을 모두 바꾼다
+    const setFillLabel = (label) => document.querySelectorAll("[data-manual-fill]").forEach((button) => { button.textContent = label; });
     const selectedPlayers = [];
     const selectedNames = {};  // 수동 대진 카드에 보일 "급수/이름" (누른 순간의 카드에서 읽어 둔다)
     const manualSlots = [...document.querySelectorAll("[data-manual-slot]")];
@@ -644,6 +662,20 @@
         if (selectedPlayers.length || manualForm.dataset.reservationId) manualForm.dataset.editing = "true";
         else delete manualForm.dataset.editing;
       }
+      if (selectionBar) {
+        selectionBar.hidden = !manualForm?.dataset.editing;
+        selectionBar.querySelector("[data-selection-bar-count]").textContent = `${selectedPlayers.length}/4명`;
+        const names = selectedPlayers.map((id) => {
+          const info = selectedNames[id] || {};
+          return Object.assign(document.createElement("span"), {
+            className: `player-chip ${info.gender === "M" ? "is-male" : info.gender === "F" ? "is-female" : "is-unknown"}`,
+            textContent: info.name || "",
+          });
+        });
+        // 3명 이상이면 A팀 | B팀으로 나눠 보여 준다
+        if (names.length > 2) names.splice(2, 0, Object.assign(document.createElement("span"), { className: "selection-bar-vs" }));
+        selectionBar.querySelector("[data-selection-bar-names]").replaceChildren(...names);
+      }
     };
     document.addEventListener("click", (event) => {
       const queueTab = event.target.closest("[data-queue-tab]");
@@ -664,11 +696,10 @@
         manualForm.action = editReservation.dataset.editUrl;
         manualForm.dataset.reservationId = reservationId;
         manualForm.dataset.editing = "true";
-        const submit = manualForm.querySelector("[data-manual-fill]");
         const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
-        if (submit) submit.textContent = "수정 저장";
+        setFillLabel("수정 저장");
         if (help) help.hidden = true;
         if (editing) editing.hidden = false;
         if (cancel) cancel.hidden = false;
@@ -683,11 +714,10 @@
         manualForm.action = manualForm.dataset.defaultAction;
         delete manualForm.dataset.reservationId;
         delete manualForm.dataset.editing;
-        const submit = manualForm.querySelector("[data-manual-fill]");
         const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
-        if (submit) submit.textContent = "예약에 추가";
+        setFillLabel("예약에 추가");
         if (help) help.hidden = false;
         if (editing) editing.hidden = true;
         if (cancel) cancel.hidden = true;
@@ -893,11 +923,10 @@
         manualForm.action = manualForm.dataset.defaultAction;
         delete manualForm.dataset.reservationId;
         delete manualForm.dataset.editing;
-        const submit = manualForm.querySelector("[data-manual-fill]");
         const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
-        if (submit) submit.textContent = "예약에 추가";
+        setFillLabel("예약에 추가");
         if (help) help.hidden = false;
         if (editing) editing.hidden = true;
         if (cancel) cancel.hidden = true;

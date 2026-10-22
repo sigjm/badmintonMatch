@@ -872,3 +872,36 @@ def test_manual_match_guides_say_tap_the_card(admin, seeded_meetup, conn_of):
     assert "대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요." in started
     assert "다음 순서 카드를 눌러 수동 대진을 짤 수 있습니다." in unstarted
     assert "이름을 눌러" not in started + unstarted
+
+
+def _selection_bar(html):
+    """수동 대진 선택 바 마크업 (바로 뒤에 오는 관리 팝업 앞까지)."""
+    start = html.index('id="manual-selection-bar"')
+    return html[start:html.index('id="quick-status-menu"', start)]
+
+
+def test_started_meetup_has_hidden_selection_bar_reusing_form_buttons(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    bar = _selection_bar(html)
+    assert " hidden" in _tag(html, 'id="manual-selection-bar"')  # 0명이면 숨김
+    assert 'role="region"' in _tag(html, 'id="manual-selection-bar"')
+    assert 'aria-label="수동 대진 선택"' in _tag(html, 'id="manual-selection-bar"')
+    assert 'aria-live="polite"' in bar and "0/4명" in bar
+    # 새 처리 코드 없이 기존 폼 버튼과 같은 훅을 쓴다
+    assert 'form="manual-match-form"' in _tag(bar, "data-manual-fill") and 'type="submit"' in _tag(bar, "data-manual-fill")
+    assert "data-manual-reset" in bar and "예약에 추가" in bar and "초기화" in bar
+    # 3초마다 갈아 끼우는 #meetup-* 구역 밖(맨 아래 게스트 추가 구역 뒤)에 있다
+    assert html.index('id="manual-selection-bar"') > html.index('id="meetup-guests"')
+
+
+def test_selection_bar_is_only_drawn_for_manual_match_form(admin, client, seeded_meetup, conn_of):
+    from badminton.groups import list_groups
+    from badminton.meetups import get_or_create_meetup, today
+    mid, _ = seeded_meetup
+    c = conn_of()
+    idle = get_or_create_meetup(c, today(), "시작 전 정모", "e-idle", group_id=list_groups(c)[0]["id"])
+
+    assert 'id="manual-selection-bar"' not in admin.get(f"/admin/m/{idle}").get_data(as_text=True)  # 폼이 없는 시작 전 정모
+    assert 'id="manual-selection-bar"' not in client.get("/board").get_data(as_text=True)  # 공개 대진판
