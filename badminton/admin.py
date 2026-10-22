@@ -24,7 +24,7 @@ AUDIT_ACTION_LABELS = {
     "meetup_create": "정모 추가", "meetup_import": "정모 불러오기", "attendees_paste": "참석자 붙여넣기",
     "meetup_archive": "정모 보관", "meetup_restore": "정모 복구", "attendee_status": "참석 상태 변경",
     "attendee_memo": "참석자 메모 변경", "attendee_guest_add": "게스트 추가", "attendee_member_add": "회원 참석 추가", "meetup_start": "코트 시작",
-    "courts_change": "코트 수 변경", "court_state": "코트 상태 변경", "auto_match": "자동 매칭",
+    "meetup_end": "정모 종료", "courts_change": "코트 수 변경", "court_state": "코트 상태 변경", "auto_match": "자동 매칭",
     "auto_reserve": "자동 예약 설정", "auto_fill": "자동 배정 설정",
     "manual_reservation": "수동 예약",
     "game_assigned": "경기 배정",
@@ -598,6 +598,23 @@ def start_meetup(mid):
                              entity_type="meetup", entity_id=mid, meetup_id=mid,
                              details={"from_courts": m["courts"], "to_courts": courts})
     return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/end")
+@admin_required
+def end_meetup(mid):
+    row = _active_meetup_row(mid)
+    if not row["started"]:
+        flash("진행 중인 정모만 종료할 수 있습니다")
+        return redirect(url_for("admin.settings"))
+    conn = get_conn()
+    with transaction(conn):
+        meetups.end_meetup(conn, mid)
+        audit.record(conn, action="meetup_end", summary=f"정모 종료: {row['name']}",
+                     entity_type="meetup", entity_id=mid, meetup_id=mid,
+                     details={"date": row["date"]})
+    flash("정모를 종료했습니다")
+    return redirect(url_for("admin.settings"))
 
 
 @bp.post("/m/<int:mid>/court/<int(signed=True):court>/state")

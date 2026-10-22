@@ -591,10 +591,33 @@ def start(conn, meetup_id: int, courts: int) -> None:
         raise ValueError("활성 정모를 찾을 수 없습니다")
     now = time.time()
     started_at = now if (not row["started"] and row["started_at"] is None) else row["started_at"]
-    conn.execute("UPDATE meetups SET courts = ?, started = 1, started_at = ?, resv_hold = 0 WHERE id = ?",
+    conn.execute("UPDATE meetups SET courts = ?, started = 1, started_at = ?, ended_at = NULL, resv_hold = 0 WHERE id = ?",
                  (courts, started_at, meetup_id))
     conn.execute("DELETE FROM court_states WHERE meetup_id = ? AND court > ?", (meetup_id, courts))
     fill_courts(conn, meetup_id)
+
+
+def end_meetup(conn, meetup_id: int) -> None:
+    row = conn.execute("SELECT started, ended_at, archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    if row is None or row["archived_at"] is not None:
+        raise ValueError("활성 정모를 찾을 수 없습니다")
+    if not row["started"]:
+        raise ValueError("이미 종료되었거나 진행 중이지 않은 정모입니다")
+
+    now = time.time()
+    with transaction(conn):
+        active_games = conn.execute(
+            "SELECT id, a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND ended_at IS NULL",
+            (meetup_id,)).fetchall()
+        for g in active_games:
+            conn.execute("UPDATE games SET ended_at = ? WHERE id = ?", (now, g["id"]))
+            conn.execute(
+                "UPDATE attendees SET games = games + 1, queued_at = ? WHERE meetup_id = ? AND member_id IN (?, ?, ?, ?)",
+                (now, meetup_id, g["a1"], g["a2"], g["b1"], g["b2"]))
+        conn.execute("DELETE FROM reservations WHERE meetup_id = ?", (meetup_id,))
+        conn.execute("DELETE FROM court_states WHERE meetup_id = ?", (meetup_id,))
+        conn.execute("UPDATE meetups SET started = 0, ended_at = ?, resv_hold = 0 WHERE id = ?",
+                     (now, meetup_id))
 
 
 def set_court_state(conn, meetup_id: int, court: int, state: str) -> None:
@@ -663,7 +686,7 @@ def board(conn, meetup_id: int) -> dict:
         "SELECT m.id, m.nickname, m.gender, m.grade, a.memo FROM members m JOIN attendees a ON a.member_id = m.id "
         "WHERE a.meetup_id = ?", (meetup_id,))}
     names = {member_id: member["nickname"] for member_id, member in member_by_id.items()}
-    meetup = conn.execute("SELECT courts, started, started_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    meetup = conn.execute("SELECT courts, started, started_at, ended_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     courts = meetup["courts"]
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}

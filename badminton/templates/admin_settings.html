@@ -11,7 +11,7 @@
     <li id="meetup-{{ m.id }}">
       <div class="row-top">
         <span><a class="name" href="{{ url_for('admin.meetup', mid=m.id) }}">{{ m.name }}</a> <span class="meta">{{ m.date }}</span></span>
-        <span class="live-badge{{ ' on' if m.started }}" style="flex:none;white-space:nowrap">{{ '경기 진행 중' if m.started else '시작 전' }}</span>
+        <span class="live-badge{{ ' on' if m.started }}" style="flex:none;white-space:nowrap">{{ '경기 진행 중' if m.started else ('정모 종료' if m.ended_at else '시작 전') }}</span>
       </div>
       <div class="bar" style="margin-top:10px">
         <form method="post" action="{{ url_for('admin.start_meetup', mid=m.id) }}" class="bar">
@@ -25,6 +25,12 @@
         {% endif %}
         {% if m.eid %}
         <form method="post" action="{{ url_for('admin.reimport', mid=m.id) }}" class="inline"><button class="btn line">다시 불러오기</button></form>
+        {% endif %}
+        {% if m.started %}
+        <form method="post" action="{{ url_for('admin.end_meetup', mid=m.id) }}" class="inline"
+              onsubmit="return confirm('정모를 끝낼까요? 진행 중인 경기는 끝난 것으로 기록되고 예약은 지워집니다.')">
+          <button class="btn line danger">정모 끝</button>
+        </form>
         {% endif %}
         <form method="post" action="{{ url_for('admin.archive_meetup', mid=m.id) }}" class="inline"
               onsubmit="return confirm('정모를 삭제(보관)할까요? 참석자와 경기 기록은 보존됩니다.')">

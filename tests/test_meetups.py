@@ -1070,3 +1070,85 @@ def test_db_connect_adds_started_at_on_legacy_db(tmp_path):
     assert len(b["queue_cards"]) == 1
     c.close()
 
+
+def test_end_meetup_finishes_games_clears_reservations_and_resumes(conn):
+    from badminton.public import _started
+    from badminton.meetups import end_meetup, set_court_state
+
+    mid = get_or_create_meetup(conn, today(), "정모", None)
+    players = [mk(conn, f"선수{i}", "M" if i % 2 == 0 else "F", "C") for i in range(20)]
+    seat(conn, mid, *players)
+    start(conn, mid, 2)
+
+    b = board(conn, mid)
+    assert len([c for c in b["courts"] if c["game_id"]]) == 2
+    assert len(b["reservations"]) == 2
+
+    # court_states에 행 추가
+    conn.execute("INSERT OR REPLACE INTO court_states(meetup_id, court, state) VALUES (?, 1, 'lesson')", (mid,))
+
+    g2 = next(c["game_id"] for c in board(conn, mid)["courts"] if c["court"] == 2)
+    g2_row = conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE id = ?", (g2,)).fetchone()
+    g2_pids = [g2_row["a1"], g2_row["a2"], g2_row["b1"], g2_row["b2"]]
+    g2_before_counts = {r["member_id"]: r["games"] for r in conn.execute(
+        "SELECT member_id, games FROM attendees WHERE meetup_id = ? AND member_id IN (?, ?, ?, ?)",
+        (mid, *g2_pids)).fetchall()}
+
+    end_meetup(conn, mid)
+
+    # 1. 진행 중인 경기는 끝난 것으로 기록되고 게임 수는 남음
+    g2_after = conn.execute("SELECT ended_at, canceled FROM games WHERE id = ?", (g2,)).fetchone()
+    assert g2_after["ended_at"] is not None
+    assert g2_after["canceled"] == 0
+    g2_after_counts = {r["member_id"]: r["games"] for r in conn.execute(
+        "SELECT member_id, games FROM attendees WHERE meetup_id = ? AND member_id IN (?, ?, ?, ?)",
+        (mid, *g2_pids)).fetchall()}
+    for pid in g2_pids:
+        assert g2_after_counts[pid] == g2_before_counts[pid] + 1
+
+    # 2. 예약이 모두 지워짐
+    assert len(reservations(conn, mid)) == 0
+
+    # 3. started=0, ended_at 채워짐, court_states 지워짐
+    m_row = conn.execute("SELECT started, started_at, ended_at FROM meetups WHERE id = ?", (mid,)).fetchone()
+    assert m_row["started"] == 0
+    assert m_row["ended_at"] is not None
+    orig_started_at = m_row["started_at"]
+    assert conn.execute("SELECT COUNT(*) FROM court_states WHERE meetup_id = ?", (mid,)).fetchone()[0] == 0
+
+    # 4. 공개 대진판에는 활성 정모 없음
+    assert _started(conn) is None
+
+    # 5. 이미 종료된 정모 재종료 불가
+    with pytest.raises(ValueError, match="진행 중이지 않은"):
+        end_meetup(conn, mid)
+
+    # 6. 다시 코트 시작 누르면 이어서 진행
+    start(conn, mid, 2)
+    resumed_row = conn.execute("SELECT started, started_at, ended_at FROM meetups WHERE id = ?", (mid,)).fetchone()
+    assert resumed_row["started"] == 1
+    assert resumed_row["ended_at"] is None
+    assert resumed_row["started_at"] == orig_started_at
+
+    b_resumed = board(conn, mid)
+    assert len([c for c in b_resumed["courts"] if c["game_id"]]) == 2
+
+
+def test_db_connect_adds_ended_at_on_legacy_db(tmp_path):
+    import sqlite3
+    from badminton import db
+    db_path = str(tmp_path / "legacy_ended.db")
+    raw = sqlite3.connect(db_path)
+    raw.execute("""CREATE TABLE meetups(
+        id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
+        courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER,
+        resv_hold INTEGER NOT NULL DEFAULT 0, archived_at REAL, started_at REAL)""")
+    raw.commit()
+    raw.close()
+
+    c = db.connect(db_path)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(meetups)")]
+    assert "ended_at" in cols
+    c.close()
+
+

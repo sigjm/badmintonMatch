@@ -1294,3 +1294,46 @@ def test_add_popup_has_member_and_guest_tabs_with_both_form_sets(admin, seeded_m
     assert "옛회원" in popup and "저장손님" in popup
     assert 'id="meetup-guests"' in popup and html.index('id="meetup-guests"') > html.index('id="guest-popup"')
     assert "+ 추가" in html[html.index('data-queue-panel="waiting"'):html.index('data-queue-panel="playing"')]
+
+
+def test_end_meetup_route_and_ui(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup  # started meetup
+    c = conn_of()
+
+    # 1. 설정 페이지: 진행 중일 때 "정모 끝" 버튼과 "경기 진행 중" 배지
+    html = admin.get("/admin/settings").get_data(as_text=True)
+    assert f'action="/admin/m/{mid}/end"' in html
+    assert "정모를 끝낼까요? 진행 중인 경기는 끝난 것으로 기록되고 예약은 지워집니다." in html
+    assert "정모 끝" in html
+    assert "경기 진행 중" in html
+
+    # 2. 정모 종료 요청 POST
+    resp = admin.post(f"/admin/m/{mid}/end", follow_redirects=True)
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    # 설정 페이지로 돌아왔고, "정모 종료" 배지 표시, "정모 끝" 버튼 사라짐
+    assert "정모를 종료했습니다" in html
+    assert "정모 종료" in html
+    assert f'action="/admin/m/{mid}/end"' not in html
+    assert "코트 시작" in html
+
+    # 운영 로그 확인
+    log = c.execute("SELECT action, summary FROM audit_logs WHERE meetup_id = ? ORDER BY id DESC LIMIT 1", (mid,)).fetchone()
+    assert log["action"] == "meetup_end"
+    assert "정모 종료" in log["summary"]
+
+    # 3. 운영 콘솔 화면에서도 "정모 종료" 배지 표시
+    console_html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert "정모 종료" in console_html
+
+    # 4. 이미 종료된 상태에서 다시 /end 호출 시 거절
+    resp2 = admin.post(f"/admin/m/{mid}/end", follow_redirects=True)
+    html2 = resp2.get_data(as_text=True)
+    assert "진행 중인 정모만 종료할 수 있습니다" in html2
+
+    # 5. 보관된 정모 /end 호출 시 409
+    c.execute("UPDATE meetups SET archived_at = 1000 WHERE id = ?", (mid,))
+    resp3 = admin.post(f"/admin/m/{mid}/end")
+    assert resp3.status_code == 409
+

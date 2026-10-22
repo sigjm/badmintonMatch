@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS groups(id INTEGER PRIMARY KEY, gid TEXT UNIQUE NOT NU
 CREATE TABLE IF NOT EXISTS meetups(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
   courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER REFERENCES groups,
-  resv_hold INTEGER NOT NULL DEFAULT 0, archived_at REAL, started_at REAL);
+  resv_hold INTEGER NOT NULL DEFAULT 0, archived_at REAL, started_at REAL, ended_at REAL);
 CREATE TABLE IF NOT EXISTS attendees(
   meetup_id INTEGER REFERENCES meetups, member_id INTEGER REFERENCES members, status TEXT NOT NULL,
   source TEXT NOT NULL CHECK(source IN ('somoim','guest','paste')), games INTEGER NOT NULL DEFAULT 0,
@@ -59,6 +59,8 @@ def connect(path: str, migrate: bool = True) -> sqlite3.Connection:
         conn.execute("ALTER TABLE meetups ADD COLUMN archived_at REAL")
     if "started_at" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
         conn.execute("ALTER TABLE meetups ADD COLUMN started_at REAL")
+    if "ended_at" not in [r[1] for r in conn.execute("PRAGMA table_info(meetups)")]:
+        conn.execute("ALTER TABLE meetups ADD COLUMN ended_at REAL")
     if "memo" not in [r[1] for r in conn.execute("PRAGMA table_info(attendees)")]:
         conn.execute("ALTER TABLE attendees ADD COLUMN memo TEXT")
     if "source" not in [r[1] for r in conn.execute("PRAGMA table_info(reservations)")]:
