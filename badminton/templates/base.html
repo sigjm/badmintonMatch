@@ -830,7 +830,7 @@
       });
       statusMenu.hidden = false;
       statusMenuOpenedAt = Date.now();
-      statusMenuOpener = card;
+      statusMenuOpener = null;
       const rect = statusMenu.getBoundingClientRect();
       statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
       statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
@@ -893,6 +893,9 @@
         event.preventDefault();
         const rect = card.getBoundingClientRect();
         openStatusMenu(card, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        // 닫을 때 카드로 포커스를 돌려주는 것도 키보드로 연 경우만 한다
+        // (터치로 열고 메모를 입력한 뒤 닫으면 카드에 포커스 링이 남는다).
+        statusMenuOpener = card;
         // 키보드로 열었을 때만 첫 상태 버튼으로 포커스를 옮긴다. 키를 뗀 뒤에 옮겨야
         // Space를 떼는 keyup이 새로 포커스를 받은 버튼을 누르지 않는다.
         document.addEventListener("keyup", () => {
