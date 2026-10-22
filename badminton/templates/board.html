@@ -25,12 +25,10 @@
 <section class="tile board-big live-courts" id="meetup-court-board">
   {% set admin = false %}{% include "_court_board_content.html" %}
 </section>
-<div class="board-side">
 <div id="meetup-reservations">{% include "reservation_list.html" %}</div>
 <div id="meetup-queue">{% include "queue_list.html" %}</div>
+</div>
 <div id="meetup-excluded">{% include "excluded_list.html" %}</div>
-</div>
-</div>
 {% endif %}
 </div>
 {% endblock %}

@@ -35,17 +35,15 @@
   .wrap { max-width:880px; margin:0 auto; padding:0 16px; }
   .is-wide .wrap { max-width:1280px; }
   .board-layout { display:grid; gap:0 16px; align-items:start; }
-  .board-side { display:flex; flex-direction:column; gap:0; min-width:0; }
   @media (min-width:1000px) {
-    .board-layout { grid-template-columns:minmax(0,3fr) minmax(0,2fr); }
-    .board-layout.is-public { grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); }
+    .board-layout { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    #meetup-court-board { grid-column:1 / -1; }
   }
 
-  /* 공개 대진판 전용 최적화: 1440x900에서 다음 순서 첫 줄까지 스크롤 없이 표시 */
+  /* 공개 대진판 전용 최적화 */
   .is-public .section, .is-public .tile { padding:14px 18px; margin-top:14px; }
   .is-public .section > .head, .is-public .tile > .head { min-height:44px; margin:-14px -18px 12px; padding:0 18px; font-size:15px; }
   .is-public .reservation-board .reservation-card { padding:10px 12px; gap:6px 12px; margin-bottom:8px; }
-  .is-public .reservation-board .court-player .player-chip { min-height:38px; padding:6px 6px; font-size:14px; }
 
   /* 상단 바 */
   .gnav { background:var(--card); border-bottom:1px solid var(--split); position:sticky; top:0; z-index:10; }
@@ -108,16 +106,71 @@
   .courts-grid { display:flex; flex-direction:column; gap:12px; }
   .courts-grid .court { margin-bottom:0; }
   .courts-grid .empty { grid-column:1 / -1; }
-  @media (min-width:1100px) {
+  @media (min-width:1000px) {
+    .live-courts { min-width:0; }
     .live-courts .courts-grid {
       display:grid;
-      grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));
+      grid-auto-flow:column;
+      grid-auto-columns:minmax(260px, 1fr);
       gap:12px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      max-width:100%;
       align-items:stretch;
+      padding-bottom:6px;
+      scrollbar-width:thin;
+    }
+    .live-courts .courts-grid::-webkit-scrollbar { height:6px; }
+    .live-courts .courts-grid::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    .live-courts .court:not(.resv) {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      grid-template-rows:auto 1fr;
+      gap:10px 8px;
+      align-items:center;
+      padding:14px 12px;
+      min-width:0;
+    }
+    .live-courts .court:not(.resv) .court-no {
+      grid-column:1;
+      grid-row:1;
+      width:auto;
+      height:32px;
+      padding:0 10px;
+      flex-direction:row;
+      gap:4px;
+      border-radius:6px;
+      font-size:16px;
+      font-weight:700;
+      line-height:1;
+    }
+    .live-courts .court:not(.resv) .court-no small {
+      margin-top:0;
+      font-size:13px;
+      font-weight:600;
+    }
+    .live-courts .court:not(.resv) .court-time {
+      grid-column:2;
+      grid-row:1;
+      justify-self:end;
+      margin:0;
+      white-space:nowrap;
+    }
+    .live-courts .court:not(.resv) .court-match {
+      grid-column:1 / -1;
+      grid-row:2;
+      width:100%;
+    }
+    .live-courts .court:not(.resv) .empty {
+      grid-column:1 / -1;
+      grid-row:2;
+      text-align:center;
+      padding:24px 8px;
+      margin:0;
     }
   }
   .court-actions {
-    position:absolute; z-index:100; display:flex; flex-direction:column; gap:8px;
+    position:fixed; z-index:1000; display:flex; flex-direction:column; gap:8px;
     box-sizing:border-box; width:min(176px,calc(100vw - 24px)); max-width:calc(100vw - 24px); padding:10px;
     border:1px solid var(--split); border-radius:12px; background:var(--card); box-shadow:0 12px 32px rgba(0,0,0,.22);
   }
@@ -1090,6 +1143,10 @@
 
     const placePanel = (card, panel) => {
       const cardRect = card.getBoundingClientRect();
+      if (cardRect.right < 0 || cardRect.left > window.innerWidth || cardRect.bottom < 0 || cardRect.top > window.innerHeight) {
+        closeActions();
+        return;
+      }
       const point = openPoint || { x: cardRect.width / 2, y: cardRect.height / 2 };
       panel.hidden = false;
       panel.style.left = "0px";
@@ -1105,8 +1162,8 @@
       }
       left = Math.max(margin, Math.min(left, maxLeft));
       top = Math.max(margin, Math.min(top, maxTop));
-      panel.style.left = `${left - cardRect.left}px`;
-      panel.style.top = `${top - cardRect.top}px`;
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
     };
     const syncOpenCard = () => {
       document.querySelectorAll(".actions-popup-active").forEach((section) => section.classList.remove("actions-popup-active"));
@@ -1229,6 +1286,8 @@
     });
     document.addEventListener("badminton:sections-updated", syncOpenCard);
     window.addEventListener("resize", syncOpenCard);
+    window.addEventListener("scroll", () => { if (openKey) syncOpenCard(); }, { passive: true });
+    document.addEventListener("scroll", () => { if (openKey) syncOpenCard(); }, { passive: true, capture: true });
     syncOpenCard();
   })();
 

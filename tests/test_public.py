@@ -162,9 +162,9 @@ def test_public_board_layout_structure_and_four_ids(client, seeded_meetup):
     assert 'id="meetup-queue"' in html
     assert 'id="meetup-excluded"' in html
 
-    # 공개 대진판 전용 레이아웃 및 우측 사이드 컨테이너 확인
+    # 공개 대진판 전용 레이아웃 확인 (board-side 제거 및 board-layout 직접 배치)
     assert 'class="board-layout is-public"' in html
-    assert 'class="board-side"' in html
+    assert 'class="board-side"' not in html
 
     # 코트 카드가 .courts-grid div 안에 감싸져 있는지 구조 검사
     assert '<div class="courts-grid">' in html

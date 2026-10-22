@@ -42,7 +42,6 @@
 <section class="tile live-courts" id="meetup-court-board">
   {% set admin = true %}{% include "_court_board_content.html" %}
 </section>
-<div class="board-side">
 {% set show_manual_form = m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
 <section class="section manual-picker" id="manual-match-picker">
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
@@ -73,7 +72,6 @@
   {% endif %}
 </section>
 <div id="meetup-reservations">{% with admin=true, m=m %}{% include "reservation_list.html" %}{% endwith %}</div>
-</div>
 </div>
 <div id="meetup-queue" data-active-queue-tab="waiting">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids, game_candidates=game_candidates %}{% include "queue_list.html" %}{% endwith %}</div>
 <div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
