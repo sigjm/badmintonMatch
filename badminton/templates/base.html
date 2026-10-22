@@ -217,7 +217,9 @@
   .reservation-player-select, .queue-player-select, .draft-slot { position:relative; padding:0; border:0; background:transparent; font:inherit; text-align:inherit; cursor:pointer; }
   .reservation-player-select[aria-disabled="true"] { cursor:default; }
   .reservation-player-select .manual-player-order, .queue-player-select .manual-player-order, .draft-slot .manual-player-order { position:absolute; right:5px; bottom:4px; color:#fff; text-shadow:0 1px 2px #333; }
-  .reservation-waiting { grid-column:2; grid-row:2; margin:0; color:#ad4e00; font-size:12px; font-weight:700; }
+  .reservation-meta { grid-column:2; grid-row:2; display:flex; align-items:center; gap:4px 8px; flex-wrap:wrap; min-width:0; }
+  .reservation-meta .reservation-waiting { flex:1 1 100%; }
+  .reservation-waiting { margin:0; color:#ad4e00; font-size:12px; font-weight:700; overflow-wrap:anywhere; }
   .resv-head-right { display:flex; align-items:center; gap:8px; min-width:0; flex-shrink:0; }
   .resv-head-right span { color:var(--text-3); font-size:14px; font-weight:400; text-align:right; white-space:nowrap; }
   .toggle-btn {
@@ -412,7 +414,7 @@
   .tag.gold { color:#d48806; background:#fffbe6; border-color:#ffe58f; }
   .tag.orange { color:#d46b08; background:#fff7e6; border-color:#ffd591; }
   .tag.red { color:#cf1322; background:#fff1f0; border-color:#ffa39e; }
-  .tag.manual-reservation { grid-column:2; justify-self:start; margin:0; }
+  .tag.manual-reservation { margin:0; }
   .audit-details { margin-top:6px; color:var(--text-2); }
   .audit-details summary { cursor:pointer; font-size:12px; }
   .audit-details pre { max-width:100%; overflow:auto; padding:8px; background:var(--fill); border-radius:6px; font:12px/1.5 ui-monospace,monospace; }

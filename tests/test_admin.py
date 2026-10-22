@@ -423,6 +423,26 @@ def test_admin_manual_match_routes(admin, seeded_meetup, conn_of, monkeypatch):
     assert c.execute("SELECT 1 FROM reservations WHERE id = ?", (rid,)).fetchone() is None
 
 
+def test_manual_reservation_label_is_outside_court_number(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    from badminton.members import create_member
+    from badminton.meetups import add_attendee, add_manual_reservation
+
+    conn = conn_of()
+    players = []
+    for nickname, gender, grade in (("수동1", "M", "A"), ("수동2", "F", "B"),
+                                    ("수동3", "M", "C"), ("수동4", "F", "D")):
+        member_id = create_member(conn, nickname, gender=gender, grade=grade)
+        add_attendee(conn, mid, member_id, "paste")
+        players.append(member_id)
+    add_manual_reservation(conn, mid, players)
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    assert '<div class="court-no">1<small>예약</small></div>' in html
+    assert '<span class="tag manual-reservation">수동 예약</span>' in html
+
+
 def test_redraw_reservation_requires_login(client):
     resp = client.post("/admin/reservation/1/redraw")
     assert resp.status_code == 302
