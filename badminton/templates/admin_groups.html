@@ -25,7 +25,7 @@
 <section class="section">
   <div class="head"><span>모임 이름으로 찾기</span></div>
   <form method="get" class="bar" style="margin-top:8px">
-    <input name="q" value="{{ q or '' }}" placeholder="예: 금요일 야간민턴" style="flex:1;min-width:10rem" required>
+    <input name="q" aria-label="모임 이름" value="{{ q or '' }}" placeholder="예: 금요일 야간민턴" style="flex:1;min-width:10rem" required>
     <button class="btn">찾기</button>
   </form>
   {% if search_error %}<div class="note err" style="margin-top:12px">{{ search_error }}</div>{% endif %}

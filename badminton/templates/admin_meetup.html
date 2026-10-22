@@ -81,7 +81,7 @@
 <section class="section" id="meetup-guests">
   <div class="head"><span>게스트 추가</span></div>
   <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="bar" style="margin-top:10px" data-save-without-reload data-reset-on-save="추가했습니다">
-    <input name="nickname" placeholder="이름" style="flex:1;min-width:7rem">
+    <input name="nickname" aria-label="게스트 이름" placeholder="이름" style="flex:1;min-width:7rem">
     <select name="gender" aria-label="성별"><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
     <select name="grade" aria-label="급수"><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
     <button class="btn">추가</button>
@@ -94,7 +94,7 @@
   {% endif %}
 </section>
 
-<div id="quick-status-menu" class="quick-status-menu" hidden role="menu" aria-label="참석자 정보 및 상태 변경">
+<div id="quick-status-menu" class="quick-status-menu" hidden role="dialog" aria-label="참석자 정보 및 상태 변경">
   <div class="quick-menu-header">
     <strong data-status-player-name>선수 정보</strong>
     <button type="button" class="quick-menu-close" data-close-quick-menu aria-label="닫기">✕</button>
@@ -135,7 +135,7 @@
     <form id="quick-memo-form" method="post" action="{{ url_for('admin.memo', mid=m.id) }}" class="quick-menu-form" data-save-without-reload>
       <input type="hidden" name="member_id" data-memo-member>
       <div class="quick-menu-row">
-        <input type="text" name="memo" data-memo-text placeholder="예: 콕 가지러 감" maxlength="100">
+        <input type="text" name="memo" aria-label="메모" data-memo-text placeholder="예: 콕 가지러 감" maxlength="100">
         <button type="submit" class="btn sm">저장</button>
       </div>
       <span class="save-status" data-save-status aria-live="polite"></span>
@@ -147,7 +147,7 @@
     <form id="quick-rename-form" method="post" action="{{ url_for('admin.rename', mid=m.id) }}" class="quick-menu-form" data-save-without-reload>
       <input type="hidden" name="member_id" data-rename-member>
       <div class="quick-menu-row">
-        <input type="text" name="nickname" data-rename-nickname placeholder="이름" required maxlength="40">
+        <input type="text" name="nickname" aria-label="새 이름" data-rename-nickname placeholder="이름" required maxlength="40">
         <button type="submit" class="btn sm">저장</button>
       </div>
       <span class="save-status" data-save-status aria-live="polite"></span>

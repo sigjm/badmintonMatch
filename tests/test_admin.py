@@ -704,6 +704,57 @@ def test_start_from_settings_redirects_to_meetup_and_changes_courts(admin, seede
     assert conn_of().execute("SELECT courts FROM meetups WHERE id = ?", (mid,)).fetchone()[0] == 3
 
 
+def _tag(html, needle):
+    """needle을 포함한 여는 태그 하나를 돌려준다."""
+    start = html.rindex("<", 0, html.index(needle))
+    return html[start:html.index(">", start) + 1]
+
+
+def test_player_menu_is_a_dialog_not_a_menu(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    menu = _tag(html, 'id="quick-status-menu"')
+    assert 'role="dialog"' in menu and 'aria-label="참석자 정보 및 상태 변경"' in menu
+    assert 'role="menu"' not in html
+
+
+def test_admin_home_and_groups_inputs_have_accessible_names(admin):
+    import re
+    assert 'aria-label="모임 이름"' in _tag(admin.get("/admin/groups").get_data(as_text=True), 'name="q"')
+    # 이름이 비면 오류 화면이 붙여넣기 폼까지 보여 준다
+    html = admin.post("/admin/meetups", data={"date": "2026-10-22", "name": ""}).get_data(as_text=True)
+    assert "붙여넣기 등록" in html
+    dates = re.findall(r'<input[^>]*type="date"[^>]*>', html)
+    assert [re.search(r'aria-label="([^"]*)"', tag).group(1) for tag in dates] == ["불러올 날짜", "정모 날짜", "정모 날짜"]
+    names = re.findall(r'<input[^>]*name="name"[^>]*>', html)
+    assert [re.search(r'aria-label="([^"]*)"', tag).group(1) for tag in names] == ["정모 이름", "정모 이름"]
+    assert 'aria-label="참석자 닉네임"' in _tag(html, 'name="text"')
+
+
+def test_meetup_page_inputs_have_accessible_names(admin, seeded_meetup):
+    import re
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    nicknames = re.findall(r'<input[^>]*name="nickname"[^>]*>', html)  # 게스트 추가, 이름 변경 순서
+    assert [re.search(r'aria-label="([^"]*)"', tag).group(1) for tag in nicknames] == ["게스트 이름", "새 이름"]
+    assert 'aria-label="메모"' in _tag(html, "data-memo-text")
+
+
+@pytest.mark.parametrize("path", ["/admin", "/admin/members"])
+def test_group_switcher_is_navigation_not_tabs(admin, conn_of, path):
+    import re
+    from badminton.groups import add_group
+    add_group(conn_of(), "other-gid", "다른 모임")
+    html = admin.get(path).get_data(as_text=True)
+    nav = html[html.index('<nav class="tabs" aria-label="모임 선택">'):]
+    nav = nav[:nav.index("</nav>")]
+    assert 'role="tab' not in nav and "aria-selected" not in nav  # base.html 스크립트에도 같은 문구가 있어 nav 안만 본다
+    buttons = re.findall(r"<button[^>]*>", nav)
+    assert len(buttons) == 2
+    current = [button for button in buttons if 'aria-current="true"' in button]
+    assert len(current) == 1 and 'class="on"' in current[0]
+
+
 def test_delete_reservation_route(app, admin, seeded_meetup, conn_of):
     from badminton.meetups import add_attendee, refill_reservations, reservations
     from badminton.members import create_member

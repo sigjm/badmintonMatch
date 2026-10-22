@@ -755,6 +755,7 @@
     const statusMenu = document.querySelector("#quick-status-menu");
     const quickStatusForm = document.querySelector("#quick-status-form");
     let statusMenuOpenedAt = 0;
+    let statusMenuOpener = null;
     let statusHoldTimer = null;
     let statusHoldTarget = null;
     let statusHoldPointerId = null;
@@ -767,8 +768,11 @@
       statusHoldPointerId = null;
     };
     const closeStatusMenu = () => {
+      const hadFocus = Boolean(statusMenu?.contains(document.activeElement));
       statusMenuOpenedAt = 0;
       if (statusMenu) statusMenu.hidden = true;
+      // 팝업 안에 포커스가 있었으면 연 카드로 돌려준다 (Esc·✕·상태 버튼·바깥 누르기 모두 여기를 지난다)
+      if (hadFocus && statusMenuOpener?.isConnected) statusMenuOpener.focus({ preventScroll: true });
     };
     window.closeStatusMenu = closeStatusMenu;
 
@@ -826,6 +830,7 @@
       });
       statusMenu.hidden = false;
       statusMenuOpenedAt = Date.now();
+      statusMenuOpener = card;
       const rect = statusMenu.getBoundingClientRect();
       statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
       statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
@@ -888,6 +893,11 @@
         event.preventDefault();
         const rect = card.getBoundingClientRect();
         openStatusMenu(card, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        // 키보드로 열었을 때만 첫 상태 버튼으로 포커스를 옮긴다. 키를 뗀 뒤에 옮겨야
+        // Space를 떼는 keyup이 새로 포커스를 받은 버튼을 누르지 않는다.
+        document.addEventListener("keyup", () => {
+          if (statusMenu && !statusMenu.hidden) statusMenu.querySelector("[data-set-player-status]")?.focus({ preventScroll: true });
+        }, { once: true });
       } else if (event.key === "Escape") {
         closeStatusMenu();
       }
@@ -1086,10 +1096,14 @@
       }
     };
     const closeActions = () => {
+      // 패널 안에 포커스가 있었으면 닫은 뒤 그 카드로 돌려준다
+      const openPanel = document.querySelector("[data-action-panel]:not([hidden])");
+      const card = openPanel?.contains(document.activeElement) ? openPanel.closest(selector) : null;
       openKey = null;
       openPoint = null;
       actionsOpenedAt = 0;
       syncOpenCard();
+      card?.focus({ preventScroll: true });
     };
     window.closeActions = closeActions;
 

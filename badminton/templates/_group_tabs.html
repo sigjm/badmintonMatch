@@ -1,10 +1,10 @@
 {# 모임 선택 탭 (정모·회원 화면). back이 있으면 누른 뒤 그 화면으로 돌아온다 #}
-<div class="tabs" role="tablist" aria-label="모임 선택">
+<nav class="tabs" aria-label="모임 선택">
   {% for g in groups %}
   <form method="post" action="{{ url_for('admin.select_group') }}">
     <input type="hidden" name="group_id" value="{{ g.id }}">{% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
-    <button class="{{ 'on' if g.id == group.id }}" role="tab" aria-selected="{{ 'true' if g.id == group.id else 'false' }}">{{ g.name }}</button>
+    <button class="{{ 'on' if g.id == group.id }}"{% if g.id == group.id %} aria-current="true"{% endif %}>{{ g.name }}</button>
   </form>
   {% endfor %}
   <a class="add" href="{{ url_for('admin.groups') }}">+ 모임</a>
-</div>
+</nav>

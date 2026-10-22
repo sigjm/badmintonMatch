@@ -36,13 +36,13 @@
 {% endif %}
 
 <form method="post" action="{{ url_for('admin.import_date') }}" class="section bar">
-  <input type="date" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
+  <input type="date" aria-label="불러올 날짜" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
   <button class="btn">소모임에서 불러오기</button>
 </form>
 
 <form method="post" action="{{ url_for('admin.create_meetup') }}" class="section bar">
-  <input type="date" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
-  <input name="name" value="{{ name or '' }}" placeholder="정모 이름" required maxlength="120" style="flex:2;min-width:170px">
+  <input type="date" aria-label="정모 날짜" name="date" value="{{ date }}" required style="flex:1;min-width:150px">
+  <input name="name" aria-label="정모 이름" value="{{ name or '' }}" placeholder="정모 이름" required maxlength="120" style="flex:2;min-width:170px">
   <button class="btn">정모 직접 추가</button>
 </form>
 
@@ -53,10 +53,10 @@
     {% if mid %}<input type="hidden" name="mid" value="{{ mid }}">{% endif %}
     <p class="small muted">소모임 앱에서 참석자 닉네임을 복사해 한 줄에 한 명씩 붙여넣어 주세요.</p>
     <div class="bar">
-      <input type="date" name="date" value="{{ date }}" required>
-      <input name="name" value="{{ name or '' }}" placeholder="정모 이름" style="flex:1">
+      <input type="date" aria-label="정모 날짜" name="date" value="{{ date }}" required>
+      <input name="name" aria-label="정모 이름" value="{{ name or '' }}" placeholder="정모 이름" style="flex:1">
     </div>
-    <p><textarea name="text" placeholder="닉네임&#10;닉네임"></textarea></p>
+    <p><textarea name="text" aria-label="참석자 닉네임" placeholder="닉네임&#10;닉네임"></textarea></p>
     <button class="btn">붙여넣기 등록</button>
   </form>
 </section>

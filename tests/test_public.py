@@ -62,6 +62,21 @@ def test_board_switches_group_by_query(client, conn_of):
     assert "진행 중인 정모가 없습니다" in client.get(f"/board?g={first}").get_data(as_text=True)
 
 
+def test_board_group_links_mark_the_current_group(client, conn_of):
+    import re
+    from badminton.groups import add_group, list_groups
+    c = conn_of()
+    first = list_groups(c)[0]["id"]
+    other = add_group(c, "d49e0b02-b22a-413b-8295-53dc895bc4411", "Team ONAM")
+    html = client.get(f"/board?g={other}").get_data(as_text=True)
+    nav = html[html.index('<nav class="tabs" aria-label="모임 선택">'):]
+    links = re.findall(r"<a [^>]*>", nav[:nav.index("</nav>")])
+    current = [link for link in links if 'aria-current="page"' in link]
+    assert len(links) == 2 and len(current) == 1
+    assert f'href="/board?g={other}"' in current[0] and 'class="on"' in current[0]
+    assert f'href="/board?g={first}"' in next(link for link in links if link not in current)
+
+
 def test_board_and_updates_show_reservations(client, monkeypatch, seeded_meetup):
     mid, _ = seeded_meetup
     from badminton.meetups import board as orig_board

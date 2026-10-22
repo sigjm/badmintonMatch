@@ -6,7 +6,7 @@
 {% block content %}
 {% if groups|length > 1 %}
 <nav class="tabs" aria-label="모임 선택">
-  {% for g in groups %}<a href="{{ url_for('public.board_view', g=g.id) }}" class="{{ 'on' if g.id == group.id }}">{{ g.name }}</a>{% endfor %}
+  {% for g in groups %}<a href="{{ url_for('public.board_view', g=g.id) }}" class="{{ 'on' if g.id == group.id }}"{% if g.id == group.id %} aria-current="page"{% endif %}>{{ g.name }}</a>{% endfor %}
 </nav>
 {% endif %}
 <div data-live-updates-url="{{ url_for('public.board_updates', g=group.id) }}" data-meetup-id="{{ m.id if m else '' }}">
