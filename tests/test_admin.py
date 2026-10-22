@@ -509,8 +509,8 @@ def test_meetup_page_has_no_attendee_list_section(admin, seeded_meetup):
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     # 참석자 목록 섹션은 제거되었어야 함
     assert 'id="meetup-attendee-list"' not in html
-    # 게스트 추가 섹션은 유지되어야 함
-    assert "게스트 추가" in html
+    # 게스트 추가는 대기 탭 빈 카드를 길게 눌러 여는 팝업으로 유지되어야 함
+    assert 'aria-label="게스트 추가"' in html
     # 꾹 누르기 메뉴 및 폼 요소들이 존재해야 함
     assert 'id="quick-status-menu"' in html
     assert 'id="quick-info-form"' in html
@@ -616,7 +616,7 @@ def test_admin_meetup_section_order(admin, seeded_meetup):
     assert "<span>정모 운영</span>" not in html and f'action="/admin/m/{mid}/start"' not in html
     order = [html.index(x) for x in ("운영 콘솔", 'id="meetup-court-board"',
                                      'id="manual-match-picker"', 'id="meetup-reservations"', 'id="meetup-queue"',
-                                     'id="meetup-excluded"', "<span>게스트 추가</span>")]
+                                     'id="meetup-excluded"', 'id="guest-popup"')]
     assert order == sorted(order)
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert "예약" in data["reservation_list"] and "회원목록" in data["queue"] and "예약 1" not in data["queue"]
@@ -647,8 +647,7 @@ def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn
 def test_guest_and_court_count_forms_save_without_full_reload(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    guests = html[html.index('id="meetup-guests"'):]
-    guests = guests[:guests.index("</section>")]
+    guests = html[html.index('id="guest-popup"'):html.index('id="quick-status-menu"')]
     assert guests.count("data-save-without-reload") == guests.count("<form") >= 1
     assert 'data-reset-on-save="추가했습니다"' in guests
     resp = admin.post(f"/admin/m/{mid}/guest", data={"nickname": "새게스트", "gender": "F", "grade": "C"}, follow_redirects=True)
@@ -947,3 +946,54 @@ def test_console_layout_groups_draft_and_reservations_beside_the_member_list(adm
     # 오른쪽 묶음(수동 대진·예약)과 왼쪽 묶음(회원목록·대진 제외)이 코트 보드와 같은 .board-layout 격자 안에 있다
     assert html.index('class="board-layout is-console"') < html.index('id="meetup-court-board"')
     assert html.index('id="meetup-excluded"') < html.index('</div>\n</div>\n', html.index('class="board-members"')) < html.index('id="meetup-guests"')
+
+
+def test_waiting_panel_ends_with_a_guest_add_card_only_in_the_console(admin, client, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    add_attendee(c, mid, create_member(c, "대기자", gender="M", grade="C"), "paste")
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    panel = html[html.index('data-queue-panel="waiting"'):html.index('data-queue-panel="playing"')]
+    card = _tag(panel, 'class="guest-card"')
+    assert panel.count('class="guest-card"') == 1 and card.startswith("<button") and "data-guest-add" in card
+    assert "+ 게스트" in panel and panel.index('data-key="p-') < panel.index('class="guest-card"')  # 격자 맨 끝
+    public = client.get("/board").get_data(as_text=True)
+    assert 'class="guest-card"' not in public and ">+ 게스트<" not in public
+
+
+def test_guest_card_shows_before_start_and_with_nobody_waiting(admin, conn_of):
+    from badminton.groups import list_groups
+    from badminton.meetups import get_or_create_meetup, today
+    c = conn_of()
+    idle = get_or_create_meetup(c, today(), "시작 전 정모", "e-idle", group_id=list_groups(c)[0]["id"])
+
+    html = admin.get(f"/admin/m/{idle}").get_data(as_text=True)
+
+    assert html.count('class="guest-card"') == 1 and "대기 중인 사람이 없습니다" in html
+
+
+def test_guest_popup_holds_the_guest_forms_outside_the_live_sections(admin, seeded_meetup, conn_of):
+    from badminton.groups import list_groups
+    from badminton.meetups import add_attendee, get_or_create_meetup
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    earlier = get_or_create_meetup(c, "2026-10-01", "지난 정모", None, group_id=list_groups(c)[0]["id"])
+    add_attendee(c, earlier, create_member(c, "저장손님", is_guest=True, gender="F", grade="C"), "guest")
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    popup_tag = _tag(html, 'id="guest-popup"')
+    assert " hidden" in popup_tag and 'role="dialog"' in popup_tag and 'aria-label="게스트 추가"' in popup_tag
+    popup = html[html.index('id="guest-popup"'):html.index('id="quick-status-menu"')]
+    assert popup.count("<form") == 2 and popup.count(f'action="/admin/m/{mid}/guest"') == 2
+    assert popup.count("data-save-without-reload") == 2 and popup.count('data-reset-on-save="추가했습니다"') == 2
+    # 저장 뒤 화면 고치기가 갱신하는 id는 팝업 안쪽 요소에 있어, 갱신해도 팝업(hidden)이 닫히지 않는다
+    assert 'id="meetup-guests"' in popup and " hidden" not in _tag(html, 'id="meetup-guests"') and "저장손님" in popup
+    # 3초마다 갈아 끼우는 #meetup-queue 밖에 있고, 예전 맨 아래 게스트 추가 칸은 없다
+    assert html.index('id="guest-popup"') > html.index('id="meetup-excluded"')
+    assert '<section class="section" id="meetup-guests">' not in html and "<span>게스트 추가</span>" not in html

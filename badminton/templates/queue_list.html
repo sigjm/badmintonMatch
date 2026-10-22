@@ -10,9 +10,10 @@
   </div>
   {% endif %}
   <div class="queue-state-panel" data-queue-panel="waiting"{% if admin|default(false) and m and m.started %} role="tabpanel"{% endif %}>
-    {% if cards %}
-    <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}</div>
-    {% else %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
+    {% if not cards %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
+    {% if cards or admin|default(false) and m %}
+    <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}{% if admin|default(false) and m %}<button type="button" class="guest-card" data-guest-add aria-haspopup="dialog">+ 게스트</button>{% endif %}</div>
+    {% endif %}
   </div>
   {% if admin|default(false) and m and m.started %}
   <div class="queue-state-panel" data-queue-panel="playing" role="tabpanel" hidden>

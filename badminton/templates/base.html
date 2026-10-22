@@ -336,6 +336,7 @@
     min-width:240px; max-width:290px; padding:12px; background:var(--card); border-radius:8px; box-shadow:var(--shadow-pop);
   }
   .quick-status-menu[hidden] { display:none; }
+  .guest-popup-body { display:flex; flex-direction:column; gap:12px; }
   .quick-menu-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid var(--split); }
   .quick-menu-header strong { font-weight:600; }
   .quick-menu-close { background:transparent; border:0; border-radius:4px; font:inherit; color:var(--text-3); cursor:pointer; padding:0 6px; }
@@ -363,6 +364,10 @@
   .pcard:has([data-manual-player]) { cursor:pointer; }
   .pcard:has(.is-selected) { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
   .pcard.is-away, .pcard.is-late, .pcard.is-gone, .pcard.is-canceled { opacity:.6; }
+  .guest-card { box-sizing:border-box; display:flex; align-items:center; justify-content:center; min-height:124px; padding:12px; border:1px dashed var(--border); border-radius:8px; background:var(--card); color:var(--text-3); font:inherit; font-size:15px; font-weight:600; cursor:pointer; touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  .guest-card:hover { border-color:var(--primary-hover); color:var(--primary-hover); }
+  .guest-card:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
+  .queue-state-panel { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .pcard-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 6px; }
   .pcard-games { color:var(--text-3); font-size:12px; white-space:nowrap; }
   .pcard-games b { margin-right:2px; color:var(--text); font-size:18px; font-weight:600; }
@@ -559,6 +564,7 @@
           return;
         }
 
+        const inGuestPopup = Boolean(form.closest("#guest-popup"));
         // 화면 고치기가 받은 HTML의 요소를 화면으로 옮겨 가므로, 알림 글자는 그 전에 읽어 둔다
         const flashText = updated.querySelector("#flash-messages")?.textContent || "";
         const activeQueueTab = document.querySelector("#meetup-queue")?.dataset.activeQueueTab;
@@ -573,7 +579,10 @@
         const activeForm = saveKey
           ? [...document.querySelectorAll(`${selector}[data-save-key]`)].find((candidate) => candidate.dataset.saveKey === saveKey) || form
           : form;
-        if (form.dataset.resetOnSave && flashText.includes(form.dataset.resetOnSave)) form.reset();  // 성공했을 때만 입력칸 비우기
+        if (form.dataset.resetOnSave && flashText.includes(form.dataset.resetOnSave)) {  // 성공했을 때만 입력칸 비우고 팝업 닫기
+          form.reset();
+          if (inGuestPopup) window.closeGuestPopup?.();
+        }
         if (form.id === "manual-match-form" &&
             (flashText.includes("수동 예약을 추가했습니다") || flashText.includes("예약을 수정했습니다"))) {
           document.dispatchEvent(new CustomEvent("badminton:manual-match-saved"));
@@ -852,6 +861,7 @@
     const openStatusMenu = (target, x, y) => {
       if (!statusMenu || !quickStatusForm) return;
       window.closeActions?.();
+      window.closeGuestPopup?.();
       const card = target.closest(".pcard") || target;
       const memberId = card.dataset.playerStatus || card.dataset.memberId || target.dataset.playerStatus || target.dataset.memberId;
       if (!memberId) return;
@@ -978,6 +988,80 @@
         closeStatusMenu();
       }
     });
+    // 대기 탭 "+ 게스트" 빈 카드(또는 카드 없는 빈 곳)를 길게 누르거나, 빈 카드를 눌러 여는 게스트 추가 팝업
+    const guestPopup = document.querySelector("#guest-popup");
+    let guestPopupOpenedAt = 0;
+    let guestPopupOpener = null;
+    let guestHoldTimer = null;
+    let guestHoldPointerId = null;
+    let guestStartX = 0, guestStartY = 0;
+    const cancelGuestHold = () => {
+      window.clearTimeout(guestHoldTimer);
+      guestHoldTimer = null;
+      guestHoldPointerId = null;
+    };
+    const closeGuestPopup = () => {
+      const hadFocus = Boolean(guestPopup?.contains(document.activeElement));
+      guestPopupOpenedAt = 0;
+      if (guestPopup) guestPopup.hidden = true;
+      if (hadFocus && guestPopupOpener?.isConnected) guestPopupOpener.focus({ preventScroll: true });
+    };
+    window.closeGuestPopup = closeGuestPopup;
+    const openGuestPopup = (x, y, opener, byKeyboard = false) => {
+      if (!guestPopup) return;
+      window.closeActions?.();
+      closeStatusMenu();
+      guestPopup.hidden = false;
+      guestPopupOpenedAt = Date.now();
+      guestPopupOpener = byKeyboard ? opener : null;
+      const rect = guestPopup.getBoundingClientRect();
+      guestPopup.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
+      guestPopup.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
+      if (byKeyboard) guestPopup.querySelector('input[name="nickname"]')?.focus({ preventScroll: true });
+    };
+    // 대기 패널 안에서 회원 카드·입력칸이 아닌 곳(빈 카드, 격자의 빈 곳)을 눌렀는지
+    const isGuestPressTarget = (event) => Boolean(guestPopup && event.target.closest('[data-queue-panel="waiting"]') &&
+      !event.target.closest(".pcard, a, input, select, textarea, label"));
+    document.addEventListener("pointerdown", (event) => {
+      cancelGuestHold();
+      if (!event.isPrimary || event.button > 0 || !isGuestPressTarget(event)) return;
+      guestHoldPointerId = event.pointerId;
+      guestStartX = event.clientX;
+      guestStartY = event.clientY;
+      guestHoldTimer = window.setTimeout(() => {
+        guestHoldTimer = null;
+        openGuestPopup(guestStartX, guestStartY, null);
+      }, 300);
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (guestHoldTimer && event.pointerId === guestHoldPointerId &&
+          Math.hypot(event.clientX - guestStartX, event.clientY - guestStartY) > 10) cancelGuestHold();
+    });
+    document.addEventListener("pointerup", (event) => { if (event.pointerId === guestHoldPointerId) cancelGuestHold(); });
+    document.addEventListener("pointercancel", cancelGuestHold);
+    window.addEventListener("blur", cancelGuestHold);
+    document.addEventListener("contextmenu", (event) => {
+      if (!isGuestPressTarget(event)) return;
+      event.preventDefault();
+      cancelGuestHold();
+      if (guestPopup.hidden) openGuestPopup(event.clientX, event.clientY, null);
+    });
+    // 짧게 눌러도, Enter·Space로도 열린다 (키보드로 누른 클릭은 detail이 0이다)
+    document.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-guest-add]");
+      if (!trigger || !guestPopup) return;
+      const byKeyboard = event.detail === 0;
+      const rect = trigger.getBoundingClientRect();
+      openGuestPopup(byKeyboard ? rect.left : event.clientX, byKeyboard ? rect.bottom : event.clientY, trigger, byKeyboard);
+    });
+    setupPopupClickDismiss({
+      isOpen: () => Boolean(guestPopupOpenedAt && guestPopup && !guestPopup.hidden),
+      getOpenedAt: () => guestPopupOpenedAt,
+      isActionTrigger: (event) => Boolean(event.target.closest("[data-close-guest-popup]")),
+      isInsidePanel: (event) => Boolean(event.target.closest("#guest-popup")),
+      close: closeGuestPopup,
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeGuestPopup(); });
     document.addEventListener("badminton:manual-match-saved", () => {
       selectedPlayers.length = 0;
       Object.keys(selectedNames).forEach((id) => delete selectedNames[id]);
@@ -1011,7 +1095,7 @@
       renderManualSelection();
     });
 
-    const isStatusMenuOpen = () => Boolean(statusMenu && !statusMenu.hidden);
+    const isStatusMenuOpen = () => Boolean(statusMenu && !statusMenu.hidden) || Boolean(guestPopup && !guestPopup.hidden);
     const isActionPopupOpen = () => document.querySelector("[data-long-press-actions].actions-open, [data-action-panel]:not([hidden])") !== null;
     const liveStatuses = [...document.querySelectorAll("[data-live-status]")];
     const pageOpenedAt = new Date();
@@ -1207,6 +1291,7 @@
         return;
       }
       window.closeStatusMenu?.();
+      window.closeGuestPopup?.();
       const rect = card.getBoundingClientRect();
       openKey = card.dataset.key;
       openPoint = { x: x - rect.left, y: y - rect.top };
