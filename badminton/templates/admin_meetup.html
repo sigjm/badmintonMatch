@@ -47,7 +47,7 @@
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
   {% if m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
   <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" data-default-action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
-    <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 이름을 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
+    <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
     <p class="manual-match-editing" data-manual-editing hidden>예약을 수정 중입니다. 기존 선수 카드를 눌러 빼거나 다른 선수로 바꿀 수 있습니다.</p>
     <div class="manual-draft" data-manual-draft>
       {% for team, first in (('A팀', 0), ('B팀', 2)) %}
@@ -66,7 +66,7 @@
     {% for field in ['a1', 'a2', 'b1', 'b2'] %}<input type="hidden" name="{{ field }}" data-manual-slot="{{ loop.index0 }}">{% endfor %}
   </form>
   {% elif not m.started %}
-  <p class="empty">코트를 시작하면 다음 순서 카드에서 이름을 눌러 수동 대진을 짤 수 있습니다.</p>
+  <p class="empty">코트를 시작하면 다음 순서 카드를 눌러 수동 대진을 짤 수 있습니다.</p>
   {% else %}
   <p class="empty">새 예약에는 참석자 네 명이 필요합니다 (대기 {{ manual_candidates|length }}명 · 게임 중 {{ game_candidates|length }}명).</p>
   {% endif %}

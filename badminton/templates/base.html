@@ -136,15 +136,15 @@
   .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; }
   .reservation-board .court-match { grid-column:2; grid-row:1; align-items:stretch; gap:10px; }
   .reservation-board .team { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; border-radius:8px; }
-  .reservation-board .court-player { display:block; min-width:0; width:100%; }
-  .reservation-board .court-player .player-chip { box-sizing:border-box; width:100%; min-height:46px; padding:10px 8px; border-radius:7px; font-size:16px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
-  .reservation-board .court-player .player-chip.is-male { background:#2c6f9f; }
-  .reservation-board .court-player .player-chip.is-female { background:#78347d; }
-  .reservation-board .court-player .player-chip.is-unknown { background:#737373; }
-  .reservation-board .court-player .player-chip .player-name { color:#fff; font-weight:700; }
-  .reservation-player-select { position:relative; padding:0; border:0; background:transparent; font:inherit; text-align:inherit; cursor:pointer; }
+  .reservation-board .court-player, .pcard .court-player { display:block; min-width:0; width:100%; }
+  .reservation-board .court-player .player-chip, .pcard .court-player .player-chip { box-sizing:border-box; width:100%; min-height:46px; padding:10px 8px; border-radius:7px; font-size:16px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+  .reservation-board .court-player .player-chip.is-male, .pcard .court-player .player-chip.is-male { background:#2c6f9f; }
+  .reservation-board .court-player .player-chip.is-female, .pcard .court-player .player-chip.is-female { background:#78347d; }
+  .reservation-board .court-player .player-chip.is-unknown, .pcard .court-player .player-chip.is-unknown { background:#737373; }
+  .reservation-board .court-player .player-chip .player-name, .pcard .court-player .player-chip .player-name { color:#fff; font-weight:700; }
+  .reservation-player-select, .queue-player-select { position:relative; padding:0; border:0; background:transparent; font:inherit; text-align:inherit; cursor:pointer; }
   .reservation-player-select[aria-disabled="true"] { cursor:default; }
-  .reservation-player-select .manual-player-order { position:absolute; right:5px; bottom:4px; color:#fff; text-shadow:0 1px 2px #333; }
+  .reservation-player-select .manual-player-order, .queue-player-select .manual-player-order { position:absolute; right:5px; bottom:4px; color:#fff; text-shadow:0 1px 2px #333; }
   .reservation-waiting { grid-column:2; grid-row:2; margin:0; color:#ad4e00; font-size:12px; font-weight:700; }
   .reservation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:min(260px,calc(100vw - 24px)); }
   .reservation-actions form { min-width:0; margin:0; }
@@ -231,9 +231,8 @@
   .manual-match-panel { grid-column:2 / -1; min-width:0; }
   .manual-match-form { display:grid; gap:12px; min-width:0; }
   .manual-match-help { margin:0; color:var(--text-2); }
-  .queue-player-select { display:inline-flex; align-items:center; gap:4px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
-  .queue-player-select { flex-direction:column; align-items:flex-start; }
-  .is-selected .player-name { outline:2px solid var(--primary); outline-offset:2px; border-radius:4px; }
+  .queue-player-select { color:inherit; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  .reservation-player-select.is-selected .player-name { outline:2px solid var(--primary); outline-offset:2px; border-radius:4px; }
   .manual-player-order { display:none; flex:none; color:var(--primary); font-size:10px; line-height:1; font-weight:600; }
   .is-selected .manual-player-order { display:inline; }
   .queue-player-select:disabled { opacity:.45; cursor:not-allowed; }
@@ -288,22 +287,14 @@
   .pcard[data-player-status] * { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .pcard[data-player-status]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
   .quick-status-menu, .quick-status-menu * { -webkit-touch-callout:default; -webkit-user-select:auto; user-select:auto; }
-  .pcard.is-gone, .pcard.is-canceled { background:var(--fill); }
-  .pcard.is-gone .pcard-name, .pcard.is-canceled .pcard-name { color:var(--text-3); }
-  .pcard.is-gender-male, .pcard.is-gender-male.is-gone, .pcard.is-gender-male.is-canceled { background:var(--player-male); border-color:var(--player-male); color:#fff; }
-  .pcard.is-gender-female, .pcard.is-gender-female.is-gone, .pcard.is-gender-female.is-canceled { background:var(--player-female); border-color:var(--player-female); color:#fff; }
-  .pcard.is-gender-unknown, .pcard.is-gender-unknown.is-gone, .pcard.is-gender-unknown.is-canceled { background:var(--player-unknown); border-color:var(--player-unknown); color:#fff; }
-  .pcard.is-gender-male .player-name, .pcard.is-gender-female .player-name, .pcard.is-gender-unknown .player-name { color:#fff; }
-  .pcard.is-gender-male .pcard-games, .pcard.is-gender-female .pcard-games, .pcard.is-gender-unknown .pcard-games,
-  .pcard.is-gender-male .pcard-games b, .pcard.is-gender-female .pcard-games b, .pcard.is-gender-unknown .pcard-games b,
-  .pcard.is-gender-male .pcard-line, .pcard.is-gender-female .pcard-line, .pcard.is-gender-unknown .pcard-line,
-  .pcard.is-gender-male .pcard-memo, .pcard.is-gender-female .pcard-memo, .pcard.is-gender-unknown .pcard-memo { color:#fff; }
-  .pcard-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .pcard:has([data-manual-player]) { cursor:pointer; }
+  .pcard:has(.is-selected) { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
+  .pcard.is-away, .pcard.is-late, .pcard.is-gone, .pcard.is-canceled { opacity:.6; }
+  .pcard-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 6px; }
   .grade-badge { display:inline-grid; place-items:center; min-width:28px; height:28px; padding:0 5px; border-radius:14px; background:#141414; color:#a0d911; font-size:12px; font-weight:700; }
-  .grade-badge.is-empty { background:var(--fill-2); color:var(--text-3); }
   .pcard-games { color:var(--text-3); font-size:12px; white-space:nowrap; }
   .pcard-games b { margin-right:2px; color:var(--text); font-size:18px; font-weight:600; }
-  .pcard-name { min-width:0; font-size:15px; font-weight:700; overflow-wrap:anywhere; }
+  .pcard-name { min-width:0; }
   .pcard-tags { display:flex; flex-wrap:wrap; gap:4px; }
   .pcard-tags .tag { margin:0; }
   .pcard-line { color:var(--text-3); font-size:12px; }
@@ -528,11 +519,6 @@
             display.classList.toggle("is-male", gender.value === "M");
             display.classList.toggle("is-female", gender.value === "F");
             display.dataset.gender = gender.value;
-            const card = display.closest(".pcard");
-            if (card) {
-              card.classList.remove("is-gender-male", "is-gender-female", "is-gender-unknown");
-              card.classList.add(gender.value === "M" ? "is-gender-male" : gender.value === "F" ? "is-gender-female" : "is-gender-unknown");
-            }
           }
         }
         if (activeForm.id === "quick-rename-form") {
@@ -558,11 +544,6 @@
             display.classList.toggle("is-male", gender.value === "M");
             display.classList.toggle("is-female", gender.value === "F");
             display.dataset.gender = gender.value;
-            const card = display.closest(".pcard");
-            if (card) {
-              card.classList.remove("is-gender-male", "is-gender-female", "is-gender-unknown");
-              card.classList.add(gender.value === "M" ? "is-gender-male" : gender.value === "F" ? "is-gender-female" : "is-gender-unknown");
-            }
           }
         }
         showStatus(form, "저장 실패", true);
@@ -604,7 +585,7 @@
       const display = button.querySelector("[data-nickname]");
       return {
         name,
-        grade: button.dataset.gradeLabel || button.closest(".pcard")?.querySelector(".grade-badge")?.textContent.trim() || display?.dataset.gradeLabel || display?.dataset.grade || "?",
+        grade: button.dataset.gradeLabel || display?.dataset.gradeLabel || display?.dataset.grade || "?",
         gender: button.dataset.gender || display?.dataset.gender || "",
       };
     };
@@ -736,7 +717,7 @@
         renderManualSelection();
         return;
       }
-      const button = event.target.closest("[data-manual-player]");
+      const button = event.target.closest("[data-manual-player]") || event.target.closest(".pcard")?.querySelector("[data-manual-player]");
       if (!button) return;
       if (button.dataset.reservationPlayer === "true" &&
           (!manualForm?.dataset.reservationId || manualForm.dataset.reservationId !== button.dataset.reservationId)) return;

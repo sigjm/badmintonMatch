@@ -790,3 +790,85 @@ def test_members_page_and_saved_guests_follow_selected_group(admin, seeded_meetu
     assert resp.headers["Location"].endswith("/admin/members")
     html = admin.get("/admin/members").get_data(as_text=True)
     assert "다른모임회원" in html and 'data-player-name="m1"' not in html
+
+
+def _pcard(html, member_id):
+    """대기 카드(.pcard) 하나의 마크업을 돌려준다 (카드의 닫는 </div>는 줄 맨 앞에 있다)."""
+    start = html.index(f'data-key="p-{member_id}"')
+    return html[start:html.index("\n</div>", start)]
+
+
+def test_queue_card_is_a_chip_with_a_select_button_for_candidates(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    waiting = create_member(c, "대기자", gender="M", grade="C")
+    add_attendee(c, mid, waiting, "paste")
+
+    card = _pcard(admin.get(f"/admin/m/{mid}").get_data(as_text=True), waiting)
+
+    button = _tag(card, "data-manual-player=")
+    assert button.startswith("<button") and 'class="court-player queue-player-select"' in button
+    assert f'data-manual-player="{waiting}"' in button and 'data-grade-label="C"' in button
+    assert 'data-nickname="대기자"' in button and 'data-gender="M"' in button
+    assert "player-chip is-male" in card and "C/대기자" in card
+    assert "grade-badge" not in card and "is-gender-" not in card  # 급수는 칩 안에, 카드 바탕은 흰색
+    assert "data-queue-wait" in card and "data-wait-value" in card  # 대기 시간 갱신용 표시는 그대로
+
+
+def test_playing_tab_cards_are_selectable_chips(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    member = conn_of().execute("SELECT id FROM members WHERE nickname = 'm1'").fetchone()[0]
+
+    card = _pcard(admin.get(f"/admin/m/{mid}").get_data(as_text=True), member)
+
+    assert f'data-manual-player="{member}"' in card and 'data-grade-label="B"' in card
+    assert "player-chip is-male" in card and "B/m1" in card
+
+
+def test_excluded_card_is_a_chip_without_select_button(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee, set_status
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    away = create_member(c, "쉬는사람", gender="F", grade="A")
+    add_attendee(c, mid, away, "paste")
+    set_status(c, mid, away, "gone")
+
+    card = _pcard(admin.get(f"/admin/m/{mid}").get_data(as_text=True), away)
+
+    assert "data-manual-player" not in card and "queue-player-select" not in card
+    assert "player-chip is-female" in card and "A/쉬는사람" in card and "grade-badge" not in card
+
+
+def test_public_board_queue_cards_are_chips_without_select_button(client, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    waiting = create_member(c, "대기자", gender="F", grade="D")
+    add_attendee(c, mid, waiting, "paste")
+
+    card = _pcard(client.get("/board").get_data(as_text=True), waiting)
+
+    assert "player-chip is-female" in card and "D/대기자" in card
+    assert "data-manual-player" not in card and "<button" not in card and "grade-badge" not in card
+
+
+def test_manual_match_guides_say_tap_the_card(admin, seeded_meetup, conn_of):
+    from badminton.groups import list_groups
+    from badminton.meetups import add_attendee, get_or_create_meetup, today
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    for nick in ("w1", "w2", "w3", "w4"):
+        add_attendee(c, mid, create_member(c, nick, gender="M", grade="C"), "paste")
+    idle = get_or_create_meetup(c, today(), "시작 전 정모", "e-idle", group_id=list_groups(c)[0]["id"])
+
+    started = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    unstarted = admin.get(f"/admin/m/{idle}").get_data(as_text=True)
+
+    assert "대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요." in started
+    assert "다음 순서 카드를 눌러 수동 대진을 짤 수 있습니다." in unstarted
+    assert "이름을 눌러" not in started + unstarted

@@ -1,25 +1,23 @@
+{% from "_macros.html" import player_chip %}
 {# 참석자 카드 (다음 순서·대진 제외 공통). 대기열 카드는 state가 없어 queued로 본다 #}
 {% set state = p.state|default('queued') %}
 {% set admin_card = admin|default(false) and m %}
-<div class="pcard is-{{ state }}{% if p.gender == 'M' %} is-gender-male{% elif p.gender == 'F' %} is-gender-female{% else %} is-gender-unknown{% endif %}" data-key="p-{{ p.id }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}" tabindex="0" role="button" aria-label="{{ p.nickname }}{% if p.grade %}, {{ GRADE_LABELS.get(p.grade, '') }}급{% endif %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"{% endif %}>
-  <div class="pcard-top">
-    <span class="grade-badge{{ ' is-empty' if not p.grade }}">{{ GRADE_LABELS.get(p.grade, '?') }}</span>
-    <span class="pcard-games"><b>{{ p.games }}</b>게임</span>
-  </div>
+<div class="pcard is-{{ state }}" data-key="p-{{ p.id }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}" tabindex="0" role="button" aria-label="{{ p.nickname }}{% if p.grade %}, {{ GRADE_LABELS.get(p.grade, '') }}급{% endif %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"{% endif %}>
   <div class="pcard-name">
     {% if admin_card and m.started and p.id in manual_candidate_ids|default([]) %}
-    <button type="button" class="queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false">
-      <span class="player-name{% if p.gender == 'M' %} is-male{% elif p.gender == 'F' %} is-female{% endif %}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">{{ p.nickname }}</span><small class="manual-player-order" data-player-order></small>
-    </button>
-    {% else %}<span class="player-name{% if p.gender == 'M' %} is-male{% elif p.gender == 'F' %} is-female{% endif %}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}">{{ p.nickname }}</span>{% endif %}
+    <button type="button" class="court-player queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-grade-label="{{ GRADE_LABELS.get(p.grade, '?') }}">{{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small></button>
+    {% else %}<span class="court-player">{{ player_chip(p.nickname, p.gender, p.grade) }}</span>{% endif %}
   </div>
-  <div class="pcard-tags">
-    {% if p.gender == 'M' %}<span class="tag blue">남성</span>{% elif p.gender == 'F' %}<span class="tag magenta">여성</span>{% endif %}
-    {% if state == 'playing' %}<span class="tag orange">게임 중</span>
-    {% elif state == 'noinfo' %}<span class="tag red">{{ p.reason }}</span>
-    {% elif state == 'away' %}<span class="tag gold">휴식</span>
-    {% elif state == 'late' %}<span class="tag orange">지각</span>
-    {% elif state != 'queued' %}<span class="tag">{{ p.reason }}</span>{% endif %}
+  <div class="pcard-top">
+    <span class="pcard-games"><b>{{ p.games }}</b>게임</span>
+    <div class="pcard-tags">
+      {% if p.gender == 'M' %}<span class="tag blue">남성</span>{% elif p.gender == 'F' %}<span class="tag magenta">여성</span>{% endif %}
+      {% if state == 'playing' %}<span class="tag orange">게임 중</span>
+      {% elif state == 'noinfo' %}<span class="tag red">{{ p.reason }}</span>
+      {% elif state == 'away' %}<span class="tag gold">휴식</span>
+      {% elif state == 'late' %}<span class="tag orange">지각</span>
+      {% elif state != 'queued' %}<span class="tag">{{ p.reason }}</span>{% endif %}
+    </div>
   </div>
   <div class="pcard-line">
     {% if state == 'queued' %}<span data-queue-wait data-queued-at="{{ p.since }}">{{ '마지막 경기 종료 후' if p.played else '대기' }} <span data-wait-value>{{ p.since_label }}</span></span>
