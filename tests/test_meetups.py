@@ -92,6 +92,27 @@ def test_sync_marks_removed_canceled_and_keeps_guests(conn):
     assert status_of(conn, mid, "와이") == "canceled" and status_of(conn, mid, "게스트") == "present"
 
 
+def test_canceled_somoim_member_is_hidden_and_returns_to_queue(conn):
+    from badminton.meetups import manual_candidates
+
+    mid = get_or_create_meetup(conn, "2026-10-23", "금야민 복귀 확인", "e-rejoin")
+    sync_somoim(conn, mid, [SM("returning", "복귀 회원")])
+    member_id = member_id_of(conn, "복귀 회원")
+    set_info(conn, member_id, "M", "C", by="test")
+
+    assert sync_somoim(conn, mid, []) == {"added": 0, "canceled": 1, "restored": 0}
+    assert status_of(conn, mid, "복귀 회원") == "canceled"
+    assert conn.execute("SELECT count(*) FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                        (mid, member_id)).fetchone()[0] == 1
+    assert "복귀 회원" not in board(conn, mid)["queue"]
+    assert "복귀 회원" not in {row["nickname"] for row in board(conn, mid)["excluded"]}
+    assert member_id not in {row["id"] for row in manual_candidates(conn, mid)}
+
+    assert sync_somoim(conn, mid, [SM("returning", "복귀 회원")]) == {"added": 0, "canceled": 0, "restored": 1}
+    assert status_of(conn, mid, "복귀 회원") == "present"
+    assert "복귀 회원" in board(conn, mid)["queue"]
+
+
 def test_sync_restores_rejoined_but_not_manual_status(conn):
     mid = get_or_create_meetup(conn, "2026-10-23", "금야민+게1", "e1")
     sync_somoim(conn, mid, [SM("x", "엑스"), SM("y", "와이")])

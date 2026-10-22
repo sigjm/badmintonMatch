@@ -634,6 +634,8 @@ def board(conn, meetup_id: int) -> dict:
     excluded = []
     for r in conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, a.status, a.games, a.memo FROM attendees a
                              JOIN members m ON m.id = a.member_id WHERE a.meetup_id = ?""", (meetup_id,)):
+        if r["status"] == "canceled":
+            continue
         if r["id"] in playing or r["id"] in reserved:
             continue
         if r["status"] != "present":

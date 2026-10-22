@@ -317,7 +317,7 @@ def meetup(mid):
         fill_courts(conn, mid)  # 쉬는 시간(15초)이 지난 코트 채우기
     rows = conn.execute("""SELECT m.id, m.nickname, m.gender, m.grade, m.is_guest, a.status, a.games
                            FROM attendees a JOIN members m ON m.id = a.member_id
-                           WHERE a.meetup_id = ? ORDER BY m.nickname""", (mid,)).fetchall()
+                           WHERE a.meetup_id = ? AND a.status != 'canceled' ORDER BY m.nickname""", (mid,)).fetchall()
     seated = {r["id"] for r in rows}
     guests = [g for g in list_members(conn, guests=True, group_id=m["group_id"]) if g["id"] not in seated]
     candidates = manual_candidates(conn, mid)

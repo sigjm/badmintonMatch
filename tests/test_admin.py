@@ -147,6 +147,22 @@ def test_import_no_event_on_date_offers_paste(admin, monkeypatch, conn_of):
     assert "붙여넣기" in html and conn_of().execute("SELECT count(*) FROM meetups").fetchone()[0] == 0
 
 
+def test_canceled_somoim_member_is_hidden_from_admin_and_public_boards(admin, client, seeded_meetup, conn_of):
+    from badminton.meetups import sync_somoim
+
+    mid, _ = seeded_meetup
+    conn = conn_of()
+    sync_somoim(conn, mid, [SomoimMember("removed", "불참 취소자", frozenset(), False)])
+    assert sync_somoim(conn, mid, []) == {"added": 0, "canceled": 1, "restored": 0}
+
+    admin_html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    public_html = client.get("/board").get_data(as_text=True)
+
+    assert "참석자</span><strong>4명</strong>" in admin_html
+    assert "불참 취소자" not in admin_html
+    assert "불참 취소자" not in public_html
+
+
 def test_somoim_failure_keeps_attendees_and_offers_paste(admin, monkeypatch, conn_of):  # Review Focus 1
     monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
     admin.post("/admin/import", data={"date": "2026-10-23"})
