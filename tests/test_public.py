@@ -154,3 +154,28 @@ def test_base_script_handles_scroll_and_menu_in_updates(client):
     assert "isStatusMenuOpen" in html
 
 
+def test_public_board_layout_structure_and_four_ids(client, seeded_meetup):
+    html = client.get("/board").get_data(as_text=True)
+    # 네 id가 모두 존재해야 3초 갱신이 정상 동작한다
+    assert 'id="meetup-court-board"' in html
+    assert 'id="meetup-reservations"' in html
+    assert 'id="meetup-queue"' in html
+    assert 'id="meetup-excluded"' in html
+
+    # 공개 대진판 전용 레이아웃 및 우측 사이드 컨테이너 확인
+    assert 'class="board-layout is-public"' in html
+    assert 'class="board-side"' in html
+
+    # 코트 카드가 .courts-grid div 안에 감싸져 있는지 구조 검사
+    assert '<div class="courts-grid">' in html
+    assert html.index('class="courts-grid"') < html.index('data-key="court-1"')
+
+    # 모바일 및 기본 HTML 순서: 코트 -> 예약 -> 다음 순서 -> 대진 제외
+    court_idx = html.index('id="meetup-court-board"')
+    resv_idx = html.index('id="meetup-reservations"')
+    queue_idx = html.index('id="meetup-queue"')
+    excl_idx = html.index('id="meetup-excluded"')
+    assert court_idx < resv_idx < queue_idx < excl_idx
+
+
+

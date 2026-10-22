@@ -1,3 +1,5 @@
 <div class="head"><span>{{ '실시간 코트 보드' if admin else '코트 현황' }}</span><span>{{ board.courts|length }}면{% if admin and board.courts|selectattr('game_id')|list %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
+<div class="courts-grid">
 {% include "court_list.html" %}
 {% if not board.courts %}<p class="empty">코트 수를 입력하고 시작을 눌러 주세요.</p>{% endif %}
+</div>

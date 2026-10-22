@@ -21,14 +21,16 @@
   <h1>{{ m.name }}</h1>
   <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span data-live-status aria-live="polite">3초마다 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
 </section>
-<div class="board-layout">
+<div class="board-layout is-public">
 <section class="tile board-big live-courts" id="meetup-court-board">
   {% set admin = false %}{% include "_court_board_content.html" %}
 </section>
+<div class="board-side">
 <div id="meetup-reservations">{% include "reservation_list.html" %}</div>
-</div>
 <div id="meetup-queue">{% include "queue_list.html" %}</div>
 <div id="meetup-excluded">{% include "excluded_list.html" %}</div>
+</div>
+</div>
 {% endif %}
 </div>
 {% endblock %}

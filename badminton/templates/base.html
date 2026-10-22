@@ -35,7 +35,17 @@
   .wrap { max-width:880px; margin:0 auto; padding:0 16px; }
   .is-wide .wrap { max-width:1280px; }
   .board-layout { display:grid; gap:0 16px; align-items:start; }
-  @media (min-width:1000px) { .board-layout { grid-template-columns:minmax(0,3fr) minmax(0,2fr); } }
+  .board-side { display:flex; flex-direction:column; gap:0; min-width:0; }
+  @media (min-width:1000px) {
+    .board-layout { grid-template-columns:minmax(0,3fr) minmax(0,2fr); }
+    .board-layout.is-public { grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); }
+  }
+
+  /* 공개 대진판 전용 최적화: 1440x900에서 다음 순서 첫 줄까지 스크롤 없이 표시 */
+  .is-public .section, .is-public .tile { padding:14px 18px; margin-top:14px; }
+  .is-public .section > .head, .is-public .tile > .head { min-height:44px; margin:-14px -18px 12px; padding:0 18px; font-size:15px; }
+  .is-public .reservation-board .reservation-card { padding:10px 12px; gap:6px 12px; margin-bottom:8px; }
+  .is-public .reservation-board .court-player .player-chip { min-height:38px; padding:6px 6px; font-size:14px; }
 
   /* 상단 바 */
   .gnav { background:var(--card); border-bottom:1px solid var(--split); position:sticky; top:0; z-index:10; }
@@ -87,11 +97,25 @@
   .court-no { grid-row:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:var(--primary); color:#fff; font-size:20px; font-weight:600; line-height:1; }
   .court-no small { margin-top:3px; font-size:11px; font-weight:400; opacity:.85; }
   .resv .court-no { background:var(--primary-bg); color:var(--primary); border:1px solid var(--primary-border); }
-  .court-match { min-width:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:center; gap:8px; }
-  .team { min-width:0; padding:8px; border:1px solid var(--split); border-radius:6px; background:var(--fill); text-align:center; font-size:15px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
+  .court-match { position:relative; min-width:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:stretch; --team-gap:14px; gap:var(--team-gap); }
+  .court-match .team + .team { position:relative; }
+  .court-match .team + .team::before { content:""; position:absolute; left:calc(var(--team-gap) / -2); top:4px; bottom:4px; width:1px; background:var(--split); }
+  .court-match .team + .team::after { content:"VS"; position:absolute; left:calc(var(--team-gap) / -2); top:50%; transform:translate(-50%, -50%); font-size:10px; font-weight:700; color:var(--text-4); background:var(--card); padding:2px 3px; border-radius:3px; line-height:1; letter-spacing:.5px; }
+  .team { min-width:0; text-align:center; font-size:15px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
   .court .empty { grid-column:2; margin:0; }
+  .courts-grid { display:flex; flex-direction:column; gap:12px; }
+  .courts-grid .court { margin-bottom:0; }
+  .courts-grid .empty { grid-column:1 / -1; }
+  @media (min-width:1100px) {
+    .live-courts .courts-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));
+      gap:12px;
+      align-items:stretch;
+    }
+  }
   .court-actions {
     position:absolute; z-index:100; display:flex; flex-direction:column; gap:8px;
     box-sizing:border-box; width:min(176px,calc(100vw - 24px)); max-width:calc(100vw - 24px); padding:10px;
@@ -118,15 +142,12 @@
   .actions-popup-active { position:relative; z-index:80; }
   .hold-hint { display:inline; color:var(--text-3); font-size:11px; font-weight:500; }
   .hold-hint::before { content:" · "; }
-  .board-big .court-no { width:56px; height:56px; font-size:24px; }
-  .board-big .team { padding:10px 8px; font-size:17px; }
-  /* 실시간 코트 보드: 팀은 좌우 두 열, 각 팀의 선수는 위아래로 표시 */
-  .live-courts .court:not(.resv) { padding:20px; gap:12px 18px; }
-  .live-courts .court:not(.resv) .court-no { width:60px; height:60px; font-size:24px; }
-  .live-courts .court-match { align-items:stretch; gap:12px; }
-  .live-courts .team { display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:8px; }
+  /* 실시간 코트 보드: 팀 상자 테두리/배경 없이 평평하게, 칩만 강조 */
+  .live-courts .court:not(.resv) { padding:14px 12px; gap:8px 12px; }
+  .live-courts .court:not(.resv) .court-no { width:56px; height:56px; font-size:24px; }
+  .live-courts .team, .reservation-board .team { display:flex; flex-direction:column; gap:8px; padding:0; border:0; background:transparent; border-radius:0; }
   .live-courts .court-player { display:block; min-width:0; width:100%; }
-  .live-courts .court-player .player-chip { box-sizing:border-box; width:100%; min-height:52px; padding:12px 10px; border-radius:7px; font-size:18px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+  .live-courts .court-player .player-chip { box-sizing:border-box; width:100%; min-height:48px; padding:10px 6px; border-radius:6px; font-size:16px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
   .live-courts .court-player .player-chip.is-male { background:#2c6f9f; }
   .live-courts .court-player .player-chip.is-female { background:#78347d; }
   .live-courts .court-player .player-chip.is-unknown { background:#737373; }
@@ -136,8 +157,7 @@
   .reservation-board .reservation-card { grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto auto; gap:8px 14px; padding:14px; }
   .reservation-board.is-admin .reservation-card { grid-template-columns:auto minmax(0,1fr); }
   .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; }
-  .reservation-board .court-match { grid-column:2; grid-row:1; align-items:stretch; gap:10px; }
-  .reservation-board .team { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:8px; border-radius:8px; }
+  .reservation-board .court-match { grid-column:2; grid-row:1; align-items:stretch; }
   .reservation-board .court-player, .pcard .court-player { display:block; min-width:0; width:100%; }
   .reservation-board .court-player .player-chip, .pcard .court-player .player-chip { box-sizing:border-box; width:100%; min-height:46px; padding:10px 8px; border-radius:7px; font-size:16px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
   .reservation-board .court-player .player-chip.is-male, .pcard .court-player .player-chip.is-male, .selection-bar .player-chip.is-male { background:#2c6f9f; }
@@ -334,22 +354,19 @@
   @container (max-width:520px) {
     .court { grid-template-columns:40px minmax(0,1fr); gap:6px 10px; padding:12px; }
     .court-no { width:40px; height:44px; font-size:18px; }
-    .court-match { gap:6px; }
-    .team { padding:8px 4px; font-size:14px; }
+    .court-match { --team-gap:10px; }
     .reservation-board .reservation-card { grid-template-columns:40px minmax(0,1fr); gap:8px 10px; padding:12px; }
     .reservation-board.is-admin .reservation-card { grid-template-columns:40px minmax(0,1fr); }
-    .reservation-board .court-match { grid-column:2; grid-row:1; gap:6px; }
+    .reservation-board .court-match { grid-column:2; grid-row:1; }
     .reservation-board .reservation-card .court-no { grid-column:1; grid-row:1 / span 2; width:40px; height:44px; font-size:18px; }
-    .reservation-board .team { padding:7px 5px; gap:6px; }
+    .reservation-board .team { padding:0; gap:6px; }
     .reservation-board .court-player .player-chip { min-height:42px; padding:8px 4px; font-size:14px; }
     .reservation-waiting { grid-column:2; grid-row:2; }
     .manual-match-panel { grid-column:1 / -1; }
-    .board-big .court-no { width:44px; height:48px; font-size:20px; }
-    .board-big .team { font-size:15px; }
-    .live-courts .court:not(.resv) { padding:14px 10px; gap:10px 8px; }
+    .board-big .court-no { width:42px; height:46px; font-size:18px; }
+    .live-courts .court:not(.resv) { padding:12px 10px; gap:8px 10px; }
     .live-courts .court:not(.resv) .court-no { width:42px; height:46px; font-size:18px; }
-    .live-courts .court-match { gap:6px; }
-    .live-courts .team { padding:8px 5px; gap:7px; }
+    .live-courts .team { padding:0; gap:6px; }
     .live-courts .court-player .player-chip { min-height:46px; padding:9px 5px; font-size:15px; }
     .live-courts .versus { font-size:10px; }
   }
