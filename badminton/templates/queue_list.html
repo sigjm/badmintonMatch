@@ -1,7 +1,7 @@
 {% set manual_candidate_ids = manual_candidate_ids|default([]) %}
 {% set game_candidates = game_candidates|default([]) %}
 <section class="section queue-section">
-  <div class="head"><span>다음 순서</span><span>{{ board.queue|length }}명{% if admin|default(false) and m %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
+  <div class="head"><span>{{ '회원목록' if admin|default(false) and m else '다음 순서' }}</span><span>{{ board.queue|length }}명{% if admin|default(false) and m %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
   {% set cards = board.queue_cards|default([]) %}
   {% if admin|default(false) and m and m.started %}
   <div class="tabs queue-state-tabs" role="tablist" aria-label="선수 상태">

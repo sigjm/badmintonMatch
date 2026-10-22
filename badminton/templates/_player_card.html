@@ -1,5 +1,5 @@
 {% from "_macros.html" import player_chip %}
-{# 참석자 카드 (다음 순서·대진 제외 공통). 대기열 카드는 state가 없어 queued로 본다 #}
+{# 참석자 카드 (회원목록·다음 순서·대진 제외 공통). 대기열 카드는 state가 없어 queued로 본다 #}
 {% set state = p.state|default('queued') %}
 {% set admin_card = admin|default(false) and m %}
 <div class="pcard is-{{ state }}" data-key="p-{{ p.id }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}" tabindex="0" role="button" aria-label="{{ p.nickname }}{% if p.grade %}, {{ GRADE_LABELS.get(p.grade, '') }}급{% endif %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"{% endif %}>

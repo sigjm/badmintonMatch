@@ -38,6 +38,10 @@
   @media (min-width:1000px) {
     .board-layout { grid-template-columns:repeat(2, minmax(0, 1fr)); }
     #meetup-court-board { grid-column:1 / -1; }
+    /* 운영 콘솔: 코트 보드 아래 왼쪽에 회원목록·대진 제외, 오른쪽에 수동 대진·예약 */
+    .board-layout.is-console { grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); }
+    .board-layout.is-console .board-members { grid-column:1; grid-row:2; }
+    .board-layout.is-console .board-side { grid-column:2; grid-row:2; }
   }
 
   /* 공개 대진판 전용 최적화 */
@@ -348,7 +352,7 @@
   .quick-menu-row select, .quick-menu-row input { flex:1; min-width:0; height:32px; border-radius:6px; }
   .quick-status-form { display:none; }
 
-  /* 다음 순서 */
+  /* 회원목록(운영 콘솔)·다음 순서(공개 대진판) */
   .operation-controls { margin:0 0 20px; }
   .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
   .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }

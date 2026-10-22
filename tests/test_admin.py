@@ -605,7 +605,7 @@ def test_excluded_section_is_separate_live_fragment(admin, seeded_meetup, conn_o
     c = conn_of()
     add_attendee(c, mid, create_member(c, "급수없음", gender="M", grade=None), "paste")
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert 'id="meetup-excluded"' in html and 'class="board-layout"' in html
+    assert 'id="meetup-excluded"' in html and 'class="board-layout is-console"' in html
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert "급수없음" in data["excluded"] and "급수없음" not in data["queue"]
 
@@ -619,7 +619,7 @@ def test_admin_meetup_section_order(admin, seeded_meetup):
                                      'id="meetup-excluded"', "<span>게스트 추가</span>")]
     assert order == sorted(order)
     data = admin.get(f"/admin/m/{mid}/updates").get_json()
-    assert "예약" in data["reservation_list"] and "다음 순서" in data["queue"] and "예약 1" not in data["queue"]
+    assert "예약" in data["reservation_list"] and "회원목록" in data["queue"] and "예약 1" not in data["queue"]
 
 
 def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn_of, monkeypatch):
@@ -872,7 +872,7 @@ def test_manual_match_guides_say_tap_the_card(admin, seeded_meetup, conn_of):
     unstarted = admin.get(f"/admin/m/{idle}").get_data(as_text=True)
 
     assert "대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요." in started
-    assert "다음 순서 카드를 눌러 수동 대진을 짤 수 있습니다." in unstarted
+    assert "회원목록 카드를 눌러 수동 대진을 짤 수 있습니다." in unstarted
     assert "이름을 눌러" not in started + unstarted
 
 
@@ -924,3 +924,26 @@ def test_manual_draft_slots_use_the_reservation_card_court_match_layout(admin, s
     assert all(f'data-placeholder="선수 {i}"' in draft for i in range(1, 5))
     # A팀/B팀 글자 열과 따로 있던 VS 줄은 없다 (VS는 .court-match .team + .team 규칙이 그린다)
     assert "draft-team-label" not in html and "draft-vs" not in html and "draft-team" not in html
+
+
+def test_console_calls_the_queue_member_list_but_public_board_keeps_next_order(admin, client, seeded_meetup):
+    mid, _ = seeded_meetup
+    console = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    public = client.get("/board").get_data(as_text=True)
+
+    assert "<span>회원목록</span>" in console and "<span>다음 순서</span>" not in console
+    assert "<span>다음 순서</span>" in public and "<span>회원목록</span>" not in public
+
+
+def test_console_layout_groups_draft_and_reservations_beside_the_member_list(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    # 마크업 순서가 곧 휴대폰 순서: 코트 보드 → 수동 대진 → 예약 → 회원목록 → 대진 제외 (넓은 화면 배치는 CSS가 한다)
+    order = [html.index(x) for x in ('id="meetup-court-board"', 'class="board-side"', 'id="manual-match-picker"',
+                                     'id="meetup-reservations"', 'class="board-members"', 'id="meetup-queue"',
+                                     'id="meetup-excluded"', 'id="meetup-guests"')]
+    assert order == sorted(order)
+    # 오른쪽 묶음(수동 대진·예약)과 왼쪽 묶음(회원목록·대진 제외)이 코트 보드와 같은 .board-layout 격자 안에 있다
+    assert html.index('class="board-layout is-console"') < html.index('id="meetup-court-board"')
+    assert html.index('id="meetup-excluded"') < html.index('</div>\n</div>\n', html.index('class="board-members"')) < html.index('id="meetup-guests"')

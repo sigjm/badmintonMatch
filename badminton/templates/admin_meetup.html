@@ -38,10 +38,11 @@
   <div class="stat-card"><span>대기열</span><strong data-queue-count>{{ board.queue|length }}명</strong></div>
 </div>
 
-<div class="board-layout">
+<div class="board-layout is-console">
 <section class="tile live-courts" id="meetup-court-board">
   {% set admin = true %}{% include "_court_board_content.html" %}
 </section>
+<div class="board-side">
 {% set show_manual_form = m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
 <section class="section manual-picker" id="manual-match-picker">
   <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
@@ -66,15 +67,18 @@
     {% for field in ['a1', 'a2', 'b1', 'b2'] %}<input type="hidden" name="{{ field }}" data-manual-slot="{{ loop.index0 }}">{% endfor %}
   </form>
   {% elif not m.started %}
-  <p class="empty">코트를 시작하면 다음 순서 카드를 눌러 수동 대진을 짤 수 있습니다.</p>
+  <p class="empty">코트를 시작하면 회원목록 카드를 눌러 수동 대진을 짤 수 있습니다.</p>
   {% else %}
   <p class="empty">새 예약에는 참석자 네 명이 필요합니다 (대기 {{ manual_candidates|length }}명 · 게임 중 {{ game_candidates|length }}명).</p>
   {% endif %}
 </section>
 <div id="meetup-reservations">{% with admin=true, m=m %}{% include "reservation_list.html" %}{% endwith %}</div>
 </div>
+<div class="board-members">
 <div id="meetup-queue" data-active-queue-tab="waiting">{% with admin=true, m=m, manual_candidates=manual_candidates, manual_candidate_ids=manual_candidate_ids, game_candidates=game_candidates %}{% include "queue_list.html" %}{% endwith %}</div>
 <div id="meetup-excluded">{% with admin=true, m=m, manual_candidate_ids=manual_candidate_ids %}{% include "excluded_list.html" %}{% endwith %}</div>
+</div>
+</div>
 
 
 <section class="section" id="meetup-guests">
