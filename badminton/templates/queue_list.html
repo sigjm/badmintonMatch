@@ -12,7 +12,7 @@
   <div class="queue-state-panel" data-queue-panel="waiting"{% if admin|default(false) and m and m.started %} role="tabpanel"{% endif %}>
     {% if not cards %}<p class="empty">대기 중인 사람이 없습니다</p>{% endif %}
     {% if cards or admin|default(false) and m %}
-    <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}{% if admin|default(false) and m %}<button type="button" class="guest-card" data-guest-add aria-haspopup="dialog">+ 게스트</button>{% endif %}</div>
+    <div class="player-grid">{% for p in cards %}{% include "_player_card.html" %}{% endfor %}{% if admin|default(false) and m %}<button type="button" class="guest-card" data-guest-add aria-haspopup="dialog" aria-label="참석자 추가">+ 추가</button>{% endif %}</div>
     {% endif %}
   </div>
   {% if admin|default(false) and m and m.started %}

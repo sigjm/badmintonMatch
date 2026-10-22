@@ -109,6 +109,7 @@ def test_app_rejects_missing_production_secrets(tmp_path, admin_password, secret
 @pytest.mark.parametrize(("path", "data"), [
     ("/m/{mid}/info", {"member_id": "bad", "gender": "F", "grade": "B"}),
     ("/m/{mid}/guest", {"member_id": "bad"}),
+    ("/m/{mid}/member", {"member_id": "bad"}),
     ("/m/{mid}/status", {"status": "present"}),
     ("/m/{mid}/start", {}),
     ("/settings", {}),
@@ -124,6 +125,7 @@ def test_malformed_admin_form_fields_do_not_raise_500(admin, seeded_meetup, path
 
 @pytest.mark.parametrize(("path", "data"), [
     ("/m/{mid}/guest", {"member_id": "999999"}),
+    ("/m/{mid}/member", {"member_id": "999999"}),
     ("/members/999999", {"gender": "F", "grade": "B"}),
 ])
 def test_stale_admin_member_ids_do_not_raise_500(admin, seeded_meetup, path, data):
@@ -159,7 +161,7 @@ def test_canceled_somoim_member_is_hidden_from_admin_and_public_boards(admin, cl
     public_html = client.get("/board").get_data(as_text=True)
 
     assert "참석자</span><strong>4명</strong>" in admin_html
-    assert "불참 취소자" not in admin_html
+    assert 'data-nickname="불참 취소자"' not in admin_html  # 대기·대진 제외 카드에는 없다 (추가 팝업의 기존 회원 선택에만 나온다)
     assert "불참 취소자" not in public_html
 
 
@@ -526,7 +528,7 @@ def test_meetup_page_has_no_attendee_list_section(admin, seeded_meetup):
     # 참석자 목록 섹션은 제거되었어야 함
     assert 'id="meetup-attendee-list"' not in html
     # 게스트 추가는 대기 탭 빈 카드를 길게 눌러 여는 팝업으로 유지되어야 함
-    assert 'aria-label="게스트 추가"' in html
+    assert 'aria-label="참석자 추가"' in html
     # 꾹 누르기 메뉴 및 폼 요소들이 존재해야 함
     assert 'id="quick-status-menu"' in html
     assert 'id="quick-info-form"' in html
@@ -753,7 +755,7 @@ def test_meetup_page_inputs_have_accessible_names(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     nicknames = re.findall(r'<input[^>]*name="nickname"[^>]*>', html)  # 게스트 추가, 이름 변경 순서
-    assert [re.search(r'aria-label="([^"]*)"', tag).group(1) for tag in nicknames] == ["게스트 이름", "새 이름"]
+    assert [re.search(r'aria-label="([^"]*)"', tag).group(1) for tag in nicknames] == ["회원 이름", "게스트 이름", "새 이름"]
     assert 'aria-label="메모"' in _tag(html, "data-memo-text")
 
 
@@ -978,9 +980,9 @@ def test_waiting_panel_ends_with_a_guest_add_card_only_in_the_console(admin, cli
     panel = html[html.index('data-queue-panel="waiting"'):html.index('data-queue-panel="playing"')]
     card = _tag(panel, 'class="guest-card"')
     assert panel.count('class="guest-card"') == 1 and card.startswith("<button") and "data-guest-add" in card
-    assert "+ 게스트" in panel and panel.index('data-key="p-') < panel.index('class="guest-card"')  # 격자 맨 끝
+    assert "+ 추가" in panel and panel.index('data-key="p-') < panel.index('class="guest-card"')  # 격자 맨 끝
     public = client.get("/board").get_data(as_text=True)
-    assert 'class="guest-card"' not in public and ">+ 게스트<" not in public
+    assert 'class="guest-card"' not in public and ">+ 추가<" not in public
 
 
 def test_guest_card_shows_before_start_and_with_nobody_waiting(admin, conn_of):
@@ -1006,10 +1008,10 @@ def test_guest_popup_holds_the_guest_forms_outside_the_live_sections(admin, seed
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
 
     popup_tag = _tag(html, 'id="guest-popup"')
-    assert " hidden" in popup_tag and 'role="dialog"' in popup_tag and 'aria-label="게스트 추가"' in popup_tag
+    assert " hidden" in popup_tag and 'role="dialog"' in popup_tag and 'aria-label="참석자 추가"' in popup_tag
     popup = html[html.index('id="guest-popup"'):html.index('id="quick-status-menu"')]
-    assert popup.count("<form") == 2 and popup.count(f'action="/admin/m/{mid}/guest"') == 2
-    assert popup.count("data-save-without-reload") == 2 and popup.count('data-reset-on-save="추가했습니다"') == 2
+    assert popup.count(f'action="/admin/m/{mid}/guest"') == 2 and popup.count("<form") == popup.count("data-save-without-reload")
+    assert popup.count("<form") == popup.count('data-reset-on-save="추가했습니다"')
     # 저장 뒤 화면 고치기가 갱신하는 id는 팝업 안쪽 요소에 있어, 갱신해도 팝업(hidden)이 닫히지 않는다
     assert 'id="meetup-guests"' in popup and " hidden" not in _tag(html, 'id="meetup-guests"') and "저장손님" in popup
     # 3초마다 갈아 끼우는 #meetup-queue 밖에 있고, 예전 맨 아래 게스트 추가 칸은 없다
@@ -1172,3 +1174,123 @@ def test_court_state_route_and_popups_on_admin_and_public_board(admin, client, s
     assert "유효하지 않은 코트 번호입니다" in err3
     err4 = admin.post(f"/admin/m/{mid}/court/3/state", data={"state": "wrong"}, follow_redirects=True).get_data(as_text=True)
     assert "코트 상태를 확인해 주세요" in err4
+
+
+def _earlier_member(conn, nickname="옛회원", *, guest=False, group_id=None):
+    """같은 모임의 지난 정모에만 참석했던 회원 (이번 정모에는 참석 중이 아님)."""
+    from badminton.groups import list_groups
+    from badminton.meetups import add_attendee, get_or_create_meetup
+    from badminton.members import create_member
+    earlier = get_or_create_meetup(conn, "2026-10-01", "지난 정모", None, group_id=group_id or list_groups(conn)[0]["id"])
+    member = create_member(conn, nickname, is_guest=guest, gender="M", grade="B")
+    add_attendee(conn, earlier, member, "guest" if guest else "somoim")
+    return member
+
+
+def test_member_add_puts_an_absent_regular_member_in_the_queue_and_logs(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    c = conn_of()
+    member = _earlier_member(c)
+
+    resp = admin.post(f"/admin/m/{mid}/member", data={"member_id": member}, follow_redirects=True)
+
+    body = resp.get_data(as_text=True)
+    assert "옛회원 님을 회원으로 추가했습니다" in body and 'data-nickname="옛회원"' in body
+    assert tuple(c.execute("SELECT status, source FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, member)).fetchone()) \
+        == ("present", "paste")
+    log = c.execute("SELECT summary, entity_type, entity_id, meetup_id FROM audit_logs WHERE action = 'attendee_member_add'").fetchone()
+    assert tuple(log) == ("회원 참석 추가: 옛회원", "attendee", member, mid)
+    assert "회원 참석 추가" in admin.get("/admin/logs").get_data(as_text=True)
+
+
+def test_member_add_brings_back_a_canceled_member_and_stops_the_next_import_from_canceling_again(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee, set_status
+    mid, _ = seeded_meetup
+    c = conn_of()
+    member = _earlier_member(c)
+    add_attendee(c, mid, member, "somoim")
+    set_status(c, mid, member, "canceled")  # 소모임 취소로 숨겨진 회원
+
+    admin.post(f"/admin/m/{mid}/member", data={"member_id": member})
+
+    assert tuple(c.execute("SELECT status, source FROM attendees WHERE meetup_id = ? AND member_id = ?", (mid, member)).fetchone()) \
+        == ("present", "paste")  # 다시 불러오기가 source='somoim'만 취소 처리한다
+
+
+def test_member_add_creates_a_regular_member_and_seats_them(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    c = conn_of()
+
+    resp = admin.post(f"/admin/m/{mid}/member", data={"nickname": " 새회원 ", "gender": "F", "grade": "C"}, follow_redirects=True)
+
+    assert "새회원 님을 회원으로 추가했습니다" in resp.get_data(as_text=True)
+    row = c.execute("SELECT m.is_guest, m.gender, m.grade, a.status, a.source FROM members m JOIN attendees a ON a.member_id = m.id "
+                    "WHERE a.meetup_id = ? AND m.nickname = '새회원'", (mid,)).fetchone()
+    assert tuple(row) == (0, "F", "C", "present", "paste")
+    assert c.execute("SELECT summary FROM audit_logs WHERE action = 'attendee_member_add'").fetchone()[0] == "회원 참석 추가: 새회원"
+
+
+def test_member_add_refuses_a_duplicate_name_in_the_same_group(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    c = conn_of()
+    _earlier_member(c, "옛회원")
+
+    resp = admin.post(f"/admin/m/{mid}/member", data={"nickname": "옛회원", "gender": "F", "grade": "C"}, follow_redirects=True)
+
+    assert "같은 이름의 회원이 있어요. 기존 회원에서 골라 주세요" in resp.get_data(as_text=True)
+    assert c.execute("SELECT COUNT(*) FROM members WHERE nickname = '옛회원'").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(("data", "message"), [
+    ({"nickname": "", "gender": "F", "grade": "C"}, "회원은 이름, 성별, 급수를 모두 입력해 주세요"),
+    ({"nickname": "새회원", "gender": "", "grade": "C"}, "회원은 이름, 성별, 급수를 모두 입력해 주세요"),
+    ({"nickname": "새회원", "gender": "F", "grade": ""}, "회원은 이름, 성별, 급수를 모두 입력해 주세요"),
+    ({"nickname": "새회원", "gender": "X", "grade": "C"}, "성별 또는 급수 값이 올바르지 않습니다"),
+])
+def test_member_add_refuses_incomplete_new_member(admin, seeded_meetup, conn_of, data, message):
+    mid, _ = seeded_meetup
+    c = conn_of()
+    before = c.execute("SELECT COUNT(*) FROM members").fetchone()[0]
+
+    resp = admin.post(f"/admin/m/{mid}/member", data=data, follow_redirects=True)
+
+    assert message in resp.get_data(as_text=True)
+    assert c.execute("SELECT COUNT(*) FROM members").fetchone()[0] == before
+    assert c.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'attendee_member_add'").fetchone()[0] == 0
+
+
+def test_member_add_refuses_guests_other_groups_and_unknown_members(admin, seeded_meetup, conn_of):
+    from badminton.groups import add_group
+    from badminton.meetups import get_or_create_meetup
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    guest = _earlier_member(c, "옛게스트", guest=True)
+    other_group = add_group(c, "other-gid", "다른 모임")
+    stranger = _earlier_member(c, "타모임회원", group_id=other_group)
+
+    for member_id in (guest, stranger, 999999):
+        resp = admin.post(f"/admin/m/{mid}/member", data={"member_id": member_id}, follow_redirects=True)
+        assert "등록된 회원을 찾을 수 없습니다" in resp.get_data(as_text=True)
+
+    assert c.execute("SELECT COUNT(*) FROM attendees WHERE meetup_id = ? AND member_id IN (?, ?)", (mid, guest, stranger)).fetchone()[0] == 0
+    assert c.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'attendee_member_add'").fetchone()[0] == 0
+
+
+def test_add_popup_has_member_and_guest_tabs_with_both_form_sets(admin, seeded_meetup, conn_of):
+    mid, _ = seeded_meetup
+    c = conn_of()
+    _earlier_member(c, "옛회원")
+    _earlier_member(c, "저장손님", guest=True)
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    popup = html[html.index('id="guest-popup"'):html.index('id="quick-status-menu"')]
+    tabs = [m.group(0) for m in __import__("re").finditer(r"<button[^>]*role=\"tab\"[^>]*>[^<]*</button>", popup)]
+    assert [("회원" in t, "게스트" in t) for t in tabs] == [(True, False), (False, True)]
+    assert 'aria-selected="true"' in tabs[0] and 'aria-selected="false"' in tabs[1]
+    # 회원 탭: 기존 회원 선택 + 새 회원, 게스트 탭: 저장된 게스트 선택 + 새 게스트
+    assert popup.count(f'action="/admin/m/{mid}/member"') == 2 and popup.count(f'action="/admin/m/{mid}/guest"') == 2
+    assert "옛회원" in popup and "저장손님" in popup
+    assert 'id="meetup-guests"' in popup and html.index('id="meetup-guests"') > html.index('id="guest-popup"')
+    assert "+ 추가" in html[html.index('data-queue-panel="waiting"'):html.index('data-queue-panel="playing"')]

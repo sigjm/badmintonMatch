@@ -80,37 +80,69 @@
 </div>
 
 
-{# 대기 탭 빈 카드를 길게 눌러 여는 게스트 추가 팝업. 3초마다 갈아 끼우는 #meetup-queue 밖에 둔다. 저장 뒤 화면 고치기가 #meetup-guests(저장된 게스트 목록)를 갱신하므로 그 id는 hidden이 붙는 바깥 요소가 아니라 안쪽 요소에 둔다 #}
-<div id="guest-popup" class="quick-status-menu guest-popup" hidden role="dialog" aria-label="게스트 추가">
+{# 대기 탭 빈 카드를 눌러 여는 참석자 추가 팝업(회원·게스트 탭). 3초마다 갈아 끼우는 #meetup-queue 밖에 둔다. 저장 뒤 화면 고치기가 #meetup-guests(추가할 수 있는 회원·저장된 게스트 목록)를 갱신하므로 그 id는 hidden이 붙는 바깥 요소가 아니라 안쪽 요소에 둔다. 탭 상태는 바깥 요소의 data-active-tab에 두어 갱신해도 유지된다 #}
+<div id="guest-popup" class="quick-status-menu guest-popup" hidden role="dialog" aria-label="참석자 추가" data-active-tab="member">
   <div class="quick-menu-header">
-    <strong>게스트 추가</strong>
+    <strong>참석자 추가</strong>
     <button type="button" class="quick-menu-close" data-close-guest-popup aria-label="닫기">✕</button>
   </div>
+  <div class="tabs guest-popup-tabs" role="tablist" aria-label="추가할 참석자 종류">
+    <button type="button" class="on" role="tab" aria-selected="true" data-guest-tab="member">회원</button>
+    <button type="button" role="tab" aria-selected="false" data-guest-tab="guest">게스트</button>
+  </div>
   <div id="meetup-guests" class="guest-popup-body">
-    <div class="quick-menu-section">
-      <small class="quick-menu-label">새 게스트</small>
-      <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
-        <div class="quick-menu-row">
-          <input name="nickname" aria-label="게스트 이름" placeholder="이름" required maxlength="40">
-        </div>
-        <div class="quick-menu-row">
-          <select name="gender" aria-label="성별" required><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
-          <select name="grade" aria-label="급수" required><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
-          <button class="btn sm">추가</button>
-        </div>
-      </form>
+    <div class="guest-popup-panel" role="tabpanel" data-guest-panel="member">
+      {% if absent_members %}
+      <div class="quick-menu-section">
+        <small class="quick-menu-label">기존 회원</small>
+        <form method="post" action="{{ url_for('admin.add_member', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
+          <div class="quick-menu-row">
+            <select name="member_id" aria-label="기존 회원">{% for g in absent_members %}<option value="{{ g.id }}">{{ g.nickname }} · {{ GRADE_LABELS.get(g.grade, '?') }}</option>{% endfor %}</select>
+            <button class="btn sm line">추가</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+      <div class="quick-menu-section">
+        <small class="quick-menu-label">새 회원</small>
+        <form method="post" action="{{ url_for('admin.add_member', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
+          <div class="quick-menu-row">
+            <input name="nickname" aria-label="회원 이름" placeholder="이름" required maxlength="40">
+          </div>
+          <div class="quick-menu-row">
+            <select name="gender" aria-label="성별" required><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
+            <select name="grade" aria-label="급수" required><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
+            <button class="btn sm">추가</button>
+          </div>
+        </form>
+      </div>
     </div>
-    {% if guests %}
-    <div class="quick-menu-section">
-      <small class="quick-menu-label">저장된 게스트</small>
-      <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
-        <div class="quick-menu-row">
-          <select name="member_id" aria-label="저장된 게스트">{% for g in guests %}<option value="{{ g.id }}">{{ g.nickname }} · {{ GRADE_LABELS.get(g.grade, '?') }}</option>{% endfor %}</select>
-          <button class="btn sm line">추가</button>
-        </div>
-      </form>
+    <div class="guest-popup-panel" role="tabpanel" data-guest-panel="guest" hidden>
+      <div class="quick-menu-section">
+        <small class="quick-menu-label">새 게스트</small>
+        <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
+          <div class="quick-menu-row">
+            <input name="nickname" aria-label="게스트 이름" placeholder="이름" required maxlength="40">
+          </div>
+          <div class="quick-menu-row">
+            <select name="gender" aria-label="성별" required><option value="">성별</option><option value="M">남</option><option value="F">여</option></select>
+            <select name="grade" aria-label="급수" required><option value="">급수</option>{% for code, label in GRADE_LABELS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select>
+            <button class="btn sm">추가</button>
+          </div>
+        </form>
+      </div>
+      {% if guests %}
+      <div class="quick-menu-section">
+        <small class="quick-menu-label">저장된 게스트</small>
+        <form method="post" action="{{ url_for('admin.guest', mid=m.id) }}" class="quick-menu-form" data-save-without-reload data-reset-on-save="추가했습니다">
+          <div class="quick-menu-row">
+            <select name="member_id" aria-label="저장된 게스트">{% for g in guests %}<option value="{{ g.id }}">{{ g.nickname }} · {{ GRADE_LABELS.get(g.grade, '?') }}</option>{% endfor %}</select>
+            <button class="btn sm line">추가</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 </div>
 

@@ -13,7 +13,7 @@ from .meetups import (ArchivedMeetupError, add_attendee, add_manual_reservation,
                       get_or_create_meetup, fill_courts, manual_candidates, on_info_changed, playing_candidates,
                       redraw, refill_upcoming, set_memo, set_status, start,
                       start_reservation_now, sync_somoim, today, update_reservation)
-from .members import changes, create_member, list_members, rename_member, reset_pin, set_info
+from .members import IN_GROUP, changes, create_member, list_members, rename_member, reset_pin, set_info
 from .somoim import SomoimError, attendees, events_on, fetch_group, search_groups
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -23,7 +23,7 @@ _login_failures: dict[str, tuple[float, int]] = {}
 AUDIT_ACTION_LABELS = {
     "meetup_create": "정모 추가", "meetup_import": "정모 불러오기", "attendees_paste": "참석자 붙여넣기",
     "meetup_archive": "정모 보관", "meetup_restore": "정모 복구", "attendee_status": "참석 상태 변경",
-    "attendee_memo": "참석자 메모 변경", "attendee_guest_add": "게스트 추가", "meetup_start": "코트 시작",
+    "attendee_memo": "참석자 메모 변경", "attendee_guest_add": "게스트 추가", "attendee_member_add": "회원 참석 추가", "meetup_start": "코트 시작",
     "courts_change": "코트 수 변경", "court_state": "코트 상태 변경", "auto_match": "자동 매칭",
     "auto_reserve": "자동 예약 설정", "auto_fill": "자동 배정 설정",
     "manual_reservation": "수동 예약",
@@ -322,11 +322,12 @@ def meetup(mid):
                            WHERE a.meetup_id = ? AND a.status != 'canceled' ORDER BY m.nickname""", (mid,)).fetchall()
     seated = {r["id"] for r in rows}
     guests = [g for g in list_members(conn, guests=True, group_id=m["group_id"]) if g["id"] not in seated]
+    absent_members = [g for g in list_members(conn, guests=False, group_id=m["group_id"]) if g["id"] not in seated]
     candidates = manual_candidates(conn, mid)
     game_candidates = playing_candidates(conn, mid)
     candidate_ids = {r["id"] for r in candidates + game_candidates}
     return render_template("admin_meetup.html", m=m, rows=rows, board=board(conn, mid), guests=guests,
-                           manual_candidates=candidates, game_candidates=game_candidates,
+                           absent_members=absent_members, manual_candidates=candidates, game_candidates=game_candidates,
                            manual_candidate_ids=candidate_ids,
                            group=get_group(conn, m["group_id"]) or _current_group())
 
@@ -526,6 +527,53 @@ def guest(mid):
         return redirect(url_for("admin.meetup", mid=mid))
     name = conn.execute("SELECT nickname FROM members WHERE id = ?", (member_id,)).fetchone()["nickname"]
     flash(f"{name} 님을 게스트로 추가했습니다")  # 화면이 이 문구를 보고 입력칸을 비운다 (data-reset-on-save)
+    return redirect(url_for("admin.meetup", mid=mid))
+
+
+@bp.post("/m/<int:mid>/member")
+@admin_required
+def add_member(mid):
+    """소모임에 신청하지 않고 온 회원, 취소했다가 온 회원, 처음 온 정회원을 정모에 바로 참석시킨다."""
+    conn = get_conn()
+    m = _active_meetup_row(mid)
+    try:
+        with transaction(conn):
+            created = False
+            if request.form.get("member_id"):
+                try:
+                    member_id = int(request.form["member_id"])
+                except ValueError:
+                    abort(400)
+                row = conn.execute(f"SELECT m.nickname FROM members m WHERE m.id = ? AND m.is_guest = 0 AND {IN_GROUP}",
+                                   (member_id, m["group_id"])).fetchone()
+                if row is None:
+                    raise ValueError("등록된 회원을 찾을 수 없습니다")
+                nickname = row["nickname"]
+            else:
+                nickname = request.form.get("nickname", "").strip()
+                gender, grade = _blank_none(request.form.get("gender")), _blank_none(request.form.get("grade"))
+                if not nickname or not gender or not grade:
+                    raise ValueError("회원은 이름, 성별, 급수를 모두 입력해 주세요")
+                if conn.execute(f"SELECT 1 FROM members m WHERE m.is_guest = 0 AND m.nickname = ? AND {IN_GROUP}",
+                                (nickname, m["group_id"])).fetchone():
+                    raise ValueError("같은 이름의 회원이 있어요. 기존 회원에서 골라 주세요")
+                member_id = create_member(conn, nickname, gender=gender, grade=grade)
+                created = True
+            before = conn.execute("SELECT status FROM attendees WHERE meetup_id = ? AND member_id = ?",
+                                  (mid, member_id)).fetchone()
+            add_attendee(conn, mid, member_id, "paste")
+            if before is None or before["status"] != "present":
+                # 소모임에서 취소됐다가 다시 온 사람: source가 somoim이면 다음 다시 불러오기가 또 취소 처리한다
+                conn.execute("UPDATE attendees SET source = 'paste' WHERE meetup_id = ? AND member_id = ? AND source = 'somoim'",
+                             (mid, member_id))
+                refill_upcoming(conn)
+                audit.record(conn, action="attendee_member_add", summary=f"회원 참석 추가: {nickname}",
+                             entity_type="attendee", entity_id=member_id, meetup_id=mid,
+                             details={"nickname": nickname, "created": created})
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for("admin.meetup", mid=mid))
+    flash(f"{nickname} 님을 회원으로 추가했습니다")  # 화면이 이 문구를 보고 입력칸을 비우고 팝업을 닫는다 (data-reset-on-save)
     return redirect(url_for("admin.meetup", mid=mid))
 
 
