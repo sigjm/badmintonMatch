@@ -112,18 +112,11 @@
     .live-courts { min-width:0; }
     .live-courts .courts-grid {
       display:grid;
-      grid-auto-flow:column;
-      grid-auto-columns:minmax(260px, 1fr);
+      grid-template-columns:repeat(auto-fit, minmax(max(260px, calc((100% - 36px) / 4)), 1fr));
       gap:12px;
-      overflow-x:auto;
-      overflow-y:hidden;
       max-width:100%;
       align-items:stretch;
-      padding-bottom:6px;
-      scrollbar-width:thin;
     }
-    .live-courts .courts-grid::-webkit-scrollbar { height:6px; }
-    .live-courts .courts-grid::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
     .live-courts .court:not(.resv) {
       display:grid;
       grid-template-columns:auto 1fr;
