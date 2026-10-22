@@ -1076,3 +1076,59 @@ def test_auto_reserve_toggle_route_and_ui(admin, client, conn_of, seeded_meetup)
     data_on = admin.get(f"/admin/m/{mid}/updates").get_json()
     assert "자동 예약 켜짐" in data_on["reservation_list"]
 
+
+def test_auto_fill_toggle_route_and_ui(admin, client, conn_of, seeded_meetup):
+    from badminton.db import get_setting
+    mid, gid = seeded_meetup
+    c = conn_of()
+
+    # 1. 관리자 콘솔 초기 상태: 코트 보드 머리에 자동 배정 스위치 존재, 켜짐 상태
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'action="/admin/settings/auto-fill"' in html
+    assert 'aria-pressed="true"' in html
+    assert "자동 배정 켜짐" in html
+
+    # 2. 공개 대진판: 스위치가 없음
+    public_html = client.get("/board").get_data(as_text=True)
+    assert "/admin/settings/auto-fill" not in public_html
+    assert "자동 배정 켜짐" not in public_html
+    assert "자동 배정 꺼짐" not in public_html
+
+    # 3. 끄기 POST (/admin/settings/auto-fill)
+    resp = admin.post("/admin/settings/auto-fill", data={"value": "0", "mid": mid})
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    assert get_setting(c, "auto_fill") == 0.0
+
+    # 감사 로그 확인
+    log = c.execute("SELECT action, summary, entity_type FROM audit_logs WHERE action = 'auto_fill' ORDER BY id DESC").fetchone()
+    assert log is not None
+    assert log["action"] == "auto_fill" and log["summary"] == "자동 배정 끔"
+
+    # 코트 경기 끝내기 -> 코트가 비워지지만 auto_fill 꺼짐 상태라 새 경기가 안 들어감
+    admin.post(f"/admin/game/{gid}/end")
+    html_off = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'aria-pressed="false"' in html_off
+    assert "자동 배정 꺼짐" in html_off
+    assert "빈 코트 · 자동 배정 꺼짐" in html_off
+
+    # 공개 대진판은 '빈 코트 · 자동 배정 꺼짐'이 아니라 기존 문구 그대로
+    pub_off = client.get("/board").get_data(as_text=True)
+    assert "빈 코트 · 자동 배정 꺼짐" not in pub_off
+
+    # 4. 켜기 POST (/admin/settings/auto-fill) -> 빈 코트에 경기가 자동 배정됨
+    resp2 = admin.post("/admin/settings/auto-fill", data={"value": "1", "mid": mid})
+    assert resp2.status_code == 302
+    assert get_setting(c, "auto_fill") == 1.0
+
+    # 감사 로그 확인
+    log2 = c.execute("SELECT action, summary FROM audit_logs WHERE action = 'auto_fill' ORDER BY id DESC").fetchone()
+    assert log2["summary"] == "자동 배정 켬"
+
+    # 다시 켜진 상태 화면 검증: 스위치 켜짐 확인 및 코트 배정 완료
+    html_on = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'aria-pressed="true"' in html_on
+    assert "자동 배정 켜짐" in html_on
+    assert "빈 코트 · 자동 배정 꺼짐" not in html_on
+
+

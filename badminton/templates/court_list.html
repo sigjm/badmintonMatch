@@ -13,8 +13,9 @@
   </div>
   <div class="court-time">경기 시간 <span data-game-clock data-started-at="{{ c.started_at }}">{{ c.elapsed_clock }}</span></div>
   {% else %}
-  {% if c.ready_in %}<div class="empty court-rest" data-court-rest data-ready-in="{{ c.ready_in }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
-  {% else %}<div class="empty">{{ '빈 코트' if admin else '대기 인원 부족' }}</div>{% endif %}
+  {% set auto_fill = board.auto_fill|default(true) %}
+  {% if c.ready_in and (not admin or auto_fill) %}<div class="empty court-rest" data-court-rest data-ready-in="{{ c.ready_in }}">다음 경기 <span data-court-rest-sec>{{ c.ready_in }}</span>초 후 시작</div>
+  {% else %}<div class="empty">{{ ('빈 코트 · 자동 배정 꺼짐' if not auto_fill else '빈 코트') if admin else '대기 인원 부족' }}</div>{% endif %}
   {% endif %}
   {% if admin and c.game_id %}
   <div class="court-actions" id="court-actions-{{ c.court }}" data-action-panel role="group" aria-label="코트 {{ c.court }} 관리" hidden>

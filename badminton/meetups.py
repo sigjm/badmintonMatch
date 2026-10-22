@@ -503,6 +503,9 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
     meetup = conn.execute("SELECT courts, archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if meetup is None or meetup["archived_at"] is not None:
         return
+    if not force and not int(get_setting(conn, "auto_fill", 1)):
+        refill_reservations(conn, meetup_id, avoid)
+        return
     courts = meetup["courts"]
     busy = {r["court"] for r in conn.execute("SELECT court FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                              (meetup_id,))}
@@ -677,7 +680,8 @@ def board(conn, meetup_id: int) -> dict:
         })
     return {"courts": court_list, "reservations": resv_list, "queue": [names[p.id] for p in queued],
             "queue_cards": queue_cards, "excluded": excluded,
-            "auto_reserve": bool(int(get_setting(conn, "auto_reserve", 1)))}
+            "auto_reserve": bool(int(get_setting(conn, "auto_reserve", 1))),
+            "auto_fill": bool(int(get_setting(conn, "auto_fill", 1)))}
 
 
 def refill_upcoming(conn) -> None:

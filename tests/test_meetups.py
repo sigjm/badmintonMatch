@@ -843,3 +843,53 @@ def test_auto_reserve_toggle_disables_and_refills(conn):
     b_on = get_board(conn, mid)
     assert b_on["auto_reserve"] is True
 
+
+def test_auto_fill_toggle_disables_and_refills(conn):
+    from badminton.db import get_setting, set_setting
+    from badminton.meetups import board as get_board, end_game, fill_courts
+
+    # 1. 기본값은 켜짐 (1)
+    assert get_setting(conn, "auto_fill") == 1.0
+
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "C") for i in range(8)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)
+
+    row = conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()
+    assert row is not None
+    gid = row[0]
+
+    # 2. auto_fill 끄기 (0)
+    set_setting(conn, "auto_fill", 0.0)
+    b = get_board(conn, mid)
+    assert b["auto_fill"] is False
+
+    # 경기 종료 -> auto_fill이 꺼져 있으므로 코트에 새 경기가 들어가지 않고 비어 있음
+    end_game(conn, gid)
+    assert conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone() is None
+
+    # fill_courts(force=False)를 직접 호출해도 채워지지 않음
+    fill_courts(conn, mid, force=False)
+    assert conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone() is None
+
+    # force=True (운영진 수동 자동 매칭)는 auto_fill이 꺼져 있어도 동작함
+    fill_courts(conn, mid, force=True)
+    row2 = conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone()
+    assert row2 is not None
+    gid2 = row2[0]
+
+    # 다시 경기 종료 후 빈 코트 상태로 만들기
+    end_game(conn, gid2)
+    assert conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone() is None
+
+    # 3. auto_fill 다시 켜기 (1)
+    set_setting(conn, "auto_fill", 1.0)
+    b_on = get_board(conn, mid)
+    assert b_on["auto_fill"] is True
+
+    # 코트 자동 배정이 활성화되어 빈 코트를 채움
+    fill_courts(conn, mid, force=False)
+    assert conn.execute("SELECT id FROM games WHERE meetup_id = ? AND ended_at IS NULL", (mid,)).fetchone() is not None
+
+

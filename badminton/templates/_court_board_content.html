@@ -1,4 +1,21 @@
-<div class="head"><span>{{ '실시간 코트 보드' if admin else '코트 현황' }}</span><span>{{ board.courts|length }}면{% if admin and board.courts|selectattr('game_id')|list %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
+<div class="head">
+  <span>{{ '실시간 코트 보드' if admin else '코트 현황' }}</span>
+  {% if admin and m is defined and m is not none %}
+  {% set auto_fill = board.auto_fill|default(true) %}
+  <div class="resv-head-right">
+    <form method="post" action="{{ url_for('admin.toggle_auto_fill') }}" data-save-without-reload class="inline">
+      <input type="hidden" name="value" value="{{ 0 if auto_fill else 1 }}">
+      <input type="hidden" name="mid" value="{{ m.id }}">
+      <button type="submit" class="toggle-btn auto-fill-toggle {{ 'on' if auto_fill else 'off' }}" aria-pressed="{{ 'true' if auto_fill else 'false' }}">
+        {{ '자동 배정 켜짐' if auto_fill else '자동 배정 꺼짐' }}
+      </button>
+    </form>
+    <span>{{ board.courts|length }}면{% if board.courts|selectattr('game_id')|list %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span>
+  </div>
+  {% else %}
+  <span>{{ board.courts|length }}면</span>
+  {% endif %}
+</div>
 <div class="courts-grid">
 {% include "court_list.html" %}
 {% if not board.courts %}<p class="empty">코트 수를 입력하고 시작을 눌러 주세요.</p>{% endif %}
