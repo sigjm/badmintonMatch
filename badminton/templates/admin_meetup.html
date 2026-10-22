@@ -45,10 +45,9 @@
 <div class="board-side">
 {% set show_manual_form = m.started and (manual_candidates|length + game_candidates|length >= 4 or board.reservations|length > 0) %}
 <section class="section manual-picker" id="manual-match-picker">
-  <div class="head"><span>수동 대진</span><span data-manual-selection-summary>0/4명 선택</span></div>
+  <div class="head"><span>수동 대진</span><span><span data-manual-selection-summary>0/4명</span><small class="hold-hint">카드 눌러 선택</small></span></div>
   {% if show_manual_form %}
   <form id="manual-match-form" method="post" action="{{ url_for('admin.manual_match', mid=m.id) }}" data-default-action="{{ url_for('admin.manual_match', mid=m.id) }}" class="manual-match-form" data-save-without-reload>
-    <p class="manual-match-help" data-manual-help>대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요. 예약 수정 시에는 기존 선수를 유지할 수 있습니다.</p>
     <p class="manual-match-editing" data-manual-editing hidden>예약을 수정 중입니다. 기존 선수 카드를 눌러 빼거나 다른 선수로 바꿀 수 있습니다.</p>
     <div class="manual-draft" data-manual-draft>
       <div class="court-match">

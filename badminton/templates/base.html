@@ -302,7 +302,6 @@
   /* 수동 대진 */
   .manual-match-panel { grid-column:2 / -1; min-width:0; }
   .manual-match-form { display:grid; gap:12px; min-width:0; }
-  .manual-match-help { margin:0; color:var(--text-2); }
   .queue-player-select { color:inherit; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
   .reservation-player-select.is-selected .player-name { outline:2px solid var(--primary); outline-offset:2px; border-radius:4px; }
   .manual-player-order { display:none; flex:none; color:var(--primary); font-size:10px; line-height:1; font-weight:600; }
@@ -727,7 +726,7 @@
       });
       const count = document.querySelector("[data-manual-selection-summary]");
       const detail = document.querySelector("[data-manual-selection-detail]");
-      if (count) count.textContent = `${selectedPlayers.length}/4명 선택`;
+      if (count) count.textContent = `${selectedPlayers.length}/4명`;
       if (detail) detail.textContent = `팀 A ${Math.min(selectedPlayers.length, 2)}/2 · 팀 B ${Math.max(0, selectedPlayers.length - 2)}/2`;
       if (manualForm) {
         if (selectedPlayers.length || manualForm.dataset.reservationId) manualForm.dataset.editing = "true";
@@ -767,11 +766,9 @@
         manualForm.action = editReservation.dataset.editUrl;
         manualForm.dataset.reservationId = reservationId;
         manualForm.dataset.editing = "true";
-        const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
         setFillLabel("수정 저장");
-        if (help) help.hidden = true;
         if (editing) editing.hidden = false;
         if (cancel) cancel.hidden = false;
         renderManualSelection();
@@ -785,11 +782,9 @@
         manualForm.action = manualForm.dataset.defaultAction;
         delete manualForm.dataset.reservationId;
         delete manualForm.dataset.editing;
-        const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
         setFillLabel("예약에 추가");
-        if (help) help.hidden = false;
         if (editing) editing.hidden = true;
         if (cancel) cancel.hidden = true;
         renderManualSelection();
@@ -1069,11 +1064,9 @@
         manualForm.action = manualForm.dataset.defaultAction;
         delete manualForm.dataset.reservationId;
         delete manualForm.dataset.editing;
-        const help = manualForm.querySelector("[data-manual-help]");
         const editing = manualForm.querySelector("[data-manual-editing]");
         const cancel = manualForm.querySelector("[data-manual-cancel]");
         setFillLabel("예약에 추가");
-        if (help) help.hidden = false;
         if (editing) editing.hidden = true;
         if (cancel) cancel.hidden = true;
       }

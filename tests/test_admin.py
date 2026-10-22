@@ -857,7 +857,7 @@ def test_public_board_queue_cards_are_chips_without_select_button(client, seeded
     assert "data-manual-player" not in card and "<button" not in card and "grade-badge" not in card
 
 
-def test_manual_match_guides_say_tap_the_card(admin, seeded_meetup, conn_of):
+def test_manual_match_header_shows_compact_card_guide(admin, seeded_meetup, conn_of):
     from badminton.groups import list_groups
     from badminton.meetups import add_attendee, get_or_create_meetup, today
     from badminton.members import create_member
@@ -870,7 +870,9 @@ def test_manual_match_guides_say_tap_the_card(admin, seeded_meetup, conn_of):
     started = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     unstarted = admin.get(f"/admin/m/{idle}").get_data(as_text=True)
 
-    assert "대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요." in started
+    assert '<span data-manual-selection-summary>0/4명</span><small class="hold-hint">카드 눌러 선택</small>' in started
+    assert "data-manual-help" not in started
+    assert "대기 또는 게임 중 탭에서 카드를 눌러 4명을 고르세요." not in started
     assert "회원목록 카드를 눌러 수동 대진을 짤 수 있습니다." in unstarted
     assert "이름을 눌러" not in started + unstarted
 
