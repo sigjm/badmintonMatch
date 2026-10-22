@@ -717,6 +717,44 @@ def delete_reservation(rid):
     return redirect(url_for("admin.meetup", mid=mid) if mid else url_for("admin.home"))
 
 
+@bp.post("/settings/auto-reserve")
+@admin_required
+def toggle_auto_reserve():
+    conn = get_conn()
+    raw_val = request.form.get("value")
+    current_enabled = bool(int(get_setting(conn, "auto_reserve", 1)))
+    if raw_val is not None:
+        try:
+            new_enabled = bool(int(raw_val))
+        except ValueError:
+            new_enabled = not current_enabled
+    else:
+        new_enabled = not current_enabled
+
+    mid = request.form.get("mid", type=int)
+
+    if new_enabled != current_enabled:
+        with transaction(conn):
+            set_setting(conn, "auto_reserve", 1.0 if new_enabled else 0.0)
+            if new_enabled:
+                conn.execute("UPDATE meetups SET resv_hold = 0 WHERE started = 1 AND archived_at IS NULL")
+            for row in conn.execute("SELECT id FROM meetups WHERE started = 1 AND archived_at IS NULL").fetchall():
+                meetups.refill_reservations(conn, row["id"])
+            audit.record(
+                conn,
+                action="auto_reserve",
+                summary="자동 예약 켬" if new_enabled else "자동 예약 끔",
+                entity_type="settings",
+                meetup_id=mid,
+                details={"auto_reserve": {"from": int(current_enabled), "to": int(new_enabled)}}
+            )
+        flash("자동 예약을 켰습니다" if new_enabled else "자동 예약을 껐습니다")
+
+    if mid:
+        return redirect(url_for("admin.meetup", mid=mid))
+    return redirect(request.referrer or url_for("admin.home"))
+
+
 @bp.get("/members")
 @admin_required
 def members():

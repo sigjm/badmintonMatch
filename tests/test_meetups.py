@@ -789,3 +789,57 @@ def test_repeat_four_is_not_reserved_even_with_a_manual_reservation(conn):
     conn.execute("DELETE FROM reservations")
     add_manual_reservation(conn, mid, late[:4])
     assert [r["source"] for r in reservations(conn, mid)] == ["manual"]
+
+
+def test_auto_reserve_toggle_disables_and_refills(conn):
+    from badminton.db import get_setting, set_setting
+    from badminton.meetups import add_manual_reservation, board as get_board, refill_reservations
+
+    # 1. 기본값은 켜짐 (1)
+    assert get_setting(conn, "auto_reserve") == 1.0
+
+    mid = get_or_create_meetup(conn, today(), "t", None)
+    players = [mk(conn, f"m{i}", "M", "C") for i in range(16)]
+    seat(conn, mid, *players)
+    start(conn, mid, 1)
+
+    # 1코트(4명) + 대기 12명 -> 1개 자동 예약 생성
+    resvs = reservations(conn, mid)
+    assert len(resvs) == 1 and resvs[0]["source"] == "auto"
+
+    # 수동 예약 1개 추가 (4명) -> 총 2개 예약 (auto, manual)
+    q_pids = [p.id for p in queue(conn, mid)[:4]]
+    add_manual_reservation(conn, mid, q_pids)
+    resvs_before = reservations(conn, mid)
+    assert len(resvs_before) == 2
+    sources = [r["source"] for r in resvs_before]
+    assert "auto" in sources and "manual" in sources
+
+    # 2. auto_reserve 끄기 (0)
+    set_setting(conn, "auto_reserve", 0.0)
+    refill_reservations(conn, mid)
+
+    # 자동 예약은 삭제되고, 수동 예약만 seq=1로 남는다
+    resvs_off = reservations(conn, mid)
+    assert len(resvs_off) == 1
+    assert resvs_off[0]["source"] == "manual"
+    assert resvs_off[0]["seq"] == 1
+
+    # refill_reservations을 다시 호출해도 새 자동 예약이 생기지 않는다
+    refill_reservations(conn, mid)
+    assert len(reservations(conn, mid)) == 1
+
+    b = get_board(conn, mid)
+    assert b["auto_reserve"] is False
+
+    # 3. auto_reserve 다시 켜기 (1)
+    set_setting(conn, "auto_reserve", 1.0)
+    refill_reservations(conn, mid)
+
+    # 대기열 인원이 충분하므로 자동 예약이 다시 생성된다
+    resvs_on = reservations(conn, mid)
+    assert len(resvs_on) == 2
+    assert {r["source"] for r in resvs_on} == {"manual", "auto"}
+    b_on = get_board(conn, mid)
+    assert b_on["auto_reserve"] is True
+

@@ -1015,3 +1015,64 @@ def test_guest_popup_holds_the_guest_forms_outside_the_live_sections(admin, seed
     # 3초마다 갈아 끼우는 #meetup-queue 밖에 있고, 예전 맨 아래 게스트 추가 칸은 없다
     assert html.index('id="guest-popup"') > html.index('id="meetup-excluded"')
     assert '<section class="section" id="meetup-guests">' not in html and "<span>게스트 추가</span>" not in html
+
+
+def test_auto_reserve_toggle_route_and_ui(admin, client, conn_of, seeded_meetup):
+    from badminton.db import get_setting
+    mid, _ = seeded_meetup
+    c = conn_of()
+
+    # 1. 관리자 콘솔 초기 상태: 스위치 존재, 켜짐 상태
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'action="/admin/settings/auto-reserve"' in html
+    assert 'aria-pressed="true"' in html
+    assert "자동 예약 켜짐" in html
+    assert "toggle-btn" in html
+
+    # 2. 공개 대진판: 스위치가 없음
+    public_html = client.get("/board").get_data(as_text=True)
+    assert "/admin/settings/auto-reserve" not in public_html
+    assert "자동 예약 켜짐" not in public_html
+    assert "자동 예약 꺼짐" not in public_html
+
+    # 3. 끄기 POST (/admin/settings/auto-reserve)
+    resp = admin.post("/admin/settings/auto-reserve", data={"value": "0", "mid": mid})
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(f"/admin/m/{mid}")
+    assert get_setting(c, "auto_reserve") == 0.0
+
+    # 감사 로그 확인
+    log = c.execute("SELECT action, summary, entity_type FROM audit_logs WHERE action = 'auto_reserve' ORDER BY id DESC").fetchone()
+    assert log is not None
+    assert log["action"] == "auto_reserve" and log["summary"] == "자동 예약 끔"
+
+    # 꺼진 상태의 화면 검증
+    html_off = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'aria-pressed="false"' in html_off
+    assert "자동 예약 꺼짐" in html_off
+    assert "자동 예약이 꺼져 있어요. 수동 대진으로 예약을 만들 수 있어요." in html_off
+
+    # 3초 실시간 갱신 데이터에도 반영 확인
+    data_off = admin.get(f"/admin/m/{mid}/updates").get_json()
+    assert "자동 예약 꺼짐" in data_off["reservation_list"]
+    assert "자동 예약이 꺼져 있어요. 수동 대진으로 예약을 만들 수 있어요." in data_off["reservation_list"]
+
+    # 4. 켜기 POST (/admin/settings/auto-reserve)
+    resp2 = admin.post("/admin/settings/auto-reserve", data={"value": "1", "mid": mid})
+    assert resp2.status_code == 302
+    assert resp2.headers["Location"].endswith(f"/admin/m/{mid}")
+    assert get_setting(c, "auto_reserve") == 1.0
+
+    # 감사 로그 확인
+    log2 = c.execute("SELECT action, summary FROM audit_logs WHERE action = 'auto_reserve' ORDER BY id DESC").fetchone()
+    assert log2["summary"] == "자동 예약 켬"
+
+    # 다시 켜진 상태 화면 검증
+    html_on = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    assert 'aria-pressed="true"' in html_on
+    assert "자동 예약 켜짐" in html_on
+
+    # 실시간 갱신 데이터에도 반영 확인
+    data_on = admin.get(f"/admin/m/{mid}/updates").get_json()
+    assert "자동 예약 켜짐" in data_on["reservation_list"]
+

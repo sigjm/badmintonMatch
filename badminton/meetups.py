@@ -273,6 +273,13 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
     if meetup is None or meetup["archived_at"] is not None or not meetup["started"]:
         return
 
+    if not int(get_setting(conn, "auto_reserve", 1)):
+        deleted = conn.execute("DELETE FROM reservations WHERE meetup_id = ? AND source = 'auto'",
+                               (meetup_id,)).rowcount
+        if deleted > 0:
+            _renumber_reservations(conn, meetup_id)
+        return
+
     auto_rows = conn.execute("SELECT id FROM reservations WHERE meetup_id = ? AND source = 'auto' "
                              "ORDER BY seq, id", (meetup_id,)).fetchall()
     for row in auto_rows[max(0, meetup["courts"]):]:
@@ -669,7 +676,8 @@ def board(conn, meetup_id: int) -> dict:
                              [member_by_id.get(r["b1"]), member_by_id.get(r["b2"])]],
         })
     return {"courts": court_list, "reservations": resv_list, "queue": [names[p.id] for p in queued],
-            "queue_cards": queue_cards, "excluded": excluded}
+            "queue_cards": queue_cards, "excluded": excluded,
+            "auto_reserve": bool(int(get_setting(conn, "auto_reserve", 1)))}
 
 
 def refill_upcoming(conn) -> None:

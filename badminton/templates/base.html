@@ -218,6 +218,25 @@
   .reservation-player-select[aria-disabled="true"] { cursor:default; }
   .reservation-player-select .manual-player-order, .queue-player-select .manual-player-order, .draft-slot .manual-player-order { position:absolute; right:5px; bottom:4px; color:#fff; text-shadow:0 1px 2px #333; }
   .reservation-waiting { grid-column:2; grid-row:2; margin:0; color:#ad4e00; font-size:12px; font-weight:700; }
+  .resv-head-right { display:flex; align-items:center; gap:8px; min-width:0; flex-shrink:0; }
+  .resv-head-right span { color:var(--text-3); font-size:14px; font-weight:400; text-align:right; white-space:nowrap; }
+  .toggle-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    height:28px; padding:0 10px; border-radius:14px; font:inherit; font-size:12px; font-weight:600; line-height:1;
+    cursor:pointer; transition:all .2s var(--ease); white-space:nowrap; flex-shrink:0;
+  }
+  .toggle-btn.on {
+    background:var(--primary-bg); color:var(--primary); border:1px solid var(--primary-border);
+  }
+  .toggle-btn.on:hover {
+    background:var(--primary); color:#fff; border-color:var(--primary);
+  }
+  .toggle-btn.off {
+    background:var(--fill-2); color:var(--text-3); border:1px solid var(--border);
+  }
+  .toggle-btn.off:hover {
+    background:var(--fill); color:var(--text); border-color:var(--text-3);
+  }
   .reservation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:min(260px,calc(100vw - 24px)); }
   .reservation-actions form { min-width:0; margin:0; }
   .reservation-actions .btn { box-sizing:border-box; width:100%; padding:0 8px; white-space:nowrap; }

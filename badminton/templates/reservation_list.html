@@ -21,8 +21,25 @@
 {%- endmacro %}
 {% set reservations = board.reservations|default([]) %}
 {% set editable = admin|default(false) and m is defined and m is not none %}
+{% set auto_reserve = board.auto_reserve|default(true) %}
 <section class="section reservation-board{% if editable %} is-admin{% endif %}">
-  <div class="head"><span>예약</span><span>{{ reservations|length }}개{% if editable and reservations %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
+  <div class="head">
+    <span>예약</span>
+    {% if editable %}
+    <div class="resv-head-right">
+      <form method="post" action="{{ url_for('admin.toggle_auto_reserve') }}" data-save-without-reload class="inline">
+        <input type="hidden" name="value" value="{{ 0 if auto_reserve else 1 }}">
+        <input type="hidden" name="mid" value="{{ m.id }}">
+        <button type="submit" class="toggle-btn auto-reserve-toggle {{ 'on' if auto_reserve else 'off' }}" aria-pressed="{{ 'true' if auto_reserve else 'false' }}">
+          {{ '자동 예약 켜짐' if auto_reserve else '자동 예약 꺼짐' }}
+        </button>
+      </form>
+      <span>{{ reservations|length }}개{% if reservations %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span>
+    </div>
+    {% else %}
+    <span>{{ reservations|length }}개</span>
+    {% endif %}
+  </div>
   {% if reservations %}
   <div class="reservations">
     {% for res in reservations|sort(attribute='no') %}
@@ -64,5 +81,11 @@
     </div>
     {% endfor %}
   </div>
-  {% else %}<p class="empty">예약된 경기가 없습니다. 대기 8명 이상이면 코트 수만큼 미리 묶어 둡니다.</p>{% endif %}
+  {% else %}
+  {% if editable and not auto_reserve %}
+  <p class="empty">자동 예약이 꺼져 있어요. 수동 대진으로 예약을 만들 수 있어요.</p>
+  {% else %}
+  <p class="empty">예약된 경기가 없습니다. 대기 8명 이상이면 코트 수만큼 미리 묶어 둡니다.</p>
+  {% endif %}
+  {% endif %}
 </section>
