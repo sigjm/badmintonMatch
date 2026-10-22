@@ -23,7 +23,7 @@
 {% set reservations = board.reservations|default([]) %}
 {% set editable = admin|default(false) and m is defined and m is not none %}
 <section class="section reservation-board{% if editable %} is-admin{% endif %}">
-  <div class="head"><span>예약</span><span>{{ reservations|length }}개{% if editable and reservations %}<small class="hold-hint">예약 카드를 길게 눌러 관리 팝업 열기</small>{% endif %}</span></div>
+  <div class="head"><span>예약</span><span>{{ reservations|length }}개{% if editable and reservations %}<small class="hold-hint">길게 눌러 관리</small>{% endif %}</span></div>
   {% if reservations %}
   <div class="reservations">
     {% for res in reservations|sort(attribute='no') %}

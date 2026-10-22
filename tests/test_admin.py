@@ -550,7 +550,7 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     assert f'data-player-status="{waiting}"' in html
     assert 'tabindex="0"' in html
     assert "길게 누르거나 Enter 또는 Space로 관리 팝업 열기" in html
-    assert "카드를 길게 눌러 관리 팝업 열기" in html
+    assert '<small class="hold-hint">길게 눌러 관리</small>' in html
     assert 'id="quick-status-menu"' in html
     assert 'data-set-player-status="away"' in html and 'data-set-player-status="gone"' in html
     public = client.get("/board").get_data(as_text=True)
