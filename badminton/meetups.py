@@ -586,10 +586,13 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
 
 
 def start(conn, meetup_id: int, courts: int) -> None:
-    row = conn.execute("SELECT archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    row = conn.execute("SELECT started, started_at, archived_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
     if row is None or row["archived_at"] is not None:
         raise ValueError("활성 정모를 찾을 수 없습니다")
-    conn.execute("UPDATE meetups SET courts = ?, started = 1, resv_hold = 0 WHERE id = ?", (courts, meetup_id))
+    now = time.time()
+    started_at = now if (not row["started"] and row["started_at"] is None) else row["started_at"]
+    conn.execute("UPDATE meetups SET courts = ?, started = 1, started_at = ?, resv_hold = 0 WHERE id = ?",
+                 (courts, started_at, meetup_id))
     conn.execute("DELETE FROM court_states WHERE meetup_id = ? AND court > ?", (meetup_id, courts))
     fill_courts(conn, meetup_id)
 
@@ -660,7 +663,8 @@ def board(conn, meetup_id: int) -> dict:
         "SELECT m.id, m.nickname, m.gender, m.grade, a.memo FROM members m JOIN attendees a ON a.member_id = m.id "
         "WHERE a.meetup_id = ?", (meetup_id,))}
     names = {member_id: member["nickname"] for member_id, member in member_by_id.items()}
-    courts = conn.execute("SELECT courts FROM meetups WHERE id = ?", (meetup_id,)).fetchone()["courts"]
+    meetup = conn.execute("SELECT courts, started, started_at FROM meetups WHERE id = ?", (meetup_id,)).fetchone()
+    courts = meetup["courts"]
     active = {r["court"]: r for r in conn.execute("SELECT * FROM games WHERE meetup_id = ? AND ended_at IS NULL",
                                                   (meetup_id,))}
     rest_until = _rest_until(conn, meetup_id)
@@ -706,7 +710,14 @@ def board(conn, meetup_id: int) -> dict:
     queued = queue(conn, meetup_id)
     queue_cards = []
     for order, player in enumerate(queued, 1):
-        since = last_end.get(player.id, player.queued_at)
+        if player.id in last_end:
+            since = last_end[player.id]
+        elif not meetup["started"]:
+            since = now
+        elif meetup["started_at"] is not None:
+            since = max(player.queued_at, meetup["started_at"])
+        else:
+            since = player.queued_at
         queue_cards.append({**member_by_id[player.id], "games": player.games, "order": order,
                             "played": player.id in last_end, "since": since, "since_label": _minutes_label(now - since)})
     resv_list = []

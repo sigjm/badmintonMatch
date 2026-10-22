@@ -962,3 +962,111 @@ def test_court_state_return_to_game_fills_immediately_and_validation(conn, monke
     courts = board(conn, mid)["courts"]
     assert courts[1]["state"] == "game" and courts[1]["game_id"] is not None
     assert len(reservations(conn, mid)) == 2
+
+
+def test_wait_time_from_court_start(conn, monkeypatch):
+    import time
+    from badminton import meetups
+
+    fake_now = 1000.0
+    monkeypatch.setattr(time, "time", lambda: fake_now)
+
+    mid = get_or_create_meetup(conn, today(), "정모", None)
+    # 1. 낮에 등록된 선수 2명 (t = 1000)
+    p1 = mk(conn, "선수1", "M", "C")
+    p2 = mk(conn, "선수2", "M", "C")
+    add_attendee(conn, mid, p1, "somoim")
+    add_attendee(conn, mid, p2, "somoim")
+
+    # 시작 전 정모는 0분 표시
+    b = board(conn, mid)
+    assert len(b["queue_cards"]) == 2
+    assert b["queue_cards"][0]["since_label"] == "0분"
+    assert b["queue_cards"][1]["since_label"] == "0분"
+
+    # 2. 정모 시작 (t = 20000)
+    fake_now = 20000.0
+    # 4명 더 추가하여 1코트 경기 생성 및 대기열 유지
+    p3 = mk(conn, "선수3", "F", "C")
+    p4 = mk(conn, "선수4", "F", "C")
+    p5 = mk(conn, "선수5", "M", "C")
+    p6 = mk(conn, "선수6", "F", "C")
+    add_attendee(conn, mid, p3, "somoim")
+    add_attendee(conn, mid, p4, "somoim")
+    add_attendee(conn, mid, p5, "somoim")
+    add_attendee(conn, mid, p6, "somoim")
+
+    start(conn, mid, 1)
+    row = conn.execute("SELECT started, started_at FROM meetups WHERE id = ?", (mid,)).fetchone()
+    assert row["started"] == 1
+    assert row["started_at"] == 20000.0
+
+    # 코트 수 변경 시 started_at 유지 확인
+    start(conn, mid, 1)
+    row2 = conn.execute("SELECT started_at FROM meetups WHERE id = ?", (mid,)).fetchone()
+    assert row2["started_at"] == 20000.0
+
+    # 3. 10분 경과 (t = 20600)
+    fake_now = 20600.0
+    # 시작 뒤에 추가된 선수 (t = 20300, 5분 전)
+    p7 = mk(conn, "선수7", "M", "C")
+    fake_now = 20300.0
+    add_attendee(conn, mid, p7, "guest")
+
+    fake_now = 20600.0
+    b = board(conn, mid)
+    cards = {c["id"]: c for c in b["queue_cards"]}
+
+    # 낮에 등록된 대기자(선수5, 선수6)는 started_at(20000) 기준 -> 10분 대기
+    assert cards[p5]["since"] == 20000.0
+    assert cards[p5]["since_label"] == "10분"
+    assert cards[p6]["since"] == 20000.0
+    assert cards[p6]["since_label"] == "10분"
+
+    # 시작 후에 등록된 선수7은 자기 queued_at(20300) 기준 -> 5분 대기
+    assert cards[p7]["since"] == 20300.0
+    assert cards[p7]["since_label"] == "5분"
+
+    # 4. 경기 종료 (t = 20650)
+    g1 = b["courts"][0]["game_id"]
+    fake_now = 20650.0
+    end_game(conn, g1)
+
+    fake_now = 20710.0  # 1분 후
+    b = board(conn, mid)
+    cards = {c["id"]: c for c in b["queue_cards"]}
+    # 방금 끝난 경기 참여자(선수1~4)는 게임 종료 시각(20650) 기준 -> 1분 대기
+    for pid in (p1, p2, p3, p4):
+        if pid in cards:
+            assert cards[pid]["since"] == 20650.0
+            assert cards[pid]["since_label"] == "1분"
+            assert cards[pid]["played"] is True
+
+
+def test_db_connect_adds_started_at_on_legacy_db(tmp_path):
+    import sqlite3
+    from badminton import db
+    db_path = str(tmp_path / "legacy.db")
+    raw = sqlite3.connect(db_path)
+    # started_at 열이 없는 옛 meetups 테이블 생성
+    raw.execute("""CREATE TABLE meetups(
+        id INTEGER PRIMARY KEY, date TEXT NOT NULL, name TEXT NOT NULL, eid TEXT UNIQUE,
+        courts INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, group_id INTEGER,
+        resv_hold INTEGER NOT NULL DEFAULT 0, archived_at REAL)""")
+    raw.execute("INSERT INTO meetups(date, name, courts, started) VALUES ('2026-10-23', '옛정모', 2, 1)")
+    raw.commit()
+    raw.close()
+
+    # db.connect 호출 시 started_at 열이 추가되어야 함
+    c = db.connect(db_path)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(meetups)")]
+    assert "started_at" in cols
+
+    # started_at이 NULL인 기존 정모의 board()는 player.queued_at 기준 동작
+    mid = 1
+    p = mk(c, "선수A", "M", "A")
+    add_attendee(c, mid, p, "guest")
+    b = board(c, mid)
+    assert len(b["queue_cards"]) == 1
+    c.close()
+
