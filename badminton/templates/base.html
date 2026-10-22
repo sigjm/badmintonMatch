@@ -410,6 +410,48 @@
     morphChildren(container, template.content);
   };
 
+  // 팝업(선수 관리, 코트·예약 관리) 공통 누름·바깥 클릭 처리
+  // 손을 뗄 때 생기는 클릭이 팝업을 닫거나 수동 대진 선택을 건드리지 않도록,
+  // capture 단계 pointerdown/touchstart에서 마지막 누름 시작 시각을 기록하고
+  // "팝업이 열린 뒤에 새로 시작된 누름"의 클릭일 때만 바깥 클릭으로 닫는다.
+  let lastPointerDownTime = 0;
+  const recordPointerDown = (event) => {
+    if (event.isPrimary !== false) {
+      lastPointerDownTime = Date.now();
+    }
+  };
+  document.addEventListener("pointerdown", recordPointerDown, true);
+  document.addEventListener("touchstart", recordPointerDown, true);
+
+  const isReleaseClickFromOpenPress = (openedAt, event) => {
+    if (!openedAt || !lastPointerDownTime || lastPointerDownTime > openedAt) return false;
+    if (event && event.detail === 0) return false;
+    return true;
+  };
+
+  const setupPopupClickDismiss = ({ isOpen, getOpenedAt, isActionTrigger, isInsidePanel, close }) => {
+    document.addEventListener("click", (event) => {
+      if (!isOpen()) return;
+      const openedAt = getOpenedAt();
+      if (isReleaseClickFromOpenPress(openedAt, event)) {
+        lastPointerDownTime = 0;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (isActionTrigger?.(event)) {
+        close();
+        return;
+      }
+      if (isInsidePanel(event)) {
+        return;
+      }
+      close();
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  };
+
   (() => {
     const selector = "form[data-save-without-reload]";
     document.querySelectorAll(`${selector} select`).forEach((field) => {
@@ -698,12 +740,6 @@
       if (!button) return;
       if (button.dataset.reservationPlayer === "true" &&
           (!manualForm?.dataset.reservationId || manualForm.dataset.reservationId !== button.dataset.reservationId)) return;
-      if (suppressManualClick) {
-        event.preventDefault();
-        event.stopPropagation();
-        suppressManualClick = false;
-        return;
-      }
       const id = button.dataset.manualPlayer;
       const selectedIndex = selectedPlayers.indexOf(id);
       if (selectedIndex >= 0) selectedPlayers.splice(selectedIndex, 1);
@@ -718,27 +754,27 @@
 
     const statusMenu = document.querySelector("#quick-status-menu");
     const quickStatusForm = document.querySelector("#quick-status-form");
+    let statusMenuOpenedAt = 0;
     let statusHoldTimer = null;
     let statusHoldTarget = null;
     let statusHoldPointerId = null;
     let statusStartX = 0, statusStartY = 0;
-    let statusOpenedByHold = false;
-    let swallowStatusReleaseClick = false;
-    let swallowStatusTimer = null;
-    let suppressManualClick = false;
 
     const cancelStatusHold = () => {
       window.clearTimeout(statusHoldTimer);
       statusHoldTimer = null;
       statusHoldTarget = null;
       statusHoldPointerId = null;
-      statusOpenedByHold = false;
     };
     const closeStatusMenu = () => {
+      statusMenuOpenedAt = 0;
       if (statusMenu) statusMenu.hidden = true;
     };
+    window.closeStatusMenu = closeStatusMenu;
+
     const openStatusMenu = (target, x, y) => {
       if (!statusMenu || !quickStatusForm) return;
+      window.closeActions?.();
       const card = target.closest(".pcard") || target;
       const memberId = card.dataset.playerStatus || card.dataset.memberId || target.dataset.playerStatus || target.dataset.memberId;
       if (!memberId) return;
@@ -789,6 +825,7 @@
         status.classList.remove("is-error");
       });
       statusMenu.hidden = false;
+      statusMenuOpenedAt = Date.now();
       const rect = statusMenu.getBoundingClientRect();
       statusMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
       statusMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
@@ -803,7 +840,6 @@
       }
       if (event.target.closest("#quick-status-menu")) return;
       event.preventDefault();
-      if (statusOpenedByHold || swallowStatusReleaseClick) return;
       cancelStatusHold();
       openStatusMenu(target, event.clientX, event.clientY);
     });
@@ -823,14 +859,6 @@
       statusStartX = event.clientX;
       statusStartY = event.clientY;
       statusHoldTimer = window.setTimeout(() => {
-        statusOpenedByHold = true;
-        swallowStatusReleaseClick = true;
-        suppressManualClick = true;
-        window.clearTimeout(swallowStatusTimer);
-        swallowStatusTimer = window.setTimeout(() => {
-          swallowStatusReleaseClick = false;
-          suppressManualClick = false;
-        }, 1_000);
         openStatusMenu(target, statusStartX, statusStartY);
       }, 300);
     });
@@ -842,32 +870,18 @@
     });
     document.addEventListener("pointerup", (event) => {
       if (event.pointerId !== statusHoldPointerId) return;
-      if (statusOpenedByHold) {
-        window.setTimeout(() => {
-          swallowStatusReleaseClick = false;
-          suppressManualClick = false;
-        }, 400);
-      }
       cancelStatusHold();
     });
     document.addEventListener("pointercancel", cancelStatusHold);
     window.addEventListener("blur", cancelStatusHold);
-    document.addEventListener("click", (event) => {
-      if (swallowStatusReleaseClick) {
-        swallowStatusReleaseClick = false;
-        suppressManualClick = false;
-        window.clearTimeout(swallowStatusTimer);
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-      if (event.target.closest("[data-close-quick-menu]")) {
-        closeStatusMenu();
-        return;
-      }
-      if (!statusMenu || statusMenu.hidden || event.target.closest("#quick-status-menu")) return;
-      closeStatusMenu();
-    }, true);
+
+    setupPopupClickDismiss({
+      isOpen: () => Boolean(statusMenuOpenedAt && statusMenu && !statusMenu.hidden),
+      getOpenedAt: () => statusMenuOpenedAt,
+      isActionTrigger: (event) => Boolean(event.target.closest("[data-close-quick-menu]")),
+      isInsidePanel: (event) => Boolean(event.target.closest("#quick-status-menu")),
+      close: closeStatusMenu,
+    });
     document.addEventListener("keydown", (event) => {
       const card = event.target.closest(".pcard[data-player-status]");
       if (card && event.target === card && (event.key === "Enter" || event.key === " ")) {
@@ -1017,14 +1031,12 @@
     const selector = "[data-long-press-actions]";
     let openKey = null;
     let openPoint = null;
+    let actionsOpenedAt = 0;
     let holdTimer = null;
     let holdTarget = null;
     let holdPointerId = null;
     let startX = 0;
     let startY = 0;
-    let openedByHold = false;
-    let swallowReleaseClick = false;
-    let swallowTimer = null;
 
     const placePanel = (card, panel) => {
       const cardRect = card.getBoundingClientRect();
@@ -1068,6 +1080,7 @@
       if (openKey && !foundOpenCard) {
         openKey = null;
         openPoint = null;
+        actionsOpenedAt = 0;
       } else if (openCard && openPanel) {
         placePanel(openCard, openPanel);
       }
@@ -1075,16 +1088,21 @@
     const closeActions = () => {
       openKey = null;
       openPoint = null;
+      actionsOpenedAt = 0;
       syncOpenCard();
     };
+    window.closeActions = closeActions;
+
     const toggleActions = (card, x, y) => {
       if (openKey === card.dataset.key) {
         closeActions();
         return;
       }
+      window.closeStatusMenu?.();
       const rect = card.getBoundingClientRect();
       openKey = card.dataset.key;
       openPoint = { x: x - rect.left, y: y - rect.top };
+      actionsOpenedAt = Date.now();
       syncOpenCard();
     };
     const cancelHold = () => {
@@ -1092,7 +1110,6 @@
       holdTimer = null;
       holdTarget = null;
       holdPointerId = null;
-      openedByHold = false;
     };
     const isInteractive = (target) => {
       if (target.closest("[data-action-panel]")) return true;
@@ -1112,10 +1129,6 @@
       startX = event.clientX;
       startY = event.clientY;
       holdTimer = window.setTimeout(() => {
-        openedByHold = true;
-        swallowReleaseClick = true;
-        window.clearTimeout(swallowTimer);
-        swallowTimer = window.setTimeout(() => { swallowReleaseClick = false; }, 1_000);
         toggleActions(card, startX, startY);
       }, 300);
     });
@@ -1125,26 +1138,19 @@
     });
     document.addEventListener("pointerup", (event) => {
       if (event.pointerId !== holdPointerId) return;
-      if (openedByHold) window.setTimeout(() => { swallowReleaseClick = false; }, 400);
       cancelHold();
     });
     document.addEventListener("pointercancel", cancelHold);
     window.addEventListener("blur", cancelHold);
-    document.addEventListener("click", (event) => {
-      if (swallowReleaseClick) {
-        swallowReleaseClick = false;
-        window.clearTimeout(swallowTimer);
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-      if (event.target.closest("[data-action-panel] button, [data-action-panel] a, [data-action-panel] [type='submit']")) {
-        closeActions();
-        return;
-      }
-      if (!openKey) return;
-      if (!event.target.closest("[data-action-panel]")) closeActions();
-    }, true);
+
+    setupPopupClickDismiss({
+      isOpen: () => Boolean(actionsOpenedAt && openKey),
+      getOpenedAt: () => actionsOpenedAt,
+      isActionTrigger: (event) => Boolean(event.target.closest("[data-action-panel] button, [data-action-panel] a, [data-action-panel] [type='submit']")),
+      isInsidePanel: (event) => Boolean(event.target.closest("[data-action-panel]")),
+      close: closeActions,
+    });
+
     document.addEventListener("submit", (event) => {
       if (event.target.closest("[data-action-panel]")) {
         closeActions();
@@ -1164,7 +1170,6 @@
       const card = event.target.closest(selector);
       if (!card || isInteractive(event.target) || !card.dataset.key) return;
       event.preventDefault();
-      if (openedByHold || swallowReleaseClick) return;
       cancelHold();
       toggleActions(card, event.clientX, event.clientY);
     });
