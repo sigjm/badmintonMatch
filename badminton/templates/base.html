@@ -67,6 +67,7 @@
   .live-badge::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--text-4); }
   .live-badge.on { color:var(--success); background:var(--success-bg); border-color:var(--success-border); }
   .live-badge.on::before { background:var(--success-dot); }
+  [data-live-status].is-offline { color:var(--error); font-weight:700; }
 
   /* 카드 */
   .section, .tile { container-type:inline-size; background:var(--card); border:1px solid var(--split); border-radius:8px; padding:20px 24px; margin-top:16px; }
@@ -951,6 +952,20 @@
 
     const isStatusMenuOpen = () => Boolean(statusMenu && !statusMenu.hidden);
     const isActionPopupOpen = () => document.querySelector("[data-long-press-actions].actions-open, [data-action-panel]:not([hidden])") !== null;
+    const liveStatuses = [...document.querySelectorAll("[data-live-status]")];
+    const pageOpenedAt = new Date();
+    liveStatuses.forEach((status) => { status.dataset.originalText = status.textContent; });
+    let lastSuccessfulRefresh = pageOpenedAt;
+    let consecutiveRefreshFailures = 0;
+    const updateLiveStatus = (success) => {
+      consecutiveRefreshFailures = success ? 0 : consecutiveRefreshFailures + 1;
+      if (success) lastSuccessfulRefresh = new Date();
+      liveStatuses.forEach((status) => {
+        const offline = consecutiveRefreshFailures >= 2;
+        status.classList.toggle("is-offline", offline);
+        status.textContent = offline ? `연결 끊김 · 마지막 갱신 ${lastSuccessfulRefresh.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}` : status.dataset.originalText;
+      });
+    };
 
     const refreshLiveSections = async () => {
       if (refreshing || document.hidden || manualFormIsBeingEdited() || isStatusMenuOpen() || isActionPopupOpen()) return false;
@@ -962,9 +977,9 @@
           cache: "no-store",
           headers: { "X-Requested-With": "XMLHttpRequest" },
           signal: controller.signal,
-        });
+        }).catch((error) => { updateLiveStatus(false); throw error; });
         clearTimeout(timeoutId);
-        if (!response.ok) return false;
+        if (!response.ok) { updateLiveStatus(false); return false; }
         if (!response.headers.get("content-type")?.includes("application/json")) {
           window.location.assign(response.url);
           return false;
@@ -989,6 +1004,7 @@
         if (queueCount) queueCount.textContent = `${data.queue_count}명`;
         updateWaitLabels();
         document.dispatchEvent(new CustomEvent("badminton:sections-updated"));
+        updateLiveStatus(true);
         return true;
       } catch (_error) {
         return false;

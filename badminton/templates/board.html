@@ -19,7 +19,7 @@
 <section class="event-banner">
   <span class="eyebrow">실시간 게임보드</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span>3초마다 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge on">경기 진행 중</span><span data-live-status aria-live="polite">3초마다 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button></div>
 </section>
 <div class="board-layout">
 <section class="tile board-big live-courts" id="meetup-court-board">
