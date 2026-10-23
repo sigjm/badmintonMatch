@@ -488,8 +488,8 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     assert '<span data-live-status aria-live="polite">코트·대기열 3초 갱신</span>' in html
-    assert 'aria-label="예약 1, 길게 누르거나' in html
-    assert 'aria-label="예약 2, 길게 누르거나' in html
+    assert 'aria-label="예약 1"' in html and ">예약 1 관리</button>" in html
+    assert 'aria-label="예약 2"' in html and ">예약 2 관리</button>" in html
     assert "닉A(남A)" in html and "닉H(여D)" in html
     assert "/admin/reservation/9/redraw" in html
     assert "다시 뽑기" in html
@@ -499,7 +499,7 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
     assert resp.status_code == 200
     data = resp.get_json()
     assert "queue" in data
-    assert 'aria-label="예약 1, 길게 누르거나' in data["reservation_list"]
+    assert 'aria-label="예약 1"' in data["reservation_list"] and ">예약 1 관리</button>" in data["reservation_list"]
     assert "닉D(여B)" in data["reservation_list"]
     assert "/admin/reservation/9/redraw" in data["reservation_list"]
     assert "다시 뽑기" in data["reservation_list"]
@@ -586,15 +586,14 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     assert "data-open-info" not in html and 'class="pcard-actions"' not in html
     # 꾹 누르기 관리 팝업 속성 및 안내 문구 확인
     assert f'data-player-status="{waiting}"' in html
-    assert 'tabindex="0"' in html
-    assert "길게 누르거나 Enter 또는 Space로 관리 팝업 열기" in html
+    assert 'class="card-manage" aria-expanded="false" aria-controls="quick-status-menu">대기자 관리</button>' in html
     assert '<small class="hold-hint">길게 눌러 관리</small>' in html
     assert 'id="quick-status-menu"' in html
     assert 'data-set-player-status="away"' in html and 'data-set-player-status="gone"' in html
     public = client.get("/board").get_data(as_text=True)
     assert '<span data-live-status aria-live="polite">3초마다 갱신</span>' in public
     assert "경기 시간" in public and 'class="pcard is-queued' in public
-    assert f'data-player-status="{waiting}"' not in public and 'tabindex="0"' not in public
+    assert f'data-player-status="{waiting}"' not in public and 'class="card-manage"' not in public
     assert 'id="quick-status-menu"' not in public
     assert 'name="status"' not in public and ">정보</button>" not in public
 
@@ -1160,7 +1159,7 @@ def test_court_state_route_and_popups_on_admin_and_public_board(admin, client, s
 
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     # 빈 코트(2·3코트)도 길게 누르기 관리 팝업과 상태 변경 버튼 3개(게임·빈코트·레슨)를 가진다
-    assert 'aria-label="코트 3, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"' in html
+    assert 'aria-label="3코트"' in html and 'aria-controls="court-actions-3">3코트 관리</button>' in html
     assert f'action="/admin/m/{mid}/court/3/state"' in html
     assert '<button type="submit" class="btn sm" aria-pressed="true">게임</button>' in html
     assert '<button type="submit" class="btn line sm" aria-pressed="false">빈코트</button>' in html
@@ -1356,4 +1355,42 @@ def test_end_meetup_route_and_ui(admin, seeded_meetup, conn_of):
     c.execute("UPDATE meetups SET archived_at = 1000 WHERE id = ?", (mid,))
     resp3 = admin.post(f"/admin/m/{mid}/end")
     assert resp3.status_code == 409
+
+
+def test_cards_use_group_role_and_manage_buttons_instead_of_nested_buttons(admin, client, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee, add_manual_reservation
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    extra = [create_member(c, f"후보{i}", gender="M", grade="C") for i in range(5)]
+    for pid in extra:
+        add_attendee(c, mid, pid, "paste")
+    rid = add_manual_reservation(c, mid, extra[:4])
+    waiting = extra[4]
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+    court_tag = _tag(html, 'data-key="court-1"')
+    resv_tag = _tag(html, f'data-key="resv-{rid}"')
+    pcard = _pcard(html, waiting)
+    pcard_tag = _tag(html, f'data-key="p-{waiting}"')
+
+    # 카드 자체는 role="group" + 짧은 이름이며 tabindex와 role="button"이 없다
+    assert 'role="group"' in court_tag and 'aria-label="1코트"' in court_tag and "tabindex" not in court_tag
+    assert 'role="group"' in resv_tag and 'aria-label="예약 1"' in resv_tag and "tabindex" not in resv_tag
+    assert 'role="group"' in pcard_tag and 'aria-label="후보4"' in pcard_tag
+    assert "tabindex" not in pcard_tag and 'role="button"' not in pcard_tag
+
+    # 운영 콘솔 카드마다 card-manage 버튼(aria-expanded="false", aria-controls)이 있고, 회원 카드는 선택 버튼 뒤에 온다
+    assert '<button type="button" class="card-manage" aria-expanded="false" aria-controls="court-actions-1">1코트 관리</button>' in html
+    assert f'<button type="button" class="card-manage" aria-expanded="false" aria-controls="reservation-actions-{rid}">예약 1 관리</button>' in html
+    assert '<button type="button" class="card-manage" aria-expanded="false" aria-controls="quick-status-menu">후보4 관리</button>' in pcard
+    assert pcard.index("queue-player-select") < pcard.index("card-manage")
+
+    # 공개 대진판 카드는 role="group"과 이름만 있고 card-manage 버튼이 없다
+    pub = client.get("/board").get_data(as_text=True)
+    pub_main = pub[pub.index("<main"):pub.index("</main>")]
+    assert 'role="group" aria-label="1코트"' in pub_main
+    assert 'role="group" aria-label="예약 1"' in pub_main
+    assert 'role="group" aria-label="후보4"' in pub_main
+    assert 'class="card-manage"' not in pub_main and 'role="button"' not in pub_main
 

@@ -43,7 +43,7 @@
   {% if reservations %}
   <div class="reservations">
     {% for res in reservations|sort(attribute='no') %}
-    <div class="court resv reservation-card" data-key="resv-{{ res.id }}" aria-label="예약 {{ res.no }}{% if editable %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기{% endif %}"{% if editable %} data-long-press-actions tabindex="0" aria-expanded="false" aria-controls="reservation-actions-{{ res.id }}"{% endif %}>
+    <div class="court resv reservation-card" data-key="resv-{{ res.id }}" role="group" aria-label="예약 {{ res.no }}"{% if editable %} data-long-press-actions{% endif %}>
       <div class="court-no">{{ res.no }}<small>예약</small></div>
       {% if (editable and res.source == 'manual') or res.waiting_for_game %}
       <div class="reservation-meta">
@@ -62,6 +62,7 @@
         {% endfor %}
       </div>
       {% if editable %}
+      <button type="button" class="card-manage" aria-expanded="false" aria-controls="reservation-actions-{{ res.id }}">예약 {{ res.no }} 관리</button>
       <div class="court-actions reservation-actions" id="reservation-actions-{{ res.id }}" data-action-panel role="group" aria-label="예약 {{ res.no }} 관리" hidden>
         <button type="button" class="btn line sm" data-edit-reservation data-reservation-id="{{ res.id }}"
                 data-edit-url="{{ url_for('admin.edit_reservation', rid=res.id) }}">수정</button>

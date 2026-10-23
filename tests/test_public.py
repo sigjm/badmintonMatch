@@ -11,7 +11,7 @@ def test_board_without_meetup(client):
 
 def test_board_shows_started_meetup(client, seeded_meetup):
     html = client.get("/board").get_data(as_text=True)
-    assert "코트 1" in html and "m1" in html and "경기 끝" not in html
+    assert "1코트" in html and "m1" in html and "경기 끝" not in html
 
 
 def test_me_is_read_only_notice(client):

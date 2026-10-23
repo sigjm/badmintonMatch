@@ -2,7 +2,7 @@
 {# 참석자 카드 (회원목록·다음 순서·대진 제외 공통). 대기열 카드는 state가 없어 queued로 본다 #}
 {% set state = p.state|default('queued') %}
 {% set admin_card = admin|default(false) and m %}
-<div class="pcard is-{{ state }}" data-key="p-{{ p.id }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}" tabindex="0" role="button" aria-label="{{ p.nickname }}{% if p.grade %}, {{ GRADE_LABELS.get(p.grade, '') }}급{% endif %}, 길게 누르거나 Enter 또는 Space로 관리 팝업 열기"{% endif %}>
+<div class="pcard is-{{ state }}" data-key="p-{{ p.id }}" role="group" aria-label="{{ p.nickname }}"{% if admin_card %} data-player-status="{{ p.id }}" data-member-id="{{ p.id }}" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}" data-memo="{{ p.memo or '' }}"{% endif %}>
   <div class="pcard-name">
     {% if admin_card and m.started and p.id in manual_candidate_ids|default([]) %}
     <button type="button" class="court-player queue-player-select" data-manual-player="{{ p.id }}" aria-pressed="false" data-nickname="{{ p.nickname }}" data-gender="{{ p.gender or '' }}" data-grade="{{ p.grade or '' }}">{{ player_chip(p.nickname, p.gender, p.grade) }}<small class="manual-player-order" data-player-order></small></button>
@@ -29,4 +29,5 @@
     {% else %}소모임 참석 취소{% endif %}
   </div>
   {% if p.memo %}<div class="pcard-memo">메모 · {{ p.memo }}</div>{% endif %}
+  {% if admin_card %}<button type="button" class="card-manage" aria-expanded="false" aria-controls="quick-status-menu">{{ p.nickname }} 관리</button>{% endif %}
 </div>
