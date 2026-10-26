@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from .announce import announcement_text
 from .db import get_setting, transaction
-from .matching import Player, pick_four, sort_queue, split_teams
+from .matching import MIX_WINDOW, Player, pick_four, sort_queue, split_teams
 from .members import create_member, upsert_somoim
 from .somoim import SomoimMember
 
@@ -279,6 +279,21 @@ def _recent_mates(conn, meetup_id: int) -> dict[int, set[int]]:
     return mates
 
 
+def _prefer_mixed(conn, meetup_id: int, mix_ratio: float) -> bool:
+    """지금까지 잡힌 경기·예약의 혼복 비율을 보고 이번 매칭에서 혼복을 우선할지 정한다."""
+    if mix_ratio <= 0:
+        return False
+    female = {r["id"] for r in conn.execute("SELECT id FROM members WHERE gender = 'F'")}
+    rows = conn.execute(
+        "SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND canceled = 0 "
+        "UNION ALL "
+        "SELECT a1, a2, b1, b2 FROM reservations WHERE meetup_id = ?",
+        (meetup_id, meetup_id),
+    ).fetchall()
+    mixed = sum(sum(p in female for p in row) == 2 for row in rows)
+    return mixed < round((mix_ratio / 100) * (len(rows) + 1))
+
+
 def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = None) -> None:
     meetup = conn.execute("SELECT courts, started, resv_hold, archived_at FROM meetups WHERE id = ?",
                           (meetup_id,)).fetchone()
@@ -307,14 +322,15 @@ def refill_reservations(conn, meetup_id: int, avoid: frozenset[int] | None = Non
                               (meetup_id,)).fetchone()[0]
     if auto_count >= courts:
         return
-    window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
+    offset, mix_ratio = get_setting(conn, "female_offset"), get_setting(conn, "mix_ratio")
     recent = _recent_mates(conn, meetup_id)
     playing = _playing(conn, meetup_id)
     while auto_count < courts:
         q = queue(conn, meetup_id)
         if len(q) < 8:
             break
-        four = pick_four(q, window, offset, recent, avoid)
+        four = pick_four(q, MIX_WINDOW, offset, recent, avoid,
+                         prefer_mixed=_prefer_mixed(conn, meetup_id, mix_ratio))
         if four is None:
             break
         # 예약이 아직 없는데 새 매칭이 직전 경기와 완전히 같으면,
@@ -530,7 +546,7 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
         now = time.time()
         busy |= {c for c, until in _rest_until(conn, meetup_id).items()
                  if until > now and (not ready_courts or c not in ready_courts)}
-    window, offset = int(get_setting(conn, "mix_window")), get_setting(conn, "female_offset")
+    offset, mix_ratio = get_setting(conn, "female_offset"), get_setting(conn, "mix_ratio")
     recent = _recent_mates(conn, meetup_id)
     started_any = False
     for court in range(1, courts + 1):
@@ -565,7 +581,8 @@ def fill_courts(conn, meetup_id: int, force: bool = False, avoid: frozenset[int]
             continue
 
         # 2. 예약이 없으면 바로 pick_four
-        four = pick_four(queue(conn, meetup_id), window, offset, recent, avoid)
+        four = pick_four(queue(conn, meetup_id), MIX_WINDOW, offset, recent, avoid,
+                         prefer_mixed=_prefer_mixed(conn, meetup_id, mix_ratio))
         if four is None:
             break
         (a1, a2), (b1, b2) = split_teams(four, offset)

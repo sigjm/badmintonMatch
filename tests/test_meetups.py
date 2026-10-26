@@ -776,14 +776,12 @@ def test_reservation_hold_is_released_by_auto_match_and_court_change(conn):
 
 
 def test_repeat_four_is_not_reserved_even_with_a_manual_reservation(conn):
-    from badminton.db import set_setting
     from badminton.meetups import add_manual_reservation
-    set_setting(conn, "mix_window", 4)  # 앞 4명만 후보 → 직전 경기 4명이 그대로 다시 뽑힌다
     mid = get_or_create_meetup(conn, today(), "t", None)
     seat(conn, mid, *[mk(conn, f"p{i}", "M", "C") for i in range(8)])
     start(conn, mid, 1)
     end_game(conn, current_game(conn, mid))  # 첫 4명이 끝나고 나머지 4명이 들어간다
-    late = [mk(conn, f"late{i}", "M", "C") for i in range(8)]
+    late = [mk(conn, f"late{i}", "F", "C") for i in range(8)]  # 뒤쪽이 이성이면 기본(혼복 0%)에서는 직전 4명(남복)이 다시 뽑힌다
     seat(conn, mid, *late)
     conn.execute(f"UPDATE attendees SET games = 9 WHERE member_id IN ({','.join('?' * 8)})", late)  # 줄 맨 뒤로
     conn.execute("DELETE FROM reservations")
@@ -1150,5 +1148,32 @@ def test_db_connect_adds_ended_at_on_legacy_db(tmp_path):
     cols = [r[1] for r in c.execute("PRAGMA table_info(meetups)")]
     assert "ended_at" in cols
     c.close()
+
+
+def test_mix_ratio_controls_mixed_game_share(conn):
+    from badminton.db import set_setting
+    from badminton.meetups import fill_courts
+
+    def count_mixed_over_games(ratio: int, total_games: int = 10) -> int:
+        set_setting(conn, "mix_ratio", ratio)
+        mid = get_or_create_meetup(conn, today(), f"mix-{ratio}", None)
+        # 남2·여2씩 교대로 배치해 후보 창(6명) 안에 동성 복식(4명)과 혼복(남2·여2)이 모두 가능하게 한다
+        players = []
+        for i in range(0, 8, 2):
+            players.extend([mk(conn, f"m_{ratio}_{i}", "M", "C"), mk(conn, f"m_{ratio}_{i+1}", "M", "C")])
+            players.extend([mk(conn, f"f_{ratio}_{i}", "F", "B"), mk(conn, f"f_{ratio}_{i+1}", "F", "B")])
+        seat(conn, mid, *players)
+        start(conn, mid, 1)
+        for _ in range(total_games - 1):
+            end_game(conn, current_game(conn, mid))
+            fill_courts(conn, mid, force=True)
+        female = {r["id"] for r in conn.execute("SELECT id FROM members WHERE gender = 'F'")}
+        games = conn.execute("SELECT a1, a2, b1, b2 FROM games WHERE meetup_id = ? AND canceled = 0", (mid,)).fetchall()
+        assert len(games) == total_games
+        return sum(sum(p in female for p in g) == 2 for g in games)
+
+    assert count_mixed_over_games(0) == 0
+    assert 4 <= count_mixed_over_games(50) <= 6
+    assert count_mixed_over_games(100) == 10
 
 

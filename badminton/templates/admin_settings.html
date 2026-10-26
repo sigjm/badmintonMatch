@@ -51,8 +51,8 @@
   <form method="post" style="max-width:480px">
     <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값
       <input type="number" name="female_offset" step="0.5" min="0" max="5" value="{{ female_offset }}" required></label>
-    <label class="field">혼복 후보 범위 — 대기열 앞쪽 몇 명 안에서 남2·여2를 찾을지
-      <input type="number" name="mix_window" min="4" max="20" value="{{ mix_window }}" required></label>
+    <label class="field">혼복 비율 — 전체 경기 중 혼복(남녀 2:2) 경기 목표 비율 (%)
+      <input type="number" name="mix_ratio" step="5" min="0" max="100" value="{{ mix_ratio }}" required></label>
     <button class="btn">저장</button>
   </form>
 </section>

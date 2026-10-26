@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS audit_logs(
   summary TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}');
 CREATE INDEX IF NOT EXISTS idx_audit_logs_at ON audit_logs(at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_meetup_at ON audit_logs(meetup_id, at DESC, id DESC);
-INSERT OR IGNORE INTO settings VALUES ('female_offset', 1.5), ('mix_window', 6), ('auto_reserve', 1), ('auto_fill', 1);
+INSERT OR IGNORE INTO settings VALUES ('female_offset', 1.5), ('mix_window', 6), ('mix_ratio', 0), ('auto_reserve', 1), ('auto_fill', 1);
 """
 
 
@@ -78,7 +78,7 @@ def connect(path: str, migrate: bool = True) -> sqlite3.Connection:
     return conn
 
 
-DEFAULT_SETTINGS = {"female_offset": 1.5, "mix_window": 6.0, "auto_reserve": 1.0, "auto_fill": 1.0}
+DEFAULT_SETTINGS = {"female_offset": 1.5, "mix_window": 6.0, "mix_ratio": 0.0, "auto_reserve": 1.0, "auto_fill": 1.0}
 
 
 def get_setting(conn, key: str, default: float | None = None) -> float:

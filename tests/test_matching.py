@@ -137,3 +137,12 @@ def test_pick_four_avoids_given_four_when_possible():
     assert second != first and 0 in second  # 대기 1순위는 그대로 포함
     only_four = q[:4]
     assert {p.id for p in pick_four(only_four, avoid=frozenset({0, 1, 2, 3}))} == {0, 1, 2, 3}  # 대안이 없으면 그대로
+
+
+def test_pick_four_prefer_mixed_toggles_between_mixed_and_same_gender():
+    q = [P(1, "M", "C"), P(2, "M", "C"), P(3, "M", "C"), P(4, "M", "C"), P(5, "F", "B"), P(6, "F", "B")]
+    same_picked = pick_four(q, prefer_mixed=False)
+    mixed_picked = pick_four(q, prefer_mixed=True)
+    assert {p.id for p in same_picked} == {1, 2, 3, 4}
+    assert {p.id for p in mixed_picked} == {1, 2, 5, 6}
+    assert sum(p.gender == "F" for p in mixed_picked) == 2

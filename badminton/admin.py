@@ -927,27 +927,27 @@ def settings():
     conn = get_conn()
     if request.method == "POST":
         try:
-            offset, window = float(request.form["female_offset"]), int(request.form["mix_window"])
-        except ValueError:
-            offset, window = -1, -1
-        if 0 <= offset <= 5 and 4 <= window <= 20:
-            old_offset, old_window = get_setting(conn, "female_offset"), int(get_setting(conn, "mix_window"))
+            offset, mix_ratio = float(request.form["female_offset"]), int(request.form["mix_ratio"])
+        except (KeyError, ValueError):
+            offset, mix_ratio = -1, -1
+        if 0 <= offset <= 5 and 0 <= mix_ratio <= 100:
+            old_offset, old_ratio = get_setting(conn, "female_offset"), int(get_setting(conn, "mix_ratio"))
             with transaction(conn):
-                if old_offset != offset or old_window != window:
+                if old_offset != offset or old_ratio != mix_ratio:
                     set_setting(conn, "female_offset", offset)
-                    set_setting(conn, "mix_window", window)
+                    set_setting(conn, "mix_ratio", mix_ratio)
                     refill_upcoming(conn)
                     audit.record(conn, action="settings_change", summary="매칭 설정 변경",
                                  entity_type="settings", details={
                                      "female_offset": {"from": old_offset, "to": offset},
-                                     "mix_window": {"from": old_window, "to": window},
+                                     "mix_ratio": {"from": old_ratio, "to": mix_ratio},
                                  })
             flash("설정을 저장했습니다")
         else:
-            flash("여자 보정값은 0~5, 혼복 후보 범위는 4~20 사이로 입력해 주세요")
+            flash("여자 보정값은 0~5, 혼복 비율은 0~100 사이로 입력해 주세요")
         return redirect(url_for("admin.settings"))
     return render_template("admin_settings.html", female_offset=get_setting(conn, "female_offset"),
-                           mix_window=int(get_setting(conn, "mix_window")),
+                           mix_ratio=int(get_setting(conn, "mix_ratio")),
                            meetups=_active_meetups(conn, _current_group()))
 
 

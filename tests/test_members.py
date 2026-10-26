@@ -37,7 +37,7 @@ def test_pin_rules(conn):
 
 
 def test_settings_defaults(conn):
-    assert get_setting(conn, "female_offset") == 1.5 and get_setting(conn, "mix_window") == 6
+    assert get_setting(conn, "female_offset") == 1.5 and get_setting(conn, "mix_ratio") == 0
 
 
 def test_rename_member_success_and_logs_change(conn):

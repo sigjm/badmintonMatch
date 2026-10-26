@@ -79,7 +79,7 @@ def test_info_edit_invalidates_shared_member_reservations_across_meetups(admin, 
 def test_admin_mutation_rejects_cross_origin_post(admin, conn_of, origin):
     from badminton.db import get_setting
 
-    response = admin.post("/admin/settings", data={"female_offset": "3", "mix_window": "8"},
+    response = admin.post("/admin/settings", data={"female_offset": "3", "mix_ratio": "50"},
                           environ_overrides={"HTTP_ORIGIN": origin})
 
     assert response.status_code == 403
@@ -208,13 +208,30 @@ def test_guest_added_to_meetup(admin, seeded_meetup, conn_of):
 
 
 def test_settings_validation(admin, conn_of):
+    import json
     from badminton.db import get_setting
-    admin.post("/admin/settings", data={"female_offset": "abc", "mix_window": "6"})
-    assert get_setting(conn_of(), "female_offset") == 1.5
-    admin.post("/admin/settings", data={"female_offset": "9", "mix_window": "6"})
-    assert get_setting(conn_of(), "female_offset") == 1.5
-    admin.post("/admin/settings", data={"female_offset": "1.5", "mix_window": "8"})
-    assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_window") == 8
+
+    html = admin.get("/admin/settings").get_data(as_text=True)
+    assert 'name="mix_ratio"' in html
+    assert 'name="mix_window"' not in html
+
+    admin.post("/admin/settings", data={"female_offset": "abc", "mix_ratio": "50"})
+    assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_ratio") == 0
+    admin.post("/admin/settings", data={"female_offset": "9", "mix_ratio": "50"})
+    assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_ratio") == 0
+    admin.post("/admin/settings", data={"female_offset": "1.5", "mix_ratio": "-5"})
+    assert get_setting(conn_of(), "mix_ratio") == 0
+    admin.post("/admin/settings", data={"female_offset": "1.5", "mix_ratio": "105"})
+    assert get_setting(conn_of(), "mix_ratio") == 0
+    admin.post("/admin/settings", data={"female_offset": "1.5", "mix_ratio": "40"})
+    assert get_setting(conn_of(), "female_offset") == 1.5 and get_setting(conn_of(), "mix_ratio") == 40
+    log_row = conn_of().execute(
+        "SELECT details_json FROM audit_logs WHERE action = 'settings_change' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert json.loads(log_row["details_json"]) == {
+        "female_offset": {"from": 1.5, "to": 1.5},
+        "mix_ratio": {"from": 0, "to": 40},
+    }
 
 
 def test_admin_edit_logged_as_admin(admin, conn_of):

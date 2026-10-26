@@ -52,7 +52,10 @@ def _simulate_core(
     seed: int,
     random_grades: bool,
     out: TextIO,
+    mix_ratio: int | None = None,
 ) -> dict:
+    if mix_ratio is not None:
+        db.set_setting(conn, "mix_ratio", mix_ratio)
     rnd = random.Random(seed)
     ids = [r[0] for r in conn.execute("SELECT member_id FROM attendees WHERE meetup_id = ?", (meetup_id,))]
 
@@ -163,7 +166,9 @@ def _simulate_core(
     print(f"한 경기 급수 평균의 평균 {avg_pts:.2f} · 급수 폭 평균 {avg_spread:.2f} · 최대 {int(max_spread) if max_spread.is_integer() else max_spread}", file=out)
 
     kinds_dict = dict(Counter(k for _t, _c, k, *_ in log))
-    print("경기 종류:", kinds_dict, file=out)
+    mixed_cnt = kinds_dict.get("혼복", 0)
+    mixed_pct = (mixed_cnt / len(log) * 100) if log else 0.0
+    print(f"경기 종류: {kinds_dict} · 혼복 비율 {mixed_cnt}/{len(log)} ({mixed_pct:.1f}%)", file=out)
 
     same4 = Counter(frozenset(four) for _t, _c, _k, four, *_ in log)
     max_same4 = max(same4.values()) if same4 else 0
@@ -180,6 +185,8 @@ def _simulate_core(
         "avg_spread": avg_spread,
         "max_spread": max_spread,
         "kinds": kinds_dict,
+        "mixed_games": mixed_cnt,
+        "mixed_ratio": mixed_pct,
         "max_same4": max_same4,
         "unique_combinations": len(same4),
     }
@@ -193,6 +200,7 @@ def simulate(
     seed: int = 42,
     random_grades: bool = False,
     out: TextIO | None = None,
+    mix_ratio: int | None = None,
 ) -> dict:
     if out is None:
         out = sys.stdout
@@ -220,6 +228,7 @@ def simulate(
                 seed=seed,
                 random_grades=random_grades,
                 out=out,
+                mix_ratio=mix_ratio,
             )
         finally:
             conn.close()
@@ -248,6 +257,7 @@ def main():
     parser.add_argument("--minutes", type=int, default=180, help="시뮬레이션 시간(분) (기본: 180)")
     parser.add_argument("--seed", type=int, default=42, help="랜덤 시드 (기본: 42)")
     parser.add_argument("--random-grades", action="store_true", help="급수/성별이 빈 참석자에게 랜덤 값 채움")
+    parser.add_argument("--mix-ratio", type=int, default=None, help="혼복 목표 비율 %% (0~100)")
 
     args = parser.parse_args()
 
@@ -258,6 +268,7 @@ def main():
         minutes=args.minutes,
         seed=args.seed,
         random_grades=args.random_grades,
+        mix_ratio=args.mix_ratio,
     )
 
 
