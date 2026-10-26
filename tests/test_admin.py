@@ -138,13 +138,13 @@ def test_stale_admin_member_ids_do_not_raise_500(admin, seeded_meetup, path, dat
 
 
 def test_import_creates_meetup_with_attendees(admin, monkeypatch, conn_of):
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)  # 참석 2명, 2026-10-23
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_ONE_EVENT)  # 참석 2명, 2026-10-23
     r = admin.post("/admin/import", data={"date": "2026-10-23"})
     assert r.status_code == 302 and conn_of().execute("SELECT count(*) FROM attendees").fetchone()[0] == 2
 
 
 def test_import_no_event_on_date_offers_paste(admin, monkeypatch, conn_of):
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_ONE_EVENT)
     html = admin.post("/admin/import", data={"date": "2026-10-24"}).get_data(as_text=True)
     assert "붙여넣기" in html and conn_of().execute("SELECT count(*) FROM meetups").fetchone()[0] == 0
 
@@ -166,13 +166,13 @@ def test_canceled_somoim_member_is_hidden_from_admin_and_public_boards(admin, cl
 
 
 def test_somoim_failure_keeps_attendees_and_offers_paste(admin, monkeypatch, conn_of):  # Review Focus 1
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_ONE_EVENT)
     admin.post("/admin/import", data={"date": "2026-10-23"})
 
     def boom(gid):
         raise SomoimError("구조 변경")
 
-    monkeypatch.setattr("badminton.admin.fetch_group", boom)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", boom)
     html = admin.post("/admin/m/1/import").get_data(as_text=True)
     assert "붙여넣기" in html
     assert conn_of().execute("SELECT count(*) FROM attendees WHERE status='present'").fetchone()[0] == 2
@@ -264,28 +264,28 @@ GROUP_NO_FLAGS = Group(events=GROUP_ONE_EVENT.events,
 
 
 def test_reimport_with_no_attendee_flags_keeps_everyone(admin, monkeypatch, conn_of):  # Review Focus 1
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_ONE_EVENT)
     admin.post("/admin/import", data={"date": "2026-10-23"})
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_NO_FLAGS)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_NO_FLAGS)
     html = admin.post("/admin/m/1/import").get_data(as_text=True)
     assert "붙여넣기" in html
     assert conn_of().execute("SELECT count(*) FROM attendees WHERE status='present'").fetchone()[0] == 2
 
 
 def test_first_import_with_no_attendees_creates_nothing(admin, monkeypatch, conn_of):
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_NO_FLAGS)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_NO_FLAGS)
     assert "붙여넣기" in admin.post("/admin/import", data={"date": "2026-10-23"}).get_data(as_text=True)
     assert conn_of().execute("SELECT count(*) FROM meetups").fetchone()[0] == 0
 
 
 def test_paste_after_failed_reimport_fills_same_meetup(admin, monkeypatch, conn_of):
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: GROUP_ONE_EVENT)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: GROUP_ONE_EVENT)
     admin.post("/admin/import", data={"date": "2026-10-23"})
 
     def boom(gid):
         raise SomoimError("x")
 
-    monkeypatch.setattr("badminton.admin.fetch_group", boom)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", boom)
     html = admin.post("/admin/m/1/import").get_data(as_text=True)
     assert 'name="mid" value="1"' in html
     admin.post("/admin/paste", data={"mid": "1", "date": "2026-10-23", "name": "x", "text": "새사람"})
@@ -328,14 +328,14 @@ def test_session_cookie_flags(tmp_path):
 
 
 def test_add_group_by_link_and_select_it(admin, monkeypatch, conn_of):
-    monkeypatch.setattr("badminton.admin.fetch_group",
+    monkeypatch.setattr("badminton.admin.routes_people.fetch_group",
                         lambda gid: Group(events=[], members=[SomoimMember("a", "가", frozenset(), False)], name="Team ONAM"))
     admin.post("/admin/groups", data={"link": "https://www.somoim.co.kr/d49e0b02-b22a-413b-8295-53dc895bc4411"})
     row = conn_of().execute("SELECT id, name FROM groups WHERE gid = 'd49e0b02-b22a-413b-8295-53dc895bc4411'").fetchone()
     assert row["name"] == "Team ONAM"
     admin.post("/admin/groups/select", data={"group_id": row["id"]})
     seen = []
-    monkeypatch.setattr("badminton.admin.fetch_group", lambda gid: seen.append(gid) or GROUP_ONE_EVENT)
+    monkeypatch.setattr("badminton.admin.routes_meetups.fetch_group", lambda gid: seen.append(gid) or GROUP_ONE_EVENT)
     admin.post("/admin/import", data={"date": "2026-10-23"})
     assert seen == ["d49e0b02-b22a-413b-8295-53dc895bc4411"]
     assert conn_of().execute("SELECT group_id FROM meetups").fetchone()[0] == row["id"]
@@ -354,7 +354,7 @@ def test_bad_group_link_rejected(admin, conn_of):
 
 
 def test_group_search_lists_results_with_add_buttons(admin, monkeypatch):
-    monkeypatch.setattr("badminton.admin.search_groups",
+    monkeypatch.setattr("badminton.admin.routes_people.search_groups",
                         lambda q: [("8119d5e4-f96f-11ef-a485-0a4564f15a111", "Team RBT 민턴")])
     html = admin.get("/admin/groups?q=RBT").get_data(as_text=True)
     assert "Team RBT 민턴" in html and 'value="8119d5e4-f96f-11ef-a485-0a4564f15a111"' in html
@@ -363,7 +363,7 @@ def test_group_search_lists_results_with_add_buttons(admin, monkeypatch):
 def test_group_search_failure_shows_message(admin, monkeypatch):
     def boom(q):
         raise SomoimError("down")
-    monkeypatch.setattr("badminton.admin.search_groups", boom)
+    monkeypatch.setattr("badminton.admin.routes_people.search_groups", boom)
     assert "검색하지 못했습니다" in admin.get("/admin/groups?q=RBT").get_data(as_text=True)
 
 
@@ -500,7 +500,7 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
         ]
         return b
 
-    monkeypatch.setattr("badminton.admin.board", fake_board)
+    monkeypatch.setattr("badminton.admin.routes_meetups.board", fake_board)
 
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)

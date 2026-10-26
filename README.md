@@ -243,13 +243,23 @@ badmintonMatch/
 │   ├── __init__.py          # create_app, 설정, 요청 잠금
 │   ├── db.py                # 스키마, 마이그레이션, 설정 값, transaction()
 │   ├── matching.py          # 대기열 정렬, 4명 고르기, 팀 나누기
-│   ├── meetups.py           # 정모·참석자·코트·예약·대진판 로직
+│   ├── meetups/             # 정모 도메인 로직 (`from badminton.meetups import X`는 그대로)
+│   │   ├── common.py        # 상수, 보관 오류, today, 여러 곳이 쓰는 작은 조회
+│   │   ├── scheduling.py    # 코트·예약·경기 (빈 코트 채우기, 예약, 게임 끝내기·다시 뽑기, 코트 상태)
+│   │   ├── attendance.py    # 참석자 (참석 추가, 소모임 동기화, 상태·메모, 수동 대진 후보)
+│   │   ├── lifecycle.py     # 정모 만들기·보관·복구, 코트 시작, 정모 끝
+│   │   └── board.py         # 대진판과 화면에 보여 줄 값
 │   ├── members.py           # 회원, 성별·급수 변경 기록
 │   ├── groups.py            # 소모임 모임 등록
 │   ├── somoim.py            # 소모임 페이지 파싱
 │   ├── announce.py          # 안내 방송 문구와 음성 합성
 │   ├── audit.py             # 운영 로그
-│   ├── admin.py             # 운영 콘솔 라우트
+│   ├── admin/               # 운영 콘솔 라우트 (블루프린트 admin)
+│   │   ├── __init__.py      # bp, 로그인 제한, Origin 검사, 공용 도우미
+│   │   ├── routes_meetups.py   # 정모 목록·불러오기, 운영 콘솔 화면, 코트 시작·정모 끝·코트 상태
+│   │   ├── routes_play.py      # 참석자 상태·정보, 게스트·회원 추가, 수동 대진, 게임·예약 관리
+│   │   ├── routes_settings.py  # 설정, 자동 예약·자동 배정 스위치
+│   │   └── routes_people.py    # 회원, 모임, 운영 로그
 │   ├── public.py            # 대진판·안내 방송 라우트
 │   └── templates/           # base.html(공통 CSS·JS), 화면·부분 템플릿
 ├── tests/                   # pytest
