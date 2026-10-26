@@ -15,7 +15,7 @@ GROUP_ONE_EVENT = Group(
 def no_court_rest(monkeypatch):
     """기존 테스트는 경기 끝 즉시 다음 경기를 채운다고 가정한다. 15초 대기는 test_court_rest_* 에서 따로 본다."""
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 0)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 0)
 
 
 @pytest.fixture

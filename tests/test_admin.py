@@ -395,7 +395,7 @@ def test_admin_manual_match_requires_login(client, seeded_meetup):
 
 def test_admin_manual_match_routes(admin, seeded_meetup, conn_of, monkeypatch):
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = seeded_meetup
     c = conn_of()
     # 1. 선수 미선택 실패 플래시
@@ -618,7 +618,7 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
 def test_updates_fill_court_after_rest_and_auto_match_forces(admin, client, seeded_meetup, conn_of, monkeypatch):
     from badminton import meetups
     from badminton.members import create_member
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = seeded_meetup
     c = conn_of()
     for i in range(4):
@@ -678,7 +678,7 @@ def test_admin_meetup_section_order(admin, seeded_meetup):
 
 def test_manual_draft_card_and_fill_first_empty_court(admin, seeded_meetup, conn_of, monkeypatch):
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = seeded_meetup
     c = conn_of()
     admin.post(f"/admin/game/{gid}/end")  # 코트 1이 15초 쉬는 중 → 빈 코트

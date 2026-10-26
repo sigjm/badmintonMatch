@@ -651,7 +651,7 @@ def test_board_card_data_has_game_time_last_end_and_states(conn):
 
 def test_court_rest_keeps_court_empty_for_15_seconds(conn, monkeypatch):
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = one_court_game(conn, extra=4)
     end_game(conn, gid)
     court = board(conn, mid)["courts"][0]
@@ -665,7 +665,7 @@ def test_court_rest_keeps_court_empty_for_15_seconds(conn, monkeypatch):
 
 def test_court_rest_ready_in_uses_ceil(conn, monkeypatch):
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = one_court_game(conn, extra=4)
     end_game(conn, gid)
     now = time.time()
@@ -688,7 +688,7 @@ def test_court_rest_ready_in_uses_ceil(conn, monkeypatch):
 
 def test_court_rest_skipped_for_redraw_and_force(conn, monkeypatch):
     from badminton import meetups
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid, gid = one_court_game(conn, extra=4)
     redraw(conn, gid)  # 다시 뽑기는 바로 채운다
     assert board(conn, mid)["courts"][0]["game_id"] is not None
@@ -930,7 +930,7 @@ def test_court_state_skips_fill_and_caps_auto_reservations(conn):
 def test_court_state_return_to_game_fills_immediately_and_validation(conn, monkeypatch):
     from badminton import meetups
     from badminton.meetups import set_court_state
-    monkeypatch.setattr(meetups, "COURT_REST_SECONDS", 15)
+    monkeypatch.setattr(meetups.common, "COURT_REST_SECONDS", 15)
     mid = get_or_create_meetup(conn, today(), "t", None)
     seat(conn, mid, *[mk(conn, f"p{i}", "M", "C") for i in range(20)])
     start(conn, mid, 2)
