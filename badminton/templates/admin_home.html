@@ -20,7 +20,7 @@
 
 {% if choices %}
 <section class="section">
-  <div class="head"><span>{{ date }} 정모 선택</span></div>
+  <div class="head"><h2>{{ date }} 정모 선택</h2></div>
   <ul class="rows">
     {% for e in choices %}
     <li class="row-top">
@@ -48,7 +48,7 @@
 
 {% if error %}
 <section class="section">
-  <div class="head"><span>붙여넣기로 등록</span></div>
+  <div class="head"><h2>붙여넣기로 등록</h2></div>
   <form method="post" action="{{ url_for('admin.paste') }}">
     {% if mid %}<input type="hidden" name="mid" value="{{ mid }}">{% endif %}
     <p class="small muted">소모임 앱에서 참석자 닉네임을 복사해 한 줄에 한 명씩 붙여넣어 주세요.</p>
@@ -63,7 +63,7 @@
 {% endif %}
 
 <section class="section">
-  <div class="head"><span>최근 정모</span></div>
+  <div class="head"><h2>최근 정모</h2></div>
   <ul class="rows">
     {% for m in meetups %}
     <li class="row-top">
@@ -81,7 +81,7 @@
 </section>
 
 <section class="section">
-  <div class="head"><span>보관된 정모</span></div>
+  <div class="head"><h2>보관된 정모</h2></div>
   <ul class="rows">
     {% for m in archived_meetups %}
     <li class="row-top">

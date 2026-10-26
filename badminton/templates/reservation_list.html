@@ -24,7 +24,7 @@
 {% set auto_reserve = board.auto_reserve|default(true) %}
 <section class="section reservation-board{% if editable %} is-admin{% endif %}">
   <div class="head">
-    <span>예약</span>
+    <h2>예약</h2>
     {% if editable %}
     <div class="resv-head-right">
       <form method="post" action="{{ url_for('admin.toggle_auto_reserve') }}" data-save-without-reload class="inline">

@@ -4,7 +4,7 @@
 {% block content %}
 <h1>설정</h1>
 <section class="section operation-controls">
-  <div class="head"><span>정모 운영</span><span>{{ group.name }}</span></div>
+  <div class="head"><h2>정모 운영</h2><span>{{ group.name }}</span></div>
   {% if meetups %}
   <ul class="rows">
     {% for m in meetups %}
@@ -46,7 +46,7 @@
 </section>
 
 <section class="section">
-  <div class="head"><span>매칭 설정</span></div>
+  <div class="head"><h2>매칭 설정</h2></div>
   <p class="sub">급수 점수 S 6 · A 5 · B 4 · C 3 · D 2 · 초심 1</p>
   <form method="post" style="max-width:480px">
     <label class="field">여자 보정값 — 여자 점수 = 급수 점수 − 보정값

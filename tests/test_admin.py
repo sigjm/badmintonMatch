@@ -650,7 +650,7 @@ def test_excluded_section_is_separate_live_fragment(admin, seeded_meetup, conn_o
 def test_admin_meetup_section_order(admin, seeded_meetup):
     mid, _ = seeded_meetup
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert "<span>정모 운영</span>" not in html and f'action="/admin/m/{mid}/start"' not in html
+    assert "<h2>정모 운영</h2>" not in html and f'action="/admin/m/{mid}/start"' not in html
     order = [html.index(x) for x in ("운영 콘솔", 'id="meetup-court-board"',
                                      'id="manual-match-picker"', 'id="meetup-reservations"', 'id="meetup-queue"',
                                      'id="meetup-excluded"', 'id="guest-popup"')]
@@ -705,7 +705,7 @@ def test_settings_lists_operation_controls_for_active_meetups_of_current_group(a
 
     html = admin.get("/admin/settings").get_data(as_text=True)
 
-    assert "<span>정모 운영</span>" in html
+    assert "<h2>정모 운영</h2>" in html
     assert f'id="meetup-{started}"' in html and f'id="meetup-{idle}"' in html
     assert f'id="meetup-{archived}"' not in html and f'id="meetup-{other}"' not in html
     for mid in (started, idle):
@@ -715,7 +715,7 @@ def test_settings_lists_operation_controls_for_active_meetups_of_current_group(a
     assert f'action="/admin/m/{started}/auto-match"' in html and f'action="/admin/m/{idle}/auto-match"' not in html
     assert "코트 수 변경" in html and "빈 코트 자동 매칭" in html and "코트 시작" in html  # 시작한 정모와 시작 전 정모
     assert f'action="/admin/m/{idle}/import"' in html and f'action="/admin/m/{started}/import"' not in html
-    operation = html[html.index("<span>정모 운영</span>"):html.index("<span>매칭 설정</span>")]
+    operation = html[html.index("<h2>정모 운영</h2>"):html.index("<h2>매칭 설정</h2>")]
     assert "data-save-without-reload" not in operation  # 눌러서 정모 화면으로 이동하는 게 의도
     assert "매칭 설정" in html and 'name="female_offset"' in html
 
@@ -969,8 +969,8 @@ def test_console_calls_the_queue_member_list_but_public_board_keeps_next_order(a
     console = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
     public = client.get("/board").get_data(as_text=True)
 
-    assert "<span>회원목록</span>" in console and "<span>다음 순서</span>" not in console
-    assert "<span>다음 순서</span>" in public and "<span>회원목록</span>" not in public
+    assert "<h2>회원목록</h2>" in console and "<h2>다음 순서</h2>" not in console
+    assert "<h2>다음 순서</h2>" in public and "<h2>회원목록</h2>" not in public
 
 
 def test_console_layout_groups_draft_and_reservations_beside_the_member_list(admin, seeded_meetup):
@@ -1035,7 +1035,7 @@ def test_guest_popup_holds_the_guest_forms_outside_the_live_sections(admin, seed
     assert 'id="meetup-guests"' in popup and " hidden" not in _tag(html, 'id="meetup-guests"') and "저장손님" in popup
     # 3초마다 갈아 끼우는 #meetup-queue 밖에 있고, 예전 맨 아래 게스트 추가 칸은 없다
     assert html.index('id="guest-popup"') > html.index('id="meetup-excluded"')
-    assert '<section class="section" id="meetup-guests">' not in html and "<span>게스트 추가</span>" not in html
+    assert '<section class="section" id="meetup-guests">' not in html and "<h2>게스트 추가</h2>" not in html
 
 
 def test_auto_reserve_toggle_route_and_ui(admin, client, conn_of, seeded_meetup):
@@ -1394,3 +1394,119 @@ def test_cards_use_group_role_and_manage_buttons_instead_of_nested_buttons(admin
     assert 'role="group" aria-label="후보4"' in pub_main
     assert 'class="card-manage"' not in pub_main and 'role="button"' not in pub_main
 
+
+def _css_rule(html, selector):
+    """base.html에 들어 있는 CSS에서 selector { ... } 한 규칙의 본문을 돌려준다."""
+    start = html.index(selector + " {") + len(selector) + 2
+    return html[start:html.index("}", start)]
+
+
+def _luminance(rgb):
+    def channel(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2])
+
+
+def _contrast(fg, bg):
+    hi, lo = sorted((_luminance(fg), _luminance(bg)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _color(html, value, backdrop=(255, 255, 255)):
+    """#rrggbb, rgba(0,0,0,.nn), var(--토큰) 값을 backdrop 위에 겹쳐 (r, g, b)로 돌려준다."""
+    import re
+    value = value.strip()
+    var = re.fullmatch(r"var\(--([\w-]+)\)", value)
+    if var:
+        value = re.search(rf"--{var.group(1)}:\s*([^;]+);", html).group(1).strip()
+    if value.startswith("#"):
+        return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
+    r, g, b, a = [float(x) for x in re.fullmatch(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", value).groups()]
+    return tuple(c * a + k * (1 - a) for c, k in zip((r, g, b), backdrop))
+
+
+def test_text_and_brand_colors_meet_4_5_to_1_contrast(admin):
+    import re
+    html = admin.get("/admin").get_data(as_text=True)
+    white, page_bg = (255, 255, 255), (245, 245, 245)
+    ok = lambda fg, bg: _contrast(fg, bg) >= 4.5
+    # 보조 회색 글씨는 흰 카드와 회색 바탕 위 모두에서
+    assert ok(_color(html, "var(--text-3)", white), white) and ok(_color(html, "var(--text-3)", page_bg), page_bg)
+    # 기본색: 흰 글씨 버튼, 흰 바탕과 연한 파랑 바탕 위의 파란 글씨, hover 색
+    primary, primary_bg, hover = (_color(html, f"var(--{n})") for n in ("primary", "primary-bg", "primary-hover"))
+    assert ok(white, primary) and ok(white, hover) and ok(primary, white) and ok(primary, primary_bg) and ok(primary, page_bg)
+    # "경기 진행 중" 배지, 저장 상태 글씨
+    success = _color(html, "var(--success)")
+    assert ok(success, _color(html, "var(--success-bg)")) and ok(success, white) and ok(_color(html, "var(--error)"), white)
+    # 태그는 색마다 자기 바탕 위에서
+    for name in ("blue", "magenta", "green", "gold", "orange", "red"):
+        rule = _css_rule(html, f".tag.{name}")
+        fg, bg = (re.search(rf"(?<![-\w]){key}:\s*(#[0-9a-f]{{6}})", rule).group(1) for key in ("color", "background"))
+        assert ok(_color(html, fg), _color(html, bg)), name
+    for selector in (".court-rest", ".pcard-memo", ".court.is-lesson .court-lesson"):
+        assert ok(_color(html, re.search(r"color:\s*(#[0-9a-f]{6})", _css_rule(html, selector)).group(1)), white), selector
+    for selector in (".court.is-lesson .court-no",):
+        assert ok(white, _color(html, re.search(r"background:\s*(#[0-9a-f]{6})", _css_rule(html, selector)).group(1))), selector
+    # 칩 바탕 위 흰 글씨
+    for token in ("player-male", "player-female", "player-unknown"):
+        assert ok(white, _color(html, f"var(--{token})")), token
+
+
+def test_every_section_head_title_is_a_heading(admin, client, seeded_meetup):
+    import re
+    mid, _ = seeded_meetup
+    pages = [admin.get(path).get_data(as_text=True) for path in (f"/admin/m/{mid}", "/admin", "/admin/settings", "/admin/members", "/admin/logs", "/admin/groups")]
+    pages.append(client.get("/board").get_data(as_text=True))
+    for html in pages:
+        tags = re.findall(r'<div class="head">\s*<(\w+)', html)
+        assert tags and set(tags) == {"h2"}
+
+
+def test_player_chip_says_the_gender_in_text_for_screen_readers(admin, seeded_meetup, conn_of):
+    from badminton.meetups import add_attendee
+    from badminton.members import create_member
+    mid, _ = seeded_meetup
+    c = conn_of()
+    man = create_member(c, "남자회원", gender="M", grade="C")
+    woman = create_member(c, "여자회원", gender="F", grade="C")
+    unknown = create_member(c, "미정회원")
+    for member in (man, woman, unknown):
+        add_attendee(c, mid, member, "paste")
+
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    for member, text in ((man, "남성"), (woman, "여성"), (unknown, "성별 미입력")):
+        card = _pcard(html, member)
+        # 글자는 칩 안, .player-name 바깥에 있어서 JS가 읽는 "급수/이름" 글자는 그대로다
+        assert f'</span><span class="sr-only">{text}</span></span>' in card, text
+    assert "C/남자회원</span>" in _pcard(html, man) and "sr-only" not in _tag(_pcard(html, man), "data-player-name")
+    assert "clip:rect(0,0,0,0)" in _css_rule(html, ".sr-only")
+
+
+def test_popup_close_buttons_are_at_least_32px(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    rule = _css_rule(html, ".quick-menu-close")
+    assert "min-width:32px" in rule and "min-height:32px" in rule
+    assert html.count("quick-menu-close") >= 3  # CSS + 관리 팝업 + 참석자 추가 팝업이 같은 클래스
+
+
+def test_flash_messages_are_a_polite_status_region_on_every_page(admin, client, seeded_meetup):
+    mid, _ = seeded_meetup
+    for html in (admin.get(f"/admin/m/{mid}").get_data(as_text=True), client.get("/board").get_data(as_text=True)):
+        tag = _tag(html, 'id="flash-messages"')
+        assert 'role="status"' in tag and 'aria-live="polite"' in tag
+    # 저장 뒤 화면 고치기가 가져오는 응답에서도 같은 요소라서, 속성은 유지되고 안의 알림만 바뀐다
+    resp = admin.post(f"/admin/m/{mid}/guest", data={"nickname": "새손님", "gender": "F", "grade": "C"}, follow_redirects=True)
+    body = resp.get_data(as_text=True)
+    assert 'role="status"' in _tag(body, 'id="flash-messages"') and "새손님 님을 게스트로 추가했습니다" in body
+
+
+def test_scroll_padding_keeps_focus_clear_of_the_nav_and_selection_bar(admin, seeded_meetup):
+    mid, _ = seeded_meetup
+    html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
+
+    assert "scroll-padding-top:72px" in _css_rule(html, "html")
+    assert "scroll-padding-bottom" in _css_rule(html, "html:has(.selection-bar:not([hidden]))")

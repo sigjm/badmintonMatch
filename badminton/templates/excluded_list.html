@@ -1,7 +1,7 @@
 {% set manual_candidate_ids = manual_candidate_ids|default([]) %}
 {% if board.excluded %}
 <section class="section">
-  <div class="head"><span>대진 제외</span><span>{{ board.excluded|length }}명</span></div>
+  <div class="head"><h2>대진 제외</h2><span>{{ board.excluded|length }}명</span></div>
   <div class="player-grid">{% for p in board.excluded %}{% include "_player_card.html" %}{% endfor %}</div>
 </section>
 {% endif %}

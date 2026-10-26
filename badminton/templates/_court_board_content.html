@@ -1,5 +1,5 @@
 <div class="head">
-  <span>{{ '실시간 코트 보드' if admin else '코트 현황' }}</span>
+  <h2>{{ '실시간 코트 보드' if admin else '코트 현황' }}</h2>
   {% if admin and m is defined and m is not none %}
   {% set auto_fill = board.auto_fill|default(true) %}
   <div class="resv-head-right">

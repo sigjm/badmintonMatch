@@ -3,5 +3,5 @@
 <span class="name player-name{% if gender == 'M' %} is-male{% elif gender == 'F' %} is-female{% endif %}" data-player-name="{{ nickname }}" data-nickname="{{ nickname }}" data-gender="{{ gender or '' }}" data-grade="{{ grade or '' }}" data-grade-label="{{ grade_label }}">{{ grade_label }}/{{ nickname }}</span>
 {%- endmacro %}
 {% macro player_chip(nickname, gender, grade) -%}
-<span class="player-chip{% if gender == 'M' %} is-male{% elif gender == 'F' %} is-female{% else %} is-unknown{% endif %}">{{ player_name(nickname, gender, grade) }}</span>
+<span class="player-chip{% if gender == 'M' %} is-male{% elif gender == 'F' %} is-female{% else %} is-unknown{% endif %}">{{ player_name(nickname, gender, grade) }}<span class="sr-only">{{ '남성' if gender == 'M' else '여성' if gender == 'F' else '성별 미입력' }}</span></span>
 {%- endmacro %}

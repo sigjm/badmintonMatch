@@ -13,18 +13,20 @@
   /* Ant Design 5 토큰 기준 (ant.design): 기본색 #1677ff, 모서리 6/8px, 14px 글자, 회색 바탕 위 흰 카드 */
   :root {
     --bg:#f5f5f5; --card:#fff; --fill:#fafafa; --fill-2:rgba(0,0,0,.04);
-    --text:rgba(0,0,0,.88); --text-2:rgba(0,0,0,.65); --text-3:rgba(0,0,0,.45); --text-4:rgba(0,0,0,.25);
+    --text:rgba(0,0,0,.88); --text-2:rgba(0,0,0,.65); --text-3:rgba(0,0,0,.56); --text-4:rgba(0,0,0,.25);
     --border:#d9d9d9; --split:#f0f0f0;
-    --primary:#1677ff; --primary-hover:#4096ff; --primary-active:#0958d9; --primary-bg:#e6f4ff; --primary-border:#91caff;
-    --success:#389e0d; --success-dot:#52c41a; --success-bg:#f6ffed; --success-border:#b7eb8f;
-    --error:#ff4d4f; --error-bg:#fff2f0; --error-border:#ffccc7; --magenta:#c41d7f;
-    --male-name:#0958d9; --player-male:#3e80b3; --player-female:#8b328f; --player-unknown:#aaa;
+    --primary:#0062ec; --primary-hover:#0067f6; --primary-active:#0958d9; --primary-bg:#e6f4ff; --primary-border:#91caff;
+    --success:#237804; --success-dot:#52c41a; --success-bg:#f6ffed; --success-border:#b7eb8f;
+    --error:#cf1322; --error-bg:#fff2f0; --error-border:#ffccc7; --magenta:#c41d7f;
+    --male-name:#0958d9; --player-male:#2c6f9f; --player-female:#78347d; --player-unknown:#737373;
     --shadow-pop:0 6px 16px 0 rgba(0,0,0,.08), 0 3px 6px -4px rgba(0,0,0,.12), 0 9px 28px 8px rgba(0,0,0,.05);
     --ease:cubic-bezier(.645,.045,.355,1);
     --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23bfbfbf' stroke-width='1.5'/%3E%3C/svg%3E");
   }
   * { box-sizing:border-box; }
-  html { overflow-x:clip; -webkit-text-size-adjust:100%; }
+  html { overflow-x:clip; -webkit-text-size-adjust:100%; scroll-padding-top:72px; }
+  html:has(.selection-bar:not([hidden])) { scroll-padding-bottom:80px; }
+  .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); clip-path:inset(50%); white-space:nowrap; border:0; }
   body {
     margin:0; background:var(--bg); color:var(--text);
     font:600 14px/1.5715 "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
@@ -87,6 +89,7 @@
     display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:56px;
     margin:-20px -24px 16px; padding:0 24px; border-bottom:1px solid var(--split); font-size:16px; font-weight:700;
   }
+  .section > .head h2, .tile > .head h2 { margin:0; font:inherit; }
   .section > .head span:last-child:not(:first-child), .tile > .head span:last-child:not(:first-child) { min-width:0; color:var(--text-3); font-size:14px; font-weight:400; text-align:right; }
   .stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
   .stat-card { min-width:0; padding:16px 20px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
@@ -97,12 +100,12 @@
   .court { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 16px; align-items:center; padding:16px; margin-bottom:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
   .court:last-child { margin-bottom:0; }
   .court-no { grid-row:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:var(--primary); color:#fff; font-size:20px; font-weight:600; line-height:1; }
-  .court-no small { margin-top:3px; font-size:11px; font-weight:400; opacity:.85; }
+  .court-no small { margin-top:3px; font-size:11px; font-weight:400; }
   .resv .court-no { background:var(--primary-bg); color:var(--primary); border:1px solid var(--primary-border); }
   .court-match { position:relative; min-width:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:stretch; --team-gap:14px; gap:var(--team-gap); }
   .court-match .team + .team { position:relative; }
   .court-match .team + .team::before { content:""; position:absolute; left:calc(var(--team-gap) / -2); top:4px; bottom:4px; width:1px; background:var(--split); }
-  .court-match .team + .team::after { content:"VS"; position:absolute; left:calc(var(--team-gap) / -2); top:50%; transform:translate(-50%, -50%); font-size:10px; font-weight:700; color:var(--text-4); background:var(--card); padding:2px 3px; border-radius:3px; line-height:1; letter-spacing:.5px; }
+  .court-match .team + .team::after { content:"VS"; position:absolute; left:calc(var(--team-gap) / -2); top:50%; transform:translate(-50%, -50%); font-size:10px; font-weight:700; color:var(--text-3); background:var(--card); padding:2px 3px; border-radius:3px; line-height:1; letter-spacing:.5px; }
   .team { min-width:0; text-align:center; font-size:15px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
   .versus { color:var(--text-3); font-size:12px; font-weight:600; }
   .team-sep { color:var(--text-4); margin:0 4px; font-weight:400; }
@@ -266,8 +269,8 @@
   .btn.line:active { border-color:var(--primary-active); color:var(--primary-active); }
   .btn.sm { height:32px; font-size:14px; border-radius:6px; }
   .btn.line.danger { color:var(--error); border-color:var(--error); }
-  .btn.line.danger:hover { color:#ff7875; border-color:#ff7875; }
-  .btn.warn, .btn.warn:hover { background:#fff7e6; border-color:#ffd591; color:#d46b08; box-shadow:none; }
+  .btn.line.danger:hover { color:#a8071a; border-color:#a8071a; }
+  .btn.warn, .btn.warn:hover { background:#fff7e6; border-color:#ffd591; color:#ad4e00; box-shadow:none; }
   .btn:disabled, .btn:disabled:hover { background:var(--fill-2); border-color:var(--border); color:var(--text-4); box-shadow:none; cursor:not-allowed; }
   .inline { display:inline; margin:0; }
   .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -372,7 +375,7 @@
   .guest-popup-panel[hidden] { display:none; }
   .quick-menu-header { display:flex; align-items:center; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid var(--split); }
   .quick-menu-header strong { font-weight:600; }
-  .quick-menu-close { background:transparent; border:0; border-radius:4px; font:inherit; color:var(--text-3); cursor:pointer; padding:0 6px; }
+  .quick-menu-close { display:inline-flex; align-items:center; justify-content:center; min-width:32px; min-height:32px; background:transparent; border:0; border-radius:4px; font:inherit; color:var(--text-3); cursor:pointer; padding:0 6px; }
   .quick-menu-close:hover { color:var(--text); background:var(--fill-2); }
   .quick-menu-section { display:flex; flex-direction:column; gap:6px; }
   .quick-menu-label { font-size:12px; color:var(--text-3); }
@@ -396,7 +399,8 @@
   .quick-status-menu, .quick-status-menu * { -webkit-touch-callout:default; -webkit-user-select:auto; user-select:auto; }
   .pcard:has([data-manual-player]) { cursor:pointer; }
   .pcard:has(.is-selected) { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
-  .pcard.is-away, .pcard.is-late, .pcard.is-gone, .pcard.is-canceled { opacity:.6; }
+  .pcard:is(.is-away, .is-late, .is-gone, .is-canceled) { background:var(--fill); }
+  .pcard:is(.is-away, .is-late, .is-gone, .is-canceled) .player-chip { filter:grayscale(.7); }
   .guest-card { box-sizing:border-box; display:flex; align-items:center; justify-content:center; min-height:124px; padding:12px; border:1px dashed var(--border); border-radius:8px; background:var(--card); color:var(--text-3); font:inherit; font-size:15px; font-weight:600; cursor:pointer; touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .guest-card:hover { border-color:var(--primary-hover); color:var(--primary-hover); }
   .guest-card:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
@@ -408,11 +412,11 @@
   .pcard-tags { display:flex; flex-wrap:wrap; gap:4px; }
   .pcard-tags .tag { margin:0; }
   .pcard-line { color:var(--text-3); font-size:12px; }
-  .pcard-memo { color:#ad6800; font-size:12px; font-weight:600; overflow-wrap:anywhere; }
-  .court-rest { color:#d46b08; font-weight:500; }
+  .pcard-memo { color:#915800; font-size:12px; font-weight:600; overflow-wrap:anywhere; }
+  .court-rest { color:#ad4e00; font-weight:500; }
   .court.is-lesson { background:#fff7e6; border-color:#ffd591; }
-  .court.is-lesson .court-no { background:#d46b08; }
-  .court.is-lesson .court-lesson { color:#d46b08; font-weight:700; }
+  .court.is-lesson .court-no { background:#ad4e00; }
+  .court.is-lesson .court-lesson { color:#ad4e00; font-weight:700; }
   .court.is-empty { background:var(--fill); border-color:var(--border); }
   .court.is-empty .court-no { background:var(--text-3); }
   .court.is-empty .court-empty { color:var(--text-2); font-weight:600; }
@@ -420,9 +424,9 @@
   .pcard-actions .btn { width:100%; padding:0 4px; font-size:13px; }
   .tag.blue { color:#0958d9; background:#e6f4ff; border-color:#91caff; }
   .tag.magenta { color:#c41d7f; background:#fff0f6; border-color:#ffadd2; }
-  .tag.green { color:#389e0d; background:#f6ffed; border-color:#b7eb8f; }
-  .tag.gold { color:#d48806; background:#fffbe6; border-color:#ffe58f; }
-  .tag.orange { color:#d46b08; background:#fff7e6; border-color:#ffd591; }
+  .tag.green { color:#237804; background:#f6ffed; border-color:#b7eb8f; }
+  .tag.gold { color:#946100; background:#fffbe6; border-color:#ffe58f; }
+  .tag.orange { color:#ad4e00; background:#fff7e6; border-color:#ffd591; }
   .tag.red { color:#cf1322; background:#fff1f0; border-color:#ffa39e; }
   .tag.manual-reservation { margin:0; }
   .audit-details { margin-top:6px; color:var(--text-2); }
@@ -458,6 +462,7 @@
     .selection-bar-actions .btn { flex:1; }
     .selection-bar-actions [data-manual-fill] { flex:2; }
     body:has(.selection-bar:not([hidden])) { padding-bottom:100px; }
+    html:has(.selection-bar:not([hidden])) { scroll-padding-bottom:112px; }
     .pcard { padding:10px; }
     .gnav .wrap { height:52px; gap:8px; }
     .brand { max-width:42%; font-size:15px; }
@@ -478,7 +483,7 @@
   {% block nav %}{% endblock %}
 </div></header>
 <main class="wrap">
-  <div id="flash-messages">{% for msg in get_flashed_messages() %}<div class="note">{{ msg }}</div>{% endfor %}</div>
+  <div id="flash-messages" role="status" aria-live="polite">{% for msg in get_flashed_messages() %}<div class="note">{{ msg }}</div>{% endfor %}</div>
   {% block content %}{% endblock %}
 </main>
 <script>
@@ -704,6 +709,7 @@
     const selectedPlayers = [];
     const selectedNames = {};  // 수동 대진 카드에 보일 "급수/이름" (누른 순간의 카드에서 읽어 둔다)
     const manualSlots = [...document.querySelectorAll("[data-manual-slot]")];
+    const genderText = (gender) => gender === "M" ? "남성" : gender === "F" ? "여성" : "성별 미입력";  // 색만으로 성별을 알리지 않는다
     const playerInfo = (button) => {
       const name = button.dataset.nickname || button.querySelector("[data-nickname]")?.dataset.nickname || button.textContent.trim();
       const display = button.querySelector("[data-nickname]");
@@ -761,7 +767,7 @@
         const mark = Object.assign(document.createElement("small"), { className: "manual-player-order", textContent: order });
         const remove = Object.assign(document.createElement("span"), { className: "draft-remove", textContent: "×" });
         remove.setAttribute("aria-hidden", "true");
-        slot.setAttribute("aria-label", `${order} ${info.name} 빼기`);
+        slot.setAttribute("aria-label", `${order} ${info.name} ${genderText(info.gender)} 빼기`);
         slot.replaceChildren(chip, mark, remove);
       });
       const count = document.querySelector("[data-manual-selection-summary]");
@@ -777,10 +783,12 @@
         selectionBar.querySelector("[data-selection-bar-count]").textContent = `${selectedPlayers.length}/4명`;
         const names = selectedPlayers.map((id) => {
           const info = selectedNames[id] || {};
-          return Object.assign(document.createElement("span"), {
+          const chip = Object.assign(document.createElement("span"), {
             className: `player-chip ${info.gender === "M" ? "is-male" : info.gender === "F" ? "is-female" : "is-unknown"}`,
             textContent: info.name || "",
           });
+          chip.append(Object.assign(document.createElement("span"), { className: "sr-only", textContent: genderText(info.gender) }));
+          return chip;
         });
         // 3명 이상이면 A팀 | B팀으로 나눠 보여 준다
         if (names.length > 2) names.splice(2, 0, Object.assign(document.createElement("span"), { className: "selection-bar-vs" }));
