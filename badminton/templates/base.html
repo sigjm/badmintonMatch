@@ -1187,7 +1187,6 @@
     const isActionPopupOpen = () => document.querySelector("[data-long-press-actions].actions-open, [data-action-panel]:not([hidden])") !== null;
     const liveStatuses = [...document.querySelectorAll("[data-live-status]")];
     const pageOpenedAt = new Date();
-    liveStatuses.forEach((status) => { status.dataset.originalText = status.textContent; });
     let lastSuccessfulRefresh = pageOpenedAt;
     let consecutiveRefreshFailures = 0;
     const updateLiveStatus = (success) => {
@@ -1196,7 +1195,8 @@
       liveStatuses.forEach((status) => {
         const offline = consecutiveRefreshFailures >= 2;
         status.classList.toggle("is-offline", offline);
-        status.textContent = offline ? `연결 끊김 · 마지막 갱신 ${lastSuccessfulRefresh.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}` : status.dataset.originalText;
+        status.textContent = offline ? `연결 끊김 · 마지막 갱신 ${lastSuccessfulRefresh.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })}` : "";
+        status.hidden = !offline;
       });
     };
 

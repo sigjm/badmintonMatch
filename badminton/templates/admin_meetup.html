@@ -29,7 +29,7 @@
 <section class="event-banner" data-live-updates-url="{{ url_for('admin.meetup_updates', mid=m.id) }}" data-meetup-id="{{ m.id }}">
   <span class="eyebrow">운영 콘솔</span>
   <h1>{{ m.name }}</h1>
-  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else ('정모 종료' if m.ended_at else '시작 전') }}</span><span data-live-status aria-live="polite">코트·대기열 3초 갱신</span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button><a class="btn line sm" href="{{ url_for('admin.settings') }}#meetup-{{ m.id }}">코트·정모 설정</a></div>
+  <div class="event-meta"><span>{{ m.date }}</span><span class="live-badge{{ ' on' if m.started }}">{{ '경기 진행 중' if m.started else ('정모 종료' if m.ended_at else '시작 전') }}</span><span data-live-status aria-live="polite" hidden></span><button type="button" class="btn line sm" data-announce-toggle aria-pressed="false">안내 방송 켜기</button><a class="btn line sm" href="{{ url_for('admin.settings') }}#meetup-{{ m.id }}">코트·정모 설정</a></div>
 </section>
 
 <div class="stat-grid" id="meetup-stats" aria-label="정모 현황">

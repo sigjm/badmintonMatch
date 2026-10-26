@@ -504,7 +504,7 @@ def test_admin_meetup_and_updates_show_reservations(admin, monkeypatch, seeded_m
 
     # 1. 관리자 정모 화면
     html = admin.get(f"/admin/m/{mid}").get_data(as_text=True)
-    assert '<span data-live-status aria-live="polite">코트·대기열 3초 갱신</span>' in html
+    assert '<span data-live-status aria-live="polite" hidden></span>' in html
     assert 'aria-label="예약 1"' in html and ">예약 1 관리</button>" in html
     assert 'aria-label="예약 2"' in html and ">예약 2 관리</button>" in html
     assert "닉A(남A)" in html and "닉H(여D)" in html
@@ -608,7 +608,7 @@ def test_court_shows_game_time_and_player_cards_have_actions(admin, client, seed
     assert 'id="quick-status-menu"' in html
     assert 'data-set-player-status="away"' in html and 'data-set-player-status="gone"' in html
     public = client.get("/board").get_data(as_text=True)
-    assert '<span data-live-status aria-live="polite">3초마다 갱신</span>' in public
+    assert '<span data-live-status aria-live="polite" hidden></span>' in public
     assert "경기 시간" in public and 'class="pcard is-queued' in public
     assert f'data-player-status="{waiting}"' not in public and 'class="card-manage"' not in public
     assert 'id="quick-status-menu"' not in public
