@@ -1453,6 +1453,23 @@ def test_text_and_brand_colors_meet_4_5_to_1_contrast(admin):
         assert ok(white, _color(html, f"var(--{token})")), token
 
 
+def test_control_borders_and_focus_indicators_meet_non_text_contrast(admin):
+    import re
+    html = admin.get("/admin").get_data(as_text=True)
+    style = html[html.index("<style>"):html.index("</style>")]
+    white, page_bg = (255, 255, 255), (245, 245, 245)
+
+    assert re.search(r"--input-border:\s*#[0-9a-fA-F]{6};", style)
+    assert "border:1px solid var(--input-border)" in _css_rule(html, "input, select, textarea")
+    focus_rules = re.findall(r"[^{}]*:focus-visible[^{}]*\{[^{}]*\}", style)
+    assert focus_rules and all("var(--primary-border)" not in rule for rule in focus_rules)
+
+    for token in ("input-border", "primary", "primary-hover"):
+        color = _color(html, f"var(--{token})")
+        assert _contrast(color, white) >= 3
+        assert _contrast(color, page_bg) >= 3
+
+
 def test_every_section_head_title_is_a_heading(admin, client, seeded_meetup):
     import re
     mid, _ = seeded_meetup

@@ -14,7 +14,7 @@
   :root {
     --bg:#f5f5f5; --card:#fff; --fill:#fafafa; --fill-2:rgba(0,0,0,.04);
     --text:rgba(0,0,0,.88); --text-2:rgba(0,0,0,.65); --text-3:rgba(0,0,0,.56); --text-4:rgba(0,0,0,.25);
-    --border:#d9d9d9; --split:#f0f0f0;
+    --border:#d9d9d9; --input-border:#8c8c8c; --split:#f0f0f0;
     --primary:#0062ec; --primary-hover:#0067f6; --primary-active:#0958d9; --primary-bg:#e6f4ff; --primary-border:#91caff;
     --success:#237804; --success-dot:#52c41a; --success-bg:#f6ffed; --success-border:#b7eb8f;
     --error:#cf1322; --error-bg:#fff2f0; --error-border:#ffccc7; --magenta:#c41d7f;
@@ -278,13 +278,13 @@
   /* 입력 (16px: 아이폰 확대 방지) */
   input, select, textarea {
     font:inherit; font-size:16px; color:var(--text); background:var(--card);
-    border:1px solid var(--border); border-radius:8px; padding:0 11px; height:40px; max-width:100%; transition:all .2s;
+    border:1px solid var(--input-border); border-radius:8px; padding:0 11px; height:40px; max-width:100%; transition:all .2s;
   }
   select { -webkit-appearance:none; appearance:none; padding-right:30px; background:var(--card) var(--chev) no-repeat right 11px center; }
   textarea { width:100%; height:auto; min-height:9rem; padding:8px 11px; line-height:1.5715; }
   input:hover, select:hover, textarea:hover { border-color:var(--primary-hover); }
   input:focus, select:focus, textarea:focus { outline:0; border-color:var(--primary); box-shadow:0 0 0 2px rgba(5,145,255,.1); }
-  button:focus-visible, a:focus-visible { outline:4px solid var(--primary-border); outline-offset:1px; }
+  button:focus-visible, a:focus-visible { outline:4px solid var(--primary); outline-offset:1px; }
   label.field { display:block; margin:0 0 24px; color:var(--text); }
   label.field > input, label.field > select { display:block; width:100%; margin-top:8px; }
 
@@ -395,7 +395,7 @@
   .pcard { display:flex; flex-direction:column; gap:6px; min-width:0; padding:12px; background:var(--card); border:1px solid var(--split); border-radius:8px; }
   .pcard[data-player-status] { position:relative; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .pcard[data-player-status] * { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
-  .pcard[data-player-status]:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
+  .pcard[data-player-status]:focus-visible { outline:4px solid var(--primary); outline-offset:2px; }
   .quick-status-menu, .quick-status-menu * { -webkit-touch-callout:default; -webkit-user-select:auto; user-select:auto; }
   .pcard:has([data-manual-player]) { cursor:pointer; }
   .pcard:has(.is-selected) { border-color:var(--primary); box-shadow:0 0 0 1px var(--primary); }
@@ -403,7 +403,7 @@
   .pcard:is(.is-away, .is-late, .is-gone, .is-canceled) .player-chip { filter:grayscale(.7); }
   .guest-card { box-sizing:border-box; display:flex; align-items:center; justify-content:center; min-height:124px; padding:12px; border:1px dashed var(--border); border-radius:8px; background:var(--card); color:var(--text-3); font:inherit; font-size:15px; font-weight:600; cursor:pointer; touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .guest-card:hover { border-color:var(--primary-hover); color:var(--primary-hover); }
-  .guest-card:focus-visible { outline:4px solid var(--primary-border); outline-offset:2px; }
+  .guest-card:focus-visible { outline:4px solid var(--primary); outline-offset:2px; }
   .queue-state-panel { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   .pcard-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 6px; }
   .pcard-games { color:var(--text-3); font-size:12px; white-space:nowrap; }
